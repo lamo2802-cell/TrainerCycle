@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerCycle — Live Session</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --z-recovery:#5A6472; --z-endurance:#4C8BF5; --z-tempo:#3DBE7A; --z-threshold:#E8B93D;
+    --z-vo2:#F08A3C; --z-anaerobic:#E5484D; --z-neuro:#B14AED;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
+  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:20px; min-height:100vh; }
+  .main{ flex:1; min-width:340px; padding:24px 28px; max-width:820px; }
+  h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  select, input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13.5px; width:100%; font-family:var(--sans); }
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  button.danger{ color:var(--danger); }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+  .status-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim); margin:6px 0 12px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
+  .dot.on{ background:var(--accent); }
+  .dot.err{ background:var(--danger); }
+
+  .dash{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+  .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
+  .metric .val{ font-family:var(--mono); font-size:34px; font-weight:600; }
+  .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+  .metric.power .val{ color:var(--accent); }
+  .metric.target .val{ color:var(--text-dim); }
+
+  .step-progress{ background:var(--panel-2); border-radius:6px; height:10px; overflow:hidden; margin:4px 0 18px; }
+  .step-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .3s linear; }
+
+  .timeline{ display:flex; align-items:flex-end; gap:1px; height:70px; background:var(--panel-2); border-radius:6px; padding:6px; margin-bottom:20px; overflow-x:auto; position:relative; }
+  .timeline .bar{ min-width:2px; border-radius:1px 1px 0 0; }
+  .timeline .cursor{ position:absolute; top:0; bottom:0; width:2px; background:#fff; }
+
+  .controls{ display:flex; gap:10px; margin-bottom:20px; }
+  .controls button{ width:auto; flex:1; margin-bottom:0; }
+
+  .step-readout{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; color:var(--text-dim); margin-bottom:8px; }
+  .step-readout b{ color:var(--text); font-weight:600; }
+
+  .unsupported{ background:rgba(229,72,77,.1); border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:14px; font-size:13px; margin-bottom:20px; }
+  a{ color:var(--accent); text-decoration:none; font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;">
+      <img src="logo.svg" alt="TrainerCycle" width="34" height="34" style="border-radius:8px;">
+      <h1>Trainer<span style="color:var(--accent);">Cycle</span></h1>
+    </div>
+    <p class="sub">Live Session</p>
+    <div style="margin:-14px 0 20px;"><a href="index.html">← Back to Builder</a></div>
+
+    <div class="block">
+      <div class="block-title">FTP</div>
+      <div style="font-family:var(--mono); font-size:22px; font-weight:600;" id="ftpDisplay">—</div>
+    </div>
+
+    <div class="block">
+      <div class="block-title">Workout</div>
+      <select id="workoutSelect"><option value="">Free ride (no target)</option></select>
+    </div>
+
+    <div class="block">
+      <div class="block-title">Trainer (ERG control)</div>
+      <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
+      <button id="connectTrainerBtn">Connect trainer</button>
+    </div>
+
+    <div class="block">
+      <div class="block-title">Heart Rate</div>
+      <div class="status-row"><span class="dot" id="hrDot"></span><span id="hrStatus">Not connected</span></div>
+      <button id="connectHrBtn">Connect HR strap</button>
+    </div>
+
+    <div class="block">
+      <div class="block-title">Session</div>
+      <button id="exportBtn" disabled>Export CSV</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="unsupportedNote"></div>
+
+    <div class="dash">
+      <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
+      <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
+      <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
+      <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart rate</div></div>
+    </div>
+
+    <div class="step-readout">
+      <span>Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="stepNote">—</b></span>
+      <span><b id="stepElapsed">0:00</b> / <span id="stepDur">0:00</span> · <b id="totalRemaining">—</b> remaining</span>
+    </div>
+    <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
+
+    <div class="timeline" id="timeline"></div>
+
+    <div class="controls">
+      <button class="primary" id="startBtn">Start</button>
+      <button id="pauseBtn" disabled>Pause</button>
+      <button id="skipBtn" disabled>Skip step</button>
+      <button class="danger" id="stopBtn" disabled>Stop</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const supabase = createClient(
+  'https://uqevjhysxzkivmjwggvu.supabase.co',
+  'sb_publishable_SXXjaHNm8mfF8ZHUpYU9QQ_EJjq_E46'
+);
+
+(function(){
+  const ZONES = [
+    {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
+    {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},
+    {max:Infinity,color:'var(--z-neuro)'}
+  ];
+  function zoneColor(pct){ if(pct==null) return 'var(--text-dim)'; for(const z of ZONES) if(pct<z.max) return z.color; return ZONES[ZONES.length-1].color; }
+  function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
+
+  let ftp = 250;
+  let library = [];
+  let flatSteps = []; // flattened selected workout
+  let stepIndex = -1;
+  let stepElapsed = 0;
+  let running = false;
+  let tickHandle = null;
+  let log = []; // {t,power,cadence,hr,target}
+  let sessionStart = null;
+
+  let trainerDevice=null, trainerControl=null, trainerControlReady=false;
+  let hrDevice=null;
+
+  // ---- data load ----
+  async function loadData(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','ftp').maybeSingle();
+      if (data && data.value && typeof data.value.v === 'number') ftp = data.value.v;
+      else { const c = localStorage.getItem('tc_ftp'); if (c) ftp = parseFloat(c)||250; }
+    } catch(e){ const c = localStorage.getItem('tc_ftp'); if (c) ftp = parseFloat(c)||250; }
+    document.getElementById('ftpDisplay').textContent = Math.round(ftp);
+
+    try {
+      const { data } = await supabase.from('workouts').select('id,name,steps').order('created_at',{ascending:false});
+      library = data || [];
+    } catch(e){
+      try { library = JSON.parse(localStorage.getItem('tc_workout_library')||'[]'); } catch(_){ library = []; }
+    }
+    const sel = document.getElementById('workoutSelect');
+    library.forEach(w=>{
+      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name; sel.appendChild(o);
+    });
+  }
+
+  function flatten(steps){
+    let out=[];
+    for (const s of steps){
+      if (s.type==='repeat'){ for(let i=0;i<s.repetitions;i++) out=out.concat(flatten(s.steps)); }
+      else out.push(s);
+    }
+    return out;
+  }
+  function targetWatts(step){
+    if (!step) return null;
+    if (step.targetType==='ftp_pct') return Math.round(ftp*(step.low+step.high)/200);
+    if (step.targetType==='watts') return Math.round((step.low+step.high)/2);
+    return null; // HR-based steps don't set an ERG target
+  }
+  function effectivePct(step){
+    if (step.targetType==='ftp_pct') return (step.low+step.high)/2;
+    if (step.targetType==='watts') return ((step.low+step.high)/2/ftp)*100;
+    return null;
+  }
+
+  document.getElementById('workoutSelect').addEventListener('change', (e)=>{
+    const w = library.find(x=>x.id===e.target.value);
+    flatSteps = w ? flatten(w.steps) : [];
+    stepIndex = -1; stepElapsed = 0;
+    renderTimeline();
+    renderStepReadout();
+  });
+
+  function renderTimeline(){
+    const el = document.getElementById('timeline');
+    if (!flatSteps.length){ el.innerHTML = ''; return; }
+    const total = flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    el.innerHTML = flatSteps.map(s=>{
+      const pct = effectivePct(s);
+      const h = pct!=null ? Math.max(8, Math.min(100,(pct/160)*100)) : 25;
+      const w = Math.max(2, ((s.duration||1)/total)*760);
+      return '<div class="bar" style="height:'+h+'%; width:'+w+'px; background:'+zoneColor(pct)+';"></div>';
+    }).join('') + '<div class="cursor" id="tlCursor" style="left:0;"></div>';
+  }
+  function updateCursor(){
+    if (!flatSteps.length) return;
+    const total = flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    let elapsedTotal = 0;
+    for (let i=0;i<stepIndex;i++) elapsedTotal += flatSteps[i].duration||0;
+    elapsedTotal += stepElapsed;
+    const pctPos = Math.min(100, (elapsedTotal/total)*100);
+    const cursor = document.getElementById('tlCursor');
+    if (cursor) cursor.style.left = pctPos+'%';
+  }
+
+  function renderStepReadout(){
+    const step = flatSteps[stepIndex];
+    document.getElementById('stepIdx').textContent = flatSteps.length ? (stepIndex+1) : '–';
+    document.getElementById('stepTotal').textContent = flatSteps.length || '–';
+    document.getElementById('stepNote').textContent = step ? (step.note || '—') : (flatSteps.length ? 'Ready' : 'Free ride');
+    document.getElementById('stepElapsed').textContent = fmtDur(stepElapsed);
+    document.getElementById('stepDur').textContent = step ? fmtDur(step.duration) : '0:00';
+    const target = step ? targetWatts(step) : null;
+    document.getElementById('mTarget').textContent = target!=null ? target : '—';
+    document.getElementById('stepProgressFill').style.width = (step && step.duration) ? Math.min(100,(stepElapsed/step.duration)*100)+'%' : '0%';
+
+    let remaining = 0;
+    if (flatSteps.length){
+      for (let i=stepIndex+1;i<flatSteps.length;i++) remaining += flatSteps[i].duration||0;
+      if (step) remaining += Math.max(0, step.duration - stepElapsed);
+      document.getElementById('totalRemaining').textContent = fmtDur(remaining);
+    } else {
+      document.getElementById('totalRemaining').textContent = '—';
+    }
+    updateCursor();
+  }
+
+  // ---- Bluetooth: trainer (FTMS) ----
+  function parseIndoorBikeData(view){
+    const flags = view.getUint16(0, true);
+    let idx = 2;
+    let out = {};
+    if (!(flags & 0x1)) idx += 2;               // instantaneous speed
+    if (flags & 0x2) idx += 2;                  // average speed
+    if (flags & 0x4){ out.cadence = view.getUint16(idx,true)*0.5; idx += 2; }
+    if (flags & 0x8) idx += 2;                  // average cadence
+    if (flags & 0x10) idx += 3;                 // total distance (uint24)
+    if (flags & 0x20) idx += 2;                 // resistance level
+    if (flags & 0x40){ out.power = view.getInt16(idx,true); idx += 2; }
+    if (flags & 0x80) idx += 2;                 // average power
+    if (flags & 0x100) idx += 5;                // energy fields
+    if (flags & 0x200){ out.heartRate = view.getUint8(idx); idx += 1; }
+    return out;
+  }
+
+  function waitForControlResponse(char, opcode, timeoutMs=2500){
+    return new Promise(resolve=>{
+      const handler = (e)=>{
+        const v = e.target.value;
+        if (v.getUint8(0)===0x80 && v.getUint8(1)===opcode){
+          char.removeEventListener('characteristicvaluechanged', handler);
+          resolve({resultCode:v.getUint8(2)});
+        }
+      };
+      char.addEventListener('characteristicvaluechanged', handler);
+      setTimeout(()=>{ char.removeEventListener('characteristicvaluechanged', handler); resolve({timedOut:true}); }, timeoutMs);
+    });
+  }
+  async function writeControl(bytes, opcode){
+    const p = waitForControlResponse(trainerControl, opcode);
+    await trainerControl.writeValueWithResponse(new Uint8Array(bytes));
+    return p;
+  }
+  async function setTargetPower(watts){
+    if (!trainerControlReady || watts==null) return;
+    const w = Math.round(watts);
+    const buf = new Uint8Array(3);
+    buf[0]=0x05; buf[1]=w & 0xFF; buf[2]=(w>>8) & 0xFF;
+    try { await trainerControl.writeValueWithResponse(buf); } catch(e){ /* best effort */ }
+  }
+
+  document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
+    if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser. Use Chrome or Edge on desktop or Android.'); return; }
+    try {
+      trainerDevice = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['fitness_machine'] }],
+        optionalServices: ['cycling_power']
+      });
+      const server = await trainerDevice.gatt.connect();
+      const service = await server.getPrimaryService('fitness_machine');
+      const bikeData = await service.getCharacteristic('indoor_bike_data');
+      await bikeData.startNotifications();
+      bikeData.addEventListener('characteristicvaluechanged', (e)=>{
+        const parsed = parseIndoorBikeData(e.target.value);
+        if (parsed.power!=null) document.getElementById('mPower').textContent = parsed.power;
+        if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
+        if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
+        if (running) logSample(parsed);
+      });
+
+      try {
+        trainerControl = await service.getCharacteristic('fitness_machine_control_point');
+        await trainerControl.startNotifications();
+        await writeControl([0x00], 0x00); // request control
+        const startResp = await writeControl([0x07], 0x07); // start/resume
+        trainerControlReady = true;
+      } catch(ctrlErr){
+        trainerControlReady = false; // read-only fallback
+      }
+
+      document.getElementById('trainerDot').classList.add('on');
+      document.getElementById('trainerStatus').textContent = trainerDevice.name || 'Connected' + (trainerControlReady ? '' : ' (read-only — ERG control unavailable)');
+      document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
+
+      trainerDevice.addEventListener('gattserverdisconnected', ()=>{
+        document.getElementById('trainerDot').classList.remove('on');
+        document.getElementById('trainerDot').classList.add('err');
+        document.getElementById('trainerStatus').textContent = 'Disconnected';
+        trainerControlReady = false;
+      });
+    } catch(e){
+      document.getElementById('trainerDot').classList.add('err');
+      document.getElementById('trainerStatus').textContent = 'Connection failed: ' + e.message;
+    }
+  });
+
+  // ---- Bluetooth: heart rate strap ----
+  document.getElementById('connectHrBtn').addEventListener('click', async ()=>{
+    if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser.'); return; }
+    try {
+      hrDevice = await navigator.bluetooth.requestDevice({ filters:[{ services:['heart_rate'] }] });
+      const server = await hrDevice.gatt.connect();
+      const service = await server.getPrimaryService('heart_rate');
+      const char = await service.getCharacteristic('heart_rate_measurement');
+      await char.startNotifications();
+      char.addEventListener('characteristicvaluechanged', (e)=>{
+        const v = e.target.value;
+        const flags = v.getUint8(0);
+        const hr = (flags & 0x1) ? v.getUint16(1,true) : v.getUint8(1);
+        document.getElementById('mHr').textContent = hr;
+      });
+      document.getElementById('hrDot').classList.add('on');
+      document.getElementById('hrStatus').textContent = hrDevice.name || 'Connected';
+      document.getElementById('connectHrBtn').textContent = 'Reconnect HR strap';
+      hrDevice.addEventListener('gattserverdisconnected', ()=>{
+        document.getElementById('hrDot').classList.remove('on');
+        document.getElementById('hrDot').classList.add('err');
+        document.getElementById('hrStatus').textContent = 'Disconnected';
+      });
+    } catch(e){
+      document.getElementById('hrDot').classList.add('err');
+      document.getElementById('hrStatus').textContent = 'Connection failed: ' + e.message;
+    }
+  });
+
+  // ---- workout engine ----
+  function logSample(parsed){
+    log.push({
+      t: ((Date.now()-sessionStart)/1000).toFixed(1),
+      power: parsed.power!=null ? parsed.power : '',
+      cadence: parsed.cadence!=null ? Math.round(parsed.cadence) : '',
+      hr: document.getElementById('mHr').textContent!=='—' ? document.getElementById('mHr').textContent : '',
+      target: flatSteps[stepIndex] ? targetWatts(flatSteps[stepIndex]) : ''
+    });
+  }
+
+  function tick(){
+    if (!running) return;
+    stepElapsed += 1;
+    const step = flatSteps[stepIndex];
+    if (step && stepElapsed >= step.duration){
+      advanceStep();
+    }
+    renderStepReadout();
+  }
+
+  async function advanceStep(){
+    stepIndex += 1;
+    stepElapsed = 0;
+    if (stepIndex >= flatSteps.length){
+      stopSession(); return;
+    }
+    const w = targetWatts(flatSteps[stepIndex]);
+    if (w!=null) await setTargetPower(w);
+    renderStepReadout();
+  }
+
+  document.getElementById('startBtn').addEventListener('click', async ()=>{
+    if (!flatSteps.length && document.getElementById('workoutSelect').value){
+      // guard: selection exists but flatten hasn't run yet
+    }
+    running = true;
+    sessionStart = sessionStart || Date.now();
+    if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
+    tickHandle = setInterval(tick, 1000);
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('pauseBtn').disabled = false;
+    document.getElementById('skipBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('workoutSelect').disabled = true;
+  });
+
+  document.getElementById('pauseBtn').addEventListener('click', ()=>{
+    running = false;
+    clearInterval(tickHandle);
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('startBtn').textContent = 'Resume';
+    document.getElementById('pauseBtn').disabled = true;
+  });
+
+  document.getElementById('skipBtn').addEventListener('click', ()=>{ advanceStep(); });
+
+  function stopSession(){
+    running = false;
+    clearInterval(tickHandle);
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('startBtn').textContent = 'Start';
+    document.getElementById('pauseBtn').disabled = true;
+    document.getElementById('skipBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = true;
+    document.getElementById('workoutSelect').disabled = false;
+    if (log.length) document.getElementById('exportBtn').disabled = false;
+  }
+  document.getElementById('stopBtn').addEventListener('click', stopSession);
+
+  document.getElementById('exportBtn').addEventListener('click', ()=>{
+    const header = 'time_s,power_w,cadence_rpm,heart_rate_bpm,target_w\n';
+    const rows = log.map(r=>[r.t,r.power,r.cadence,r.hr,r.target].join(',')).join('\n');
+    const blob = new Blob([header+rows], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'trainercycle-session-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
+    a.click();
+  });
+
+  // ---- init ----
+  if (!navigator.bluetooth){
+    document.getElementById('unsupportedNote').innerHTML =
+      '<div class="unsupported">Web Bluetooth isn\'t available in this browser. Use Chrome or Edge (desktop or Android) — Safari and iOS don\'t support it.</div>';
+  }
+  loadData();
+  renderStepReadout();
+})();
+</script>
+</body>
+</html>
