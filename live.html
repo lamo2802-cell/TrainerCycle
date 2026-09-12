@@ -48,6 +48,8 @@
   .dot.err{ background:var(--danger); }
 
   .dash{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+  .dash.time-dash{ grid-template-columns:1fr 1fr; margin-bottom:18px; }
+  .dash.time-dash .val{ font-size:22px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
   .metric .val{ font-family:var(--mono); font-size:34px; font-weight:600; }
   .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
@@ -62,7 +64,11 @@
 
   .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
 
-  .controls{ display:flex; gap:10px; margin-bottom:14px; }
+  .controls{
+    display:flex; gap:10px; margin-bottom:10px;
+    position:sticky; bottom:0; background:var(--bg);
+    padding:10px 0 4px; z-index:10; border-top:1px solid var(--line);
+  }
   .controls button{ width:auto; flex:1; margin-bottom:0; }
 
   .chart-panel{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
@@ -127,6 +133,11 @@
       <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
       <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
       <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart rate</div></div>
+    </div>
+
+    <div class="dash time-dash">
+      <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Workout elapsed / total</div></div>
+      <div class="metric"><div class="val" id="mIntervalRemaining">—</div><div class="lbl">Interval remaining</div></div>
     </div>
 
     <div class="step-readout">
@@ -266,6 +277,7 @@ const supabase = createClient(
     document.getElementById('stepProgressFill').style.width = (step && step.duration) ? Math.min(100,(stepElapsed/step.duration)*100)+'%' : '0%';
 
     let remaining = 0;
+    const totalPlanned = flatSteps.length ? flatSteps.reduce((a,s)=>a+(s.duration||0),0) : null;
     if (flatSteps.length){
       for (let i=stepIndex+1;i<flatSteps.length;i++) remaining += flatSteps[i].duration||0;
       if (step) remaining += Math.max(0, step.duration - stepElapsed);
@@ -273,6 +285,11 @@ const supabase = createClient(
     } else {
       document.getElementById('totalRemaining').textContent = '—';
     }
+
+    document.getElementById('mWorkoutTime').textContent = totalPlanned!=null
+      ? (fmtDur(activeElapsedSec) + ' / ' + fmtDur(totalPlanned))
+      : (fmtDur(activeElapsedSec) + ' / —');
+    document.getElementById('mIntervalRemaining').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '—';
 
     const nextEl = document.getElementById('nextStepInfo');
     if (!flatSteps.length){
@@ -444,10 +461,24 @@ const supabase = createClient(
         ctx.fillRect(x, 0, seg, h);
         x += seg;
       });
-      // progress cursor
+      // progress cursor — bright line + marker dot + elapsed-time label
       const cx = Math.min(w, (activeElapsedSec/totalPlanned)*w);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(cx, 8, 4, 0, Math.PI*2); ctx.fill();
+
+      ctx.font = '11px -apple-system,sans-serif';
+      ctx.fillStyle = 'rgba(231,236,242,0.85)';
+      const label = fmtDur(activeElapsedSec);
+      const labelX = cx < w-40 ? cx+6 : cx-34;
+      ctx.fillText(label, labelX, 20);
+
+      // scale labels at bottom corners
+      ctx.fillStyle = 'rgba(140,151,166,0.9)';
+      ctx.fillText('0:00', 4, h-6);
+      const totalLabel = fmtDur(totalPlanned);
+      ctx.fillText(totalLabel, w - ctx.measureText(totalLabel).width - 4, h-6);
     }
 
     if (!log.length) return;
@@ -495,8 +526,16 @@ const supabase = createClient(
     }
     // cursor at current position in step
     const cx = Math.min(w, (stepElapsed/dur)*w);
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(cx, 8, 4, 0, Math.PI*2); ctx.fill();
+
+    ctx.font = '11px -apple-system,sans-serif';
+    ctx.fillStyle = 'rgba(140,151,166,0.9)';
+    ctx.fillText('0:00', 4, h-6);
+    const durLabel = fmtDur(step.duration);
+    ctx.fillText(durLabel, w - ctx.measureText(durLabel).width - 4, h-6);
 
     if (!samplesInStep.length) return;
     function line(getVal, max, color){
