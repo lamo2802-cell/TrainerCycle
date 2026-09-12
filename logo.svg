@@ -1,0 +1,20 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <rect width="120" height="120" rx="20" fill="#10141A"/>
+  <!-- outer rim -->
+  <circle cx="60" cy="60" r="42" fill="none" stroke="#2A323D" stroke-width="3"/>
+  <!-- power arc, sweeping like a dial gauge -->
+  <path d="M 60 18 A 42 42 0 1 1 25.5 82.6" fill="none" stroke="#45D6C4" stroke-width="6" stroke-linecap="round"/>
+  <!-- spokes -->
+  <g stroke="#3A4450" stroke-width="2.5">
+    <line x1="60" y1="60" x2="60" y2="24"/>
+    <line x1="60" y1="60" x2="88.4" y2="42"/>
+    <line x1="60" y1="60" x2="88.4" y2="78"/>
+    <line x1="60" y1="60" x2="60" y2="96"/>
+    <line x1="60" y1="60" x2="31.6" y2="78"/>
+    <line x1="60" y1="60" x2="31.6" y2="42"/>
+  </g>
+  <!-- hub -->
+  <circle cx="60" cy="60" r="8" fill="#45D6C4"/>
+  <!-- needle, pointing up into the effort zone -->
+  <line x1="60" y1="60" x2="76" y2="30" stroke="#E7ECF2" stroke-width="3" stroke-linecap="round"/>
+</svg>

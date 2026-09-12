@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerCycle</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    --bg: #10141A;
+    --panel: #171D25;
+    --panel-2: #1D242D;
+    --line: #2A323D;
+    --text: #E7ECF2;
+    --text-dim: #8C97A6;
+    --accent: #45D6C4;
+    --accent-dim: #2A5C56;
+    --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --z-recovery: #5A6472;
+    --z-endurance: #4C8BF5;
+    --z-tempo: #3DBE7A;
+    --z-threshold: #E8B93D;
+    --z-vo2: #F08A3C;
+    --z-anaerobic: #E5484D;
+    --z-neuro: #B14AED;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); line-height:1.4; font-size:14px;
+  }
+  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
+  .sidebar{
+    width:300px; flex-shrink:0; background:var(--panel);
+    border-right:1px solid var(--line); padding:20px; min-height:100vh;
+  }
+  .main{ flex:1; min-width:320px; padding:24px 28px; max-width:900px; }
+
+  h1{ font-size:19px; margin:0 0 2px; letter-spacing:-0.01em; }
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:0 0 24px; }
+
+  .block{ margin-bottom:26px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+
+  .ftp-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:10px;}
+  .ftp-value{ font-family:var(--mono); font-size:30px; font-weight:600; color:var(--accent); }
+  .ftp-unit{ color:var(--text-dim); font-size:13px; }
+  .ftp-edit{ display:flex; gap:8px; margin-top:8px; }
+
+  input[type=number], input[type=text], textarea, select{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:7px 9px; font-family:var(--sans); font-size:13.5px;
+    width:100%;
+  }
+  input[type=number]{ font-family:var(--mono); }
+  textarea{ font-family:var(--mono); font-size:12px; resize:vertical; min-height:110px; }
+  label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:4px; }
+  .field{ margin-bottom:10px; }
+  .row{ display:flex; gap:8px; }
+  .row > .field{ flex:1; }
+
+  button{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer; font-family:var(--sans);
+  }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  button.primary:hover{ filter:brightness(1.08); }
+  button.danger{ color:var(--danger); }
+  button.danger:hover{ border-color:var(--danger); }
+  button.ghost{ background:transparent; border-color:transparent; color:var(--text-dim); padding:4px 6px; }
+  button.ghost:hover{ color:var(--text); border-color:var(--line); }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .lib-item{ padding:10px 0; border-top:1px solid var(--line); }
+  .lib-item:first-child{ border-top:none; }
+  .lib-name{ font-weight:600; font-size:13.5px; }
+  .lib-meta{ color:var(--text-dim); font-size:11.5px; font-family:var(--mono); margin:2px 0 6px; }
+  .lib-actions{ display:flex; gap:6px; }
+  .lib-actions button{ font-size:11.5px; padding:4px 8px; }
+  .empty-note{ color:var(--text-dim); font-size:12.5px; font-style:italic; }
+
+  .tabs{ display:flex; gap:2px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+  .tab{ padding:8px 14px; color:var(--text-dim); cursor:pointer; font-size:13.5px; border-bottom:2px solid transparent; }
+  .tab.active{ color:var(--text); border-bottom-color:var(--accent); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px; }
+
+  .interval-form{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .interval-col h4{ margin:0 0 8px; font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+
+  .chart{ margin:18px 0; }
+  .chart-bars{ display:flex; align-items:flex-end; gap:1px; height:120px; background:var(--panel-2); border-radius:6px; padding:8px; overflow-x:auto; }
+  .bar{ min-width:3px; border-radius:1px 1px 0 0; }
+
+  .steplist{ margin-top:14px; }
+  .step-row{
+    display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line);
+    border-radius:6px; margin-bottom:6px; background:var(--panel-2);
+  }
+  .step-swatch{ width:6px; align-self:stretch; border-radius:3px; flex-shrink:0; }
+  .step-info{ flex:1; min-width:0; }
+  .step-dur{ font-family:var(--mono); font-size:13px; }
+  .step-target{ font-family:var(--mono); font-size:12px; color:var(--text-dim); }
+  .step-note{ font-size:11.5px; color:var(--text-dim); }
+  .step-btns{ display:flex; gap:2px; flex-shrink:0; }
+  .repeat-wrap{ border:1px dashed var(--line); border-radius:6px; padding:8px; margin-bottom:6px; }
+  .repeat-label{ font-size:11.5px; color:var(--accent); font-family:var(--mono); margin-bottom:6px; padding-left:4px; }
+
+  .summary-bar{ display:flex; gap:24px; margin-bottom:6px; }
+  .summary-item .val{ font-family:var(--mono); font-size:18px; font-weight:600; }
+  .summary-item .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+
+  .save-row{ display:flex; gap:8px; margin-top:16px; align-items:flex-end; }
+  .save-row .field{ flex:1; margin-bottom:0; }
+
+  .msg{ font-size:12.5px; margin-top:8px; padding:8px 10px; border-radius:6px; }
+  .msg.error{ background:rgba(229,72,77,.12); color:var(--danger); }
+  .msg.ok{ background:rgba(69,214,196,.12); color:var(--accent); }
+
+  .hint{ font-size:12px; color:var(--text-dim); margin-bottom:12px; }
+  .legend{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .legend-item{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim); }
+  .legend-dot{ width:8px; height:8px; border-radius:2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;">
+      <img src="logo.svg" alt="TrainerCycle" width="34" height="34" style="border-radius:8px;">
+      <h1>Trainer<span style="color:var(--accent);">Cycle</span></h1>
+    </div>
+    <p class="sub">Workout builder &amp; Tredict import</p>
+
+    <div class="block">
+      <div class="block-title">Current FTP</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="ftpDisplay">—</span>
+        <span class="ftp-unit">watts</span>
+      </div>
+      <div class="ftp-edit">
+        <input type="number" id="ftpInput" placeholder="e.g. 254" min="1" max="2000">
+        <button class="primary" id="ftpSaveBtn">Save</button>
+      </div>
+      <div id="ftpMsg"></div>
+    </div>
+
+    <div class="block">
+      <div class="block-title">Workout Library</div>
+      <div id="libraryList"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <div class="tab active" data-tab="builder">Builder</div>
+      <div class="tab" data-tab="import">Import from Tredict</div>
+    </div>
+
+    <div id="tab-builder">
+      <div class="panel">
+        <div class="hint">Add a steady step, or a work/recovery interval set. Targets are stored as %FTP so they stay correct if your FTP changes.</div>
+
+        <div class="interval-form">
+          <div class="interval-col">
+            <h4>Add single step</h4>
+            <div class="row">
+              <div class="field"><label>Duration (mm:ss)</label><input type="text" id="stepDur" placeholder="10:00"></div>
+              <div class="field"><label>Type</label>
+                <select id="stepType">
+                  <option value="ftp_pct">% FTP</option>
+                  <option value="watts">Watts</option>
+                  <option value="hr_pct">% HRmax</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Low</label><input type="number" id="stepLow" placeholder="60"></div>
+              <div class="field"><label>High</label><input type="number" id="stepHigh" placeholder="65"></div>
+            </div>
+            <div class="field"><label>Note (optional)</label><input type="text" id="stepNote" placeholder="Warm up"></div>
+            <button id="addStepBtn">Add step</button>
+          </div>
+
+          <div class="interval-col">
+            <h4>Add interval set</h4>
+            <div class="row">
+              <div class="field"><label>Work (mm:ss)</label><input type="text" id="ivWorkDur" placeholder="3:00"></div>
+              <div class="field"><label>Work %FTP</label><input type="number" id="ivWorkPct" placeholder="110"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Recover (mm:ss)</label><input type="text" id="ivRecDur" placeholder="3:00"></div>
+              <div class="field"><label>Recover %FTP</label><input type="number" id="ivRecPct" placeholder="50"></div>
+            </div>
+            <div class="field"><label>Repetitions</label><input type="number" id="ivReps" placeholder="5"></div>
+            <button id="addIntervalBtn">Add interval set</button>
+          </div>
+        </div>
+        <div id="builderMsg"></div>
+      </div>
+
+      <div id="buildSummary"></div>
+      <div class="chart"><div class="chart-bars" id="buildChart"></div></div>
+      <div class="legend" id="legend"></div>
+      <div class="steplist" id="buildStepList"></div>
+
+      <div class="save-row">
+        <div class="field"><label>Workout name</label><input type="text" id="workoutName" placeholder="e.g. Sweet Spot 3x12"></div>
+        <button class="primary" id="saveWorkoutBtn">Save to library</button>
+        <button id="clearBuilderBtn">Clear</button>
+      </div>
+      <div id="saveMsg"></div>
+    </div>
+
+    <div id="tab-import" style="display:none;">
+      <div class="panel">
+        <div class="hint">Ask Claude to fetch a planned workout from Tredict (the raw JSON from the <span style="font-family:var(--mono)">planned-workout</span> tool), then paste it below. It loads into the Builder above so you can review, tweak, and save it.</div>
+        <textarea id="importText" placeholder='Paste Tredict workout JSON here...'></textarea>
+        <div style="margin-top:10px;"><button class="primary" id="parseImportBtn">Parse &amp; load into builder</button></div>
+        <div id="importMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const ZONES = [
+    {max:60,  name:'Recovery',    color:'var(--z-recovery)'},
+    {max:76,  name:'Endurance',   color:'var(--z-endurance)'},
+    {max:91,  name:'Tempo',       color:'var(--z-tempo)'},
+    {max:106, name:'Threshold',   color:'var(--z-threshold)'},
+    {max:121, name:'VO2 Max',     color:'var(--z-vo2)'},
+    {max:151, name:'Anaerobic',   color:'var(--z-anaerobic)'},
+    {max:Infinity, name:'Neuromuscular', color:'var(--z-neuro)'}
+  ];
+  function zoneFor(pct){
+    if (pct == null) return {name:'—', color:'var(--text-dim)'};
+    for (const z of ZONES) if (pct < z.max) return z;
+    return ZONES[ZONES.length-1];
+  }
+  function fmtDur(sec){
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return m + ':' + String(s).padStart(2,'0');
+  }
+  function parseDur(str){
+    if (!str) return 0;
+    const parts = str.split(':').map(x=>parseInt(x,10));
+    if (parts.some(isNaN)) return 0;
+    if (parts.length === 1) return parts[0];
+    return parts[0]*60 + parts[1];
+  }
+  function uid(){ return 'w_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+
+  // ---- state ----
+  let ftp = 250;
+  let library = [];
+  let buildSteps = []; // array of {type:'step',...} or {type:'repeat', repetitions, steps:[...]}
+
+  // ---- storage ----
+  async function loadState(){
+    try {
+      const r = await window.storage.get('ftp', false);
+      if (r && r.value) ftp = parseFloat(r.value) || 250;
+    } catch(e){ /* not set yet */ }
+    try {
+      const r = await window.storage.get('workout-library', false);
+      if (r && r.value) library = JSON.parse(r.value);
+    } catch(e){ library = []; }
+    renderFtp();
+    renderLibrary();
+  }
+  async function saveFtp(v){
+    ftp = v;
+    try { await window.storage.set('ftp', String(v), false); } catch(e){ showMsg('ftpMsg','Could not save FTP.', true); }
+  }
+  async function saveLibrary(){
+    try { await window.storage.set('workout-library', JSON.stringify(library), false); }
+    catch(e){ showMsg('saveMsg','Could not save to library.', true); }
+  }
+
+  function showMsg(elId, text, isError){
+    const el = document.getElementById(elId);
+    el.innerHTML = '<div class="msg ' + (isError?'error':'ok') + '">' + text + '</div>';
+    setTimeout(()=>{ el.innerHTML=''; }, 3500);
+  }
+
+  // ---- effective % / watts helpers ----
+  function effectivePct(step){
+    if (step.targetType === 'ftp_pct') return (step.low + step.high)/2;
+    if (step.targetType === 'watts') return ((step.low + step.high)/2 / ftp) * 100;
+    if (step.targetType === 'hr_pct') return (step.low + step.high)/2; // approx bucket reuse
+    if (step.targetType === 'hr_bpm') return null;
+    return null;
+  }
+  function displayTarget(step){
+    if (step.targetType === 'ftp_pct'){
+      const wLow = Math.round(ftp*step.low/100), wHigh = Math.round(ftp*step.high/100);
+      return step.low===step.high ? (step.low+'% FTP (~'+wLow+'W)') : (step.low+'–'+step.high+'% FTP (~'+wLow+'–'+wHigh+'W)');
+    }
+    if (step.targetType === 'watts'){
+      return step.low===step.high ? (step.low+'W') : (step.low+'–'+step.high+'W');
+    }
+    if (step.targetType === 'hr_pct') return step.low+'–'+step.high+'% HRmax';
+    if (step.targetType === 'hr_bpm') return step.low+'–'+step.high+' bpm';
+    return 'unspecified';
+  }
+
+  function flatten(steps){
+    let out = [];
+    for (const s of steps){
+      if (s.type === 'repeat'){
+        for (let i=0;i<s.repetitions;i++) out = out.concat(flatten(s.steps));
+      } else out.push(s);
+    }
+    return out;
+  }
+
+  // ---- rendering ----
+  function renderFtp(){
+    document.getElementById('ftpDisplay').textContent = ftp ? Math.round(ftp) : '—';
+    document.getElementById('ftpInput').value = ftp || '';
+  }
+
+  function renderLibrary(){
+    const el = document.getElementById('libraryList');
+    if (!library.length){ el.innerHTML = '<div class="empty-note">No saved workouts yet.</div>'; return; }
+    el.innerHTML = library.map(w=>{
+      const flat = flatten(w.steps);
+      const totalSec = flat.reduce((a,s)=>a+(s.duration||0),0);
+      const pcts = flat.map(effectivePct).filter(p=>p!=null);
+      const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
+      return '<div class="lib-item">'
+        + '<div class="lib-name">'+escapeHtml(w.name)+'</div>'
+        + '<div class="lib-meta">'+fmtDur(totalSec)+ (avg!=null ? ('  ·  avg '+avg+'% FTP') : '') +'</div>'
+        + '<div class="lib-actions">'
+        + '<button class="ghost" data-load="'+w.id+'">Load</button>'
+        + '<button class="ghost" data-export="'+w.id+'">Export</button>'
+        + '<button class="ghost danger" data-del="'+w.id+'">Delete</button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function renderBuilder(){
+    const flat = flatten(buildSteps);
+    const totalSec = flat.reduce((a,s)=>a+(s.duration||0),0);
+    const pcts = flat.map(effectivePct).filter(p=>p!=null);
+    const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
+
+    document.getElementById('buildSummary').innerHTML = buildSteps.length ?
+      ('<div class="summary-bar">'
+        + '<div class="summary-item"><div class="val">'+fmtDur(totalSec)+'</div><div class="lbl">Duration</div></div>'
+        + '<div class="summary-item"><div class="val">'+(avg!=null?avg+'%':'—')+'</div><div class="lbl">Avg FTP</div></div>'
+        + '<div class="summary-item"><div class="val">'+flat.length+'</div><div class="lbl">Steps</div></div>'
+        + '</div>') : '';
+
+    // chart
+    const chart = document.getElementById('buildChart');
+    if (!flat.length){ chart.innerHTML = '<div class="empty-note" style="padding:0 4px;">No steps yet — add one on the left.</div>'; }
+    else {
+      const maxDur = Math.max(...flat.map(s=>s.duration||1));
+      chart.innerHTML = flat.map(s=>{
+        const pct = effectivePct(s);
+        const z = zoneFor(pct);
+        const h = pct!=null ? Math.max(6, Math.min(100, (pct/160)*100)) : 20;
+        const w = Math.max(3, ((s.duration||1)/ (flat.reduce((a,x)=>a+(x.duration||1),0)||1)) * 700);
+        return '<div class="bar" style="height:'+h+'%; width:'+w+'px; background:'+z.color+';" title="'+fmtDur(s.duration)+' · '+displayTarget(s)+'"></div>';
+      }).join('');
+    }
+
+    // legend
+    document.getElementById('legend').innerHTML = ZONES.map(z=>
+      '<div class="legend-item"><span class="legend-dot" style="background:'+z.color+'"></span>'+z.name+'</div>'
+    ).join('');
+
+    // step list (top-level, with repeat grouping visible)
+    const listEl = document.getElementById('buildStepList');
+    if (!buildSteps.length){ listEl.innerHTML = ''; }
+    else {
+      listEl.innerHTML = buildSteps.map((s, i)=>{
+        if (s.type === 'repeat'){
+          const inner = s.steps.map(st=>stepRowHtml(st)).join('');
+          return '<div class="repeat-wrap"><div class="repeat-label">× '+s.repetitions+' repetitions</div>'+inner+'</div>'
+            + rowControls(i, buildSteps.length);
+        }
+        return '<div>' + stepRowHtml(s) + rowControls(i, buildSteps.length) + '</div>';
+      }).join('');
+    }
+  }
+
+  function stepRowHtml(s){
+    const pct = effectivePct(s);
+    const z = zoneFor(pct);
+    return '<div class="step-row">'
+      + '<div class="step-swatch" style="background:'+z.color+'"></div>'
+      + '<div class="step-info">'
+      + '<div class="step-dur">'+fmtDur(s.duration)+'</div>'
+      + '<div class="step-target">'+displayTarget(s)+ (s.note ? ' · '+escapeHtml(s.note) : '') +'</div>'
+      + '</div></div>';
+  }
+  function rowControls(i, len){
+    return '<div class="step-btns" style="justify-content:flex-end; margin:-4px 0 6px;">'
+      + (i>0 ? '<button class="ghost" data-up="'+i+'">↑</button>' : '')
+      + (i<len-1 ? '<button class="ghost" data-down="'+i+'">↓</button>' : '')
+      + '<button class="ghost danger" data-remove="'+i+'">✕</button>'
+      + '</div>';
+  }
+
+  // ---- events: FTP ----
+  document.getElementById('ftpSaveBtn').addEventListener('click', async ()=>{
+    const v = parseFloat(document.getElementById('ftpInput').value);
+    if (!v || v <= 0){ showMsg('ftpMsg','Enter a valid FTP in watts.', true); return; }
+    await saveFtp(v);
+    renderFtp(); renderBuilder(); renderLibrary();
+    showMsg('ftpMsg','FTP saved.', false);
+  });
+
+  // ---- events: tabs ----
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('tab-builder').style.display = t.dataset.tab==='builder' ? '' : 'none';
+      document.getElementById('tab-import').style.display = t.dataset.tab==='import' ? '' : 'none';
+    });
+  });
+
+  // ---- events: add single step ----
+  document.getElementById('addStepBtn').addEventListener('click', ()=>{
+    const dur = parseDur(document.getElementById('stepDur').value);
+    const type = document.getElementById('stepType').value;
+    const low = parseFloat(document.getElementById('stepLow').value);
+    const highRaw = document.getElementById('stepHigh').value;
+    const high = highRaw === '' ? low : parseFloat(highRaw);
+    const note = document.getElementById('stepNote').value.trim();
+    if (!dur || isNaN(low)){ showMsg('builderMsg','Enter a duration and target value.', true); return; }
+    buildSteps.push({type:'step', duration:dur, targetType:type, low, high, note});
+    ['stepDur','stepLow','stepHigh','stepNote'].forEach(id=>document.getElementById(id).value='');
+    renderBuilder();
+  });
+
+  // ---- events: add interval set ----
+  document.getElementById('addIntervalBtn').addEventListener('click', ()=>{
+    const workDur = parseDur(document.getElementById('ivWorkDur').value);
+    const workPct = parseFloat(document.getElementById('ivWorkPct').value);
+    const recDur = parseDur(document.getElementById('ivRecDur').value);
+    const recPct = parseFloat(document.getElementById('ivRecPct').value);
+    const reps = parseInt(document.getElementById('ivReps').value, 10);
+    if (!workDur || isNaN(workPct) || !recDur || isNaN(recPct) || !reps){
+      showMsg('builderMsg','Fill in work, recovery and repetitions.', true); return;
+    }
+    buildSteps.push({
+      type:'repeat', repetitions: reps,
+      steps:[
+        {type:'step', duration:workDur, targetType:'ftp_pct', low:workPct, high:workPct, note:'Work'},
+        {type:'step', duration:recDur, targetType:'ftp_pct', low:recPct, high:recPct, note:'Recover'}
+      ]
+    });
+    ['ivWorkDur','ivWorkPct','ivRecDur','ivRecPct','ivReps'].forEach(id=>document.getElementById(id).value='');
+    renderBuilder();
+  });
+
+  // ---- events: step list row actions (delegated) ----
+  document.getElementById('buildStepList').addEventListener('click', (e)=>{
+    const t = e.target;
+    if (t.dataset.remove !== undefined){ buildSteps.splice(+t.dataset.remove,1); renderBuilder(); }
+    else if (t.dataset.up !== undefined){
+      const i = +t.dataset.up;
+      [buildSteps[i-1], buildSteps[i]] = [buildSteps[i], buildSteps[i-1]];
+      renderBuilder();
+    } else if (t.dataset.down !== undefined){
+      const i = +t.dataset.down;
+      [buildSteps[i+1], buildSteps[i]] = [buildSteps[i], buildSteps[i+1]];
+      renderBuilder();
+    }
+  });
+
+  document.getElementById('clearBuilderBtn').addEventListener('click', ()=>{
+    buildSteps = [];
+    document.getElementById('workoutName').value = '';
+    renderBuilder();
+  });
+
+  // ---- save to library ----
+  document.getElementById('saveWorkoutBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('workoutName').value.trim();
+    if (!name){ showMsg('saveMsg','Give the workout a name.', true); return; }
+    if (!buildSteps.length){ showMsg('saveMsg','Add at least one step first.', true); return; }
+    library.push({ id: uid(), name, steps: JSON.parse(JSON.stringify(buildSteps)), createdAt: Date.now() });
+    await saveLibrary();
+    renderLibrary();
+    showMsg('saveMsg','Saved to library.', false);
+  });
+
+  // ---- library row actions (delegated) ----
+  document.getElementById('libraryList').addEventListener('click', async (e)=>{
+    const t = e.target;
+    if (t.dataset.load !== undefined){
+      const w = library.find(x=>x.id===t.dataset.load);
+      if (w){
+        buildSteps = JSON.parse(JSON.stringify(w.steps));
+        document.getElementById('workoutName').value = w.name;
+        document.querySelector('.tab[data-tab="builder"]').click();
+        renderBuilder();
+      }
+    } else if (t.dataset.del !== undefined){
+      if (confirm('Delete this workout?')){
+        library = library.filter(x=>x.id!==t.dataset.del);
+        await saveLibrary();
+        renderLibrary();
+      }
+    } else if (t.dataset.export !== undefined){
+      const w = library.find(x=>x.id===t.dataset.export);
+      if (w){
+        const blob = new Blob([JSON.stringify(w,null,2)], {type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = w.name.replace(/[^a-z0-9]+/gi,'_') + '.json';
+        a.click();
+      }
+    }
+  });
+
+  // ---- Tredict import ----
+  function convertTredictStep(step){
+    if (step.repetitions){
+      return { type:'repeat', repetitions: step.repetitions, steps: step.steps.map(convertTredictStep) };
+    }
+    const duration = step.duration || 0;
+    const t = step.targets || {};
+    let targetType = 'ftp_pct', low = 0, high = 0;
+
+    if (step.targetZoneType === 'power'){
+      if (step.targetMode === 'padding' && t.power){
+        targetType = 'watts';
+        low = t.power.value - (t.power.padding||0);
+        high = t.power.value + (t.power.padding||0);
+      } else if (t.ftp){
+        targetType = 'ftp_pct';
+        low = Math.round(t.ftp.from*100);
+        high = Math.round(t.ftp.to*100);
+      }
+    } else if (step.targetZoneType === 'heartrate'){
+      if (step.targetMode === 'padding' && t.heartrate){
+        targetType = 'hr_bpm';
+        low = t.heartrate.value - (t.heartrate.padding||0);
+        high = t.heartrate.value + (t.heartrate.padding||0);
+      } else if (t.hrMax){
+        targetType = 'hr_pct';
+        low = Math.round(t.hrMax.from*100);
+        high = Math.round(t.hrMax.to*100);
+      }
+    } else {
+      targetType = 'ftp_pct'; low = 60; high = 65; // fallback guess, flagged in note
+    }
+    const note = step.note || step.intensityType || '';
+    return { type:'step', duration, targetType, low, high, note };
+  }
+
+  document.getElementById('parseImportBtn').addEventListener('click', ()=>{
+    const raw = document.getElementById('importText').value.trim();
+    if (!raw){ showMsg('importMsg','Paste the Tredict workout JSON first.', true); return; }
+    let data;
+    try { data = JSON.parse(raw); }
+    catch(e){ showMsg('importMsg','That isn\'t valid JSON.', true); return; }
+    if (!Array.isArray(data.steps)){ showMsg('importMsg','No "steps" array found in this JSON.', true); return; }
+    try {
+      buildSteps = data.steps.map(convertTredictStep);
+      document.getElementById('workoutName').value = data.title || 'Imported workout';
+      renderBuilder();
+      document.querySelector('.tab[data-tab="builder"]').click();
+      showMsg('importMsg','Loaded into builder — review and save.', false);
+    } catch(e){
+      showMsg('importMsg','Could not convert this workout: ' + e.message, true);
+    }
+  });
+
+  loadState();
+})();
+</script>
+</body>
+</html>
