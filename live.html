@@ -17,7 +17,7 @@
   *{box-sizing:border-box;}
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
   .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
-  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:20px; }
+  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:60px 20px 20px; }
   .main{ flex:1; min-width:340px; padding:24px 28px; max-width:820px; }
   @media (min-width:701px){ .sidebar{ min-height:100vh; } }
   @media (max-width:700px){
@@ -25,6 +25,13 @@
     .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
     .main{ max-width:100%; min-width:0; }
   }
+  .app.sidebar-collapsed .sidebar{ display:none; }
+  .sidebar-toggle{
+    position:fixed; top:14px; left:14px; z-index:50; width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+  }
+  .sidebar-toggle:hover{ border-color:var(--accent); }
   h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
@@ -50,9 +57,10 @@
   .step-progress{ background:var(--panel-2); border-radius:6px; height:10px; overflow:hidden; margin:4px 0 18px; }
   .step-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .3s linear; }
 
-  .timeline{ display:flex; align-items:flex-end; gap:1px; height:70px; background:var(--panel-2); border-radius:6px; padding:6px; margin-bottom:20px; overflow-x:auto; position:relative; }
-  .timeline .bar{ min-width:2px; border-radius:1px 1px 0 0; }
-  .timeline .cursor{ position:absolute; top:0; bottom:0; width:2px; background:#fff; }
+  .next-step{ font-size:12.5px; color:var(--text-dim); margin-bottom:18px; }
+  .next-step b{ color:var(--text); }
+
+  .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
 
   .controls{ display:flex; gap:10px; margin-bottom:14px; }
   .controls button{ width:auto; flex:1; margin-bottom:0; }
@@ -61,7 +69,9 @@
   .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
   .chart-legend span{ display:flex; align-items:center; gap:5px; }
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
-  #liveChart{ width:100%; height:140px; display:block; }
+  #overviewChart, #stepChart{ width:100%; display:block; }
+  #overviewChart{ height:150px; }
+  #stepChart{ height:120px; }
 
   .step-readout{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; color:var(--text-dim); margin-bottom:8px; }
   .step-readout b{ color:var(--text); font-weight:600; }
@@ -71,6 +81,7 @@
 </style>
 </head>
 <body>
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">☰</button>
 <div class="app">
   <div class="sidebar">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;">
@@ -123,16 +134,26 @@
       <span><b id="stepElapsed">0:00</b> / <span id="stepDur">0:00</span> · <b id="totalRemaining">—</b> remaining</span>
     </div>
     <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
-
-    <div class="timeline" id="timeline"></div>
+    <div class="next-step" id="nextStepInfo">—</div>
 
     <div class="chart-panel">
+      <div class="chart-panel-title">Workout overview</div>
       <div class="chart-legend">
         <span><i style="background:var(--accent)"></i>Power</span>
-        <span><i style="background:var(--text-dim); opacity:.7;"></i>Target</span>
         <span><i style="background:var(--danger)"></i>Heart rate</span>
+        <span><i style="background:var(--text-dim); opacity:.5;"></i>Planned zones</span>
       </div>
-      <canvas id="liveChart" width="760" height="140"></canvas>
+      <canvas id="overviewChart" width="760" height="150"></canvas>
+    </div>
+
+    <div class="chart-panel">
+      <div class="chart-panel-title">Current step (zoomed)</div>
+      <div class="chart-legend">
+        <span><i style="background:var(--accent)"></i>Power</span>
+        <span><i style="background:var(--danger)"></i>Heart rate</span>
+        <span><i style="background:var(--text-dim); opacity:.5;"></i>Target band</span>
+      </div>
+      <canvas id="stepChart" width="760" height="120"></canvas>
     </div>
 
     <div class="controls">
@@ -175,6 +196,7 @@ const supabase = createClient(
   let hrDevice=null;
   let simulateMode = false;
   let simHr = 68;
+  let activeElapsedSec = 0; // running-time-only elapsed seconds, excludes paused time
 
   // ---- data load ----
   async function loadData(){
@@ -216,36 +238,21 @@ const supabase = createClient(
     if (step.targetType==='watts') return ((step.low+step.high)/2/ftp)*100;
     return null;
   }
+  function targetWattsRange(step){
+    if (!step) return null;
+    if (step.targetType==='ftp_pct') return { low: Math.round(ftp*step.low/100), high: Math.round(ftp*step.high/100) };
+    if (step.targetType==='watts') return { low: Math.round(step.low), high: Math.round(step.high) };
+    return null;
+  }
 
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
     const w = library.find(x=>x.id===e.target.value);
     flatSteps = w ? flatten(w.steps) : [];
     stepIndex = -1; stepElapsed = 0;
-    renderTimeline();
     renderStepReadout();
+    drawOverviewChart();
+    drawStepChart();
   });
-
-  function renderTimeline(){
-    const el = document.getElementById('timeline');
-    if (!flatSteps.length){ el.innerHTML = ''; return; }
-    const total = flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1;
-    el.innerHTML = flatSteps.map(s=>{
-      const pct = effectivePct(s);
-      const h = pct!=null ? Math.max(8, Math.min(100,(pct/160)*100)) : 25;
-      const w = Math.max(2, ((s.duration||1)/total)*760);
-      return '<div class="bar" style="height:'+h+'%; width:'+w+'px; background:'+zoneColor(pct)+';"></div>';
-    }).join('') + '<div class="cursor" id="tlCursor" style="left:0;"></div>';
-  }
-  function updateCursor(){
-    if (!flatSteps.length) return;
-    const total = flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1;
-    let elapsedTotal = 0;
-    for (let i=0;i<stepIndex;i++) elapsedTotal += flatSteps[i].duration||0;
-    elapsedTotal += stepElapsed;
-    const pctPos = Math.min(100, (elapsedTotal/total)*100);
-    const cursor = document.getElementById('tlCursor');
-    if (cursor) cursor.style.left = pctPos+'%';
-  }
 
   function renderStepReadout(){
     const step = flatSteps[stepIndex];
@@ -266,7 +273,21 @@ const supabase = createClient(
     } else {
       document.getElementById('totalRemaining').textContent = '—';
     }
-    updateCursor();
+
+    const nextEl = document.getElementById('nextStepInfo');
+    if (!flatSteps.length){
+      nextEl.innerHTML = 'Free ride — no workout selected.';
+    } else {
+      const next = flatSteps[stepIndex+1];
+      if (next){
+        const nt = targetWatts(next);
+        nextEl.innerHTML = 'Next: <b>' + (next.note||'Step '+(stepIndex+2)) + '</b> · ' + fmtDur(next.duration) + (nt!=null ? ' · ~'+nt+'W' : '');
+      } else if (stepIndex+1 >= flatSteps.length && stepIndex > -1){
+        nextEl.innerHTML = 'Last step — cool down and stop when ready.';
+      } else {
+        nextEl.innerHTML = 'Ready to start · ' + flatSteps.length + ' steps.';
+      }
+    }
   }
 
   // ---- Bluetooth: trainer (FTMS) ----
@@ -389,7 +410,11 @@ const supabase = createClient(
     if (parsed.power!=null) document.getElementById('mPower').textContent = parsed.power;
     if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
     if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
-    if (running){ logSample(parsed); drawChart(); }
+    if (running){
+      logSample(parsed);
+      drawOverviewChart();
+      drawStepChart();
+    }
   }
 
   function genSimSample(){
@@ -401,38 +426,108 @@ const supabase = createClient(
     return { power, cadence, heartRate: Math.round(simHr) };
   }
 
-  function drawChart(){
-    const canvas = document.getElementById('liveChart');
+  function drawOverviewChart(){
+    const canvas = document.getElementById('overviewChart');
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
+
+    const hasPlan = flatSteps.length > 0;
+    const totalPlanned = hasPlan ? (flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1) : null;
+
+    if (hasPlan){
+      // background: planned intensity zones
+      let x = 0;
+      flatSteps.forEach(s=>{
+        const seg = ((s.duration||0)/totalPlanned)*w;
+        ctx.fillStyle = zoneColorRGBA(effectivePct(s), 0.30);
+        ctx.fillRect(x, 0, seg, h);
+        x += seg;
+      });
+      // progress cursor
+      const cx = Math.min(w, (activeElapsedSec/totalPlanned)*w);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+    }
+
     if (!log.length) return;
     const n = log.length;
     const maxPower = Math.max(200, ...log.map(r=>Number(r.power)||0), ...log.map(r=>Number(r.target)||0)) * 1.15;
     const maxHr = Math.max(160, ...log.map(r=>Number(r.hr)||0)) * 1.1;
-    const xAt = i => (i/Math.max(1,n-1))*w;
+    // x position: aligned to planned timeline if a workout is selected, else spread across full width
+    const xAt = hasPlan
+      ? (r => Math.min(w, (r.elapsed/totalPlanned)*w))
+      : (i => (i/Math.max(1,n-1))*w);
 
-    function line(getVal, max, color, dashed){
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = dashed ? 1.5 : 2;
-      if (dashed) ctx.setLineDash([4,3]); else ctx.setLineDash([]);
+    function line(getVal, max, color){
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([]);
       log.forEach((r,i)=>{
         const v = Number(getVal(r))||0;
+        const x = hasPlan ? xAt(r) : xAt(i);
         const y = h - (v/max)*h;
-        if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
+        if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
       ctx.stroke();
-      ctx.setLineDash([]);
     }
-    line(r=>r.target, maxPower, 'rgba(140,151,166,0.6)', true);
-    line(r=>r.hr, maxHr, 'rgba(229,72,77,0.85)', false);
-    line(r=>r.power, maxPower, '#45D6C4', false);
+    line(r=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
+    line(r=>r.power, maxPower, '#45D6C4');
+  }
+
+  function drawStepChart(){
+    const canvas = document.getElementById('stepChart');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    const step = flatSteps[stepIndex];
+    if (!step){ return; }
+    const dur = Math.max(step.duration||1, stepElapsed);
+
+    const band = targetWattsRange(step);
+    const samplesInStep = log.filter(r=>r.stepIdx===stepIndex);
+    const maxPower = Math.max(200, band?band.high:0, ...samplesInStep.map(r=>Number(r.power)||0)) * 1.2;
+    const maxHr = Math.max(160, ...samplesInStep.map(r=>Number(r.hr)||0)) * 1.1;
+
+    if (band){
+      const yLow = h - (band.low/maxPower)*h;
+      const yHigh = h - (band.high/maxPower)*h;
+      ctx.fillStyle = 'rgba(140,151,166,0.25)';
+      ctx.fillRect(0, yHigh, w, yLow-yHigh);
+    }
+    // cursor at current position in step
+    const cx = Math.min(w, (stepElapsed/dur)*w);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+
+    if (!samplesInStep.length) return;
+    function line(getVal, max, color){
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      samplesInStep.forEach((r,i)=>{
+        const x = Math.min(w, (r.stepElapsed/dur)*w);
+        const y = h - ((Number(getVal(r))||0)/max)*h;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    }
+    line(r=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
+    line(r=>r.power, maxPower, '#45D6C4');
+  }
+
+  function zoneColorRGBA(pct, alpha){
+    // resolve the CSS var to an actual color for canvas fill with custom alpha
+    const map = {
+      'var(--z-recovery)':'90,100,114', 'var(--z-endurance)':'76,139,245', 'var(--z-tempo)':'61,190,122',
+      'var(--z-threshold)':'232,185,61', 'var(--z-vo2)':'240,138,60', 'var(--z-anaerobic)':'229,72,77',
+      'var(--z-neuro)':'177,74,237', 'var(--text-dim)':'140,151,166'
+    };
+    const rgb = map[zoneColor(pct)] || '140,151,166';
+    return 'rgba('+rgb+','+alpha+')';
   }
 
   function logSample(parsed){
     log.push({
-      t: ((Date.now()-sessionStart)/1000).toFixed(1),
+      elapsed: activeElapsedSec,
+      stepIdx: stepIndex,
+      stepElapsed: stepElapsed,
       power: parsed.power!=null ? parsed.power : '',
       cadence: parsed.cadence!=null ? Math.round(parsed.cadence) : '',
       hr: document.getElementById('mHr').textContent!=='—' ? document.getElementById('mHr').textContent : '',
@@ -443,12 +538,15 @@ const supabase = createClient(
   function tick(){
     if (!running) return;
     stepElapsed += 1;
+    activeElapsedSec += 1;
     const step = flatSteps[stepIndex];
     if (step && stepElapsed >= step.duration){
       advanceStep();
     }
     if (simulateMode) handleBikeSample(genSimSample());
     renderStepReadout();
+    drawOverviewChart();
+    drawStepChart();
   }
 
   async function advanceStep(){
@@ -467,9 +565,9 @@ const supabase = createClient(
     running = true;
     sessionStart = sessionStart || Date.now();
     if (freshStart){
-      log = []; simHr = 68;
+      log = []; simHr = 68; activeElapsedSec = 0;
       document.getElementById('exportBtn').disabled = true;
-      drawChart();
+      drawOverviewChart(); drawStepChart();
     }
     if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
     tickHandle = setInterval(tick, 1000);
@@ -525,7 +623,7 @@ const supabase = createClient(
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const header = 'time_s,power_w,cadence_rpm,heart_rate_bpm,target_w\n';
-    const rows = log.map(r=>[r.t,r.power,r.cadence,r.hr,r.target].join(',')).join('\n');
+    const rows = log.map(r=>[r.elapsed,r.power,r.cadence,r.hr,r.target].join(',')).join('\n');
     const blob = new Blob([header+rows], {type:'text/csv'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -533,12 +631,25 @@ const supabase = createClient(
     a.click();
   });
 
+  // ---- sidebar collapse (mobile + desktop) ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  let initCollapsed = false;
+  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
+  applyCollapsed(initCollapsed);
+
   // ---- init ----
   if (!navigator.bluetooth){
     document.getElementById('unsupportedNote').innerHTML =
       '<div class="unsupported">Web Bluetooth isn\'t available in this browser. Use Chrome or Edge (desktop or Android) — Safari and iOS don\'t support it.</div>';
   }
-  loadData();
+  loadData().then(()=>{ drawOverviewChart(); drawStepChart(); });
   renderStepReadout();
 })();
 </script>
