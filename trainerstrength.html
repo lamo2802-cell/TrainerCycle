@@ -32,6 +32,8 @@
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
   }
   .icon-btn:hover{ border-color:var(--accent); }
+  .top-logo-link{ display:flex; }
+  .top-logo{ width:38px; height:38px; border-radius:8px; }
 
   h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
@@ -63,6 +65,10 @@
     padding:20px; text-align:center; margin-bottom:16px;
   }
   .stage-figure{ width:100%; max-width:220px; margin:0 auto 12px; }
+  .positions-row{ display:flex; gap:14px; justify-content:center; margin-bottom:14px; }
+  .position-box{ flex:1; max-width:130px; }
+  .position-box svg{ width:100%; display:block; }
+  .position-label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
   .stage-name{ font-size:22px; font-weight:600; margin-bottom:4px; }
   .stage-target{ font-family:var(--mono); font-size:16px; color:var(--accent); margin-bottom:4px; }
   .stage-notes{ font-size:12.5px; color:var(--text-dim); margin-bottom:16px; }
@@ -82,6 +88,7 @@
 </head>
 <body>
 <div class="top-actions">
+  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="logo.svg" class="top-logo" alt=""></a>
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
@@ -93,7 +100,7 @@
       <h1>Trainer<span style="color:var(--accent);">Cycle</span></h1>
     </div>
     <p class="sub">Strength Session</p>
-    <div class="nav-links"><a href="index.html">Builder</a><span>·</span><a href="live.html">Live Ride</a></div>
+    <div class="nav-links"><a href="builder.html">Builder</a><span>·</span><a href="live.html">Live Ride</a></div>
 
     <div class="block">
       <div class="block-title">Workout</div>
@@ -114,6 +121,7 @@
 
     <div class="stage">
       <div class="stage-figure" id="stageFigure"></div>
+      <div class="positions-row" id="positionsRow"></div>
       <div class="stage-name" id="stageName">Choose a workout to begin</div>
       <div class="stage-target" id="stageTarget"></div>
       <div class="stage-notes" id="stageNotes"></div>
@@ -143,53 +151,76 @@ const supabase = createClient(
   const FIGURES = {
     squat: {
       svg: '<svg viewBox="0 0 160 160"><g class="sq-head"><circle cx="80" cy="30" r="14" fill="none" stroke="#E7ECF2" stroke-width="4"/></g><g class="sq-torso"><rect x="72" y="46" width="16" height="50" rx="6" fill="#45D6C4"/></g><g class="sq-legs"><rect x="55" y="96" width="14" height="46" rx="5" fill="#8C97A6"/><rect x="91" y="96" width="14" height="46" rx="5" fill="#8C97A6"/></g></svg>',
-      css: '.sq-torso, .sq-head{animation:sqBounce 1.6s ease-in-out infinite;} .sq-legs{animation:sqLegs 1.6s ease-in-out infinite; transform-origin:bottom;} @keyframes sqBounce{50%{transform:translateY(22px);}} @keyframes sqLegs{50%{transform:scaleY(0.72);}}'
+      css: '.sq-torso, .sq-head{animation:sqBounce 1.6s ease-in-out infinite;} .sq-legs{animation:sqLegs 1.6s ease-in-out infinite; transform-origin:bottom;} @keyframes sqBounce{50%{transform:translateY(22px);}} @keyframes sqLegs{50%{transform:scaleY(0.72);}}',
+      endCss: '.sq-torso, .sq-head{transform:translateY(22px);} .sq-legs{transform:scaleY(0.72); transform-origin:bottom;}'
     },
     pushup: {
       svg: '<svg viewBox="0 0 160 160"><g class="pu-body"><circle cx="30" cy="70" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="64" width="80" height="12" rx="6" fill="#45D6C4"/><rect x="118" y="60" width="12" height="46" rx="5" fill="#8C97A6" transform="rotate(20 124 83)"/><rect x="30" y="60" width="12" height="46" rx="5" fill="#8C97A6" transform="rotate(-20 36 83)"/></g></svg>',
-      css: '.pu-body{animation:puBounce 1.5s ease-in-out infinite; transform-origin:center;} @keyframes puBounce{50%{transform:translateY(14px);}}'
+      css: '.pu-body{animation:puBounce 1.5s ease-in-out infinite; transform-origin:center;} @keyframes puBounce{50%{transform:translateY(14px);}}',
+      endCss: '.pu-body{transform:translateY(14px); transform-origin:center;}'
     },
     plank: {
       svg: '<svg viewBox="0 0 160 160"><g class="pl-body"><circle cx="30" cy="72" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="66" width="80" height="12" rx="6" fill="#45D6C4"/><rect x="118" y="66" width="12" height="42" rx="5" fill="#8C97A6" transform="rotate(25 124 87)"/><rect x="30" y="66" width="12" height="42" rx="5" fill="#8C97A6" transform="rotate(-25 36 87)"/></g></svg>',
-      css: '.pl-body{animation:plPulse 2.4s ease-in-out infinite;} @keyframes plPulse{50%{opacity:0.6;}}'
+      css: '.pl-body{animation:plPulse 2.4s ease-in-out infinite;} @keyframes plPulse{50%{opacity:0.6;}}',
+      hold: true
     },
     lunge: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="28" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="42" width="16" height="46" rx="6" fill="#45D6C4"/><rect x="50" y="88" width="14" height="50" rx="5" fill="#8C97A6"/><g class="lg-leg"><rect x="96" y="88" width="14" height="50" rx="5" fill="#8C97A6"/></g></svg>',
-      css: '.lg-leg{animation:lgBounce 1.6s ease-in-out infinite; transform-origin:top;} @keyframes lgBounce{50%{transform:scaleY(0.65) translateY(10px);}}'
+      css: '.lg-leg{animation:lgBounce 1.6s ease-in-out infinite; transform-origin:top;} @keyframes lgBounce{50%{transform:scaleY(0.65) translateY(10px);}}',
+      endCss: '.lg-leg{transform:scaleY(0.65) translateY(10px); transform-origin:top;}'
     },
     deadlift: {
       svg: '<svg viewBox="0 0 160 160"><rect x="55" y="126" width="14" height="24" rx="5" fill="#8C97A6"/><rect x="91" y="126" width="14" height="24" rx="5" fill="#8C97A6"/><g class="dl-torso" style="transform-box:fill-box; transform-origin:bottom center;"><circle cx="80" cy="60" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="74" width="16" height="52" rx="6" fill="#45D6C4"/></g></svg>',
-      css: '.dl-torso{animation:dlHinge 1.8s ease-in-out infinite;} @keyframes dlHinge{50%{transform:rotate(35deg) translateX(-10px);}}'
+      css: '.dl-torso{animation:dlHinge 1.8s ease-in-out infinite;} @keyframes dlHinge{50%{transform:rotate(35deg) translateX(-10px);}}',
+      endCss: '.dl-torso{transform:rotate(35deg) translateX(-10px);}'
     },
     bicep_curl: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="30" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="44" width="16" height="60" rx="6" fill="#45D6C4"/><rect x="60" y="104" width="14" height="46" rx="5" fill="#8C97A6"/><rect x="86" y="104" width="14" height="46" rx="5" fill="#8C97A6"/><g class="bc-hand"><circle cx="100" cy="100" r="9" fill="#F08A3C"/></g></svg>',
-      css: '.bc-hand{animation:bcCurl 1.4s ease-in-out infinite;} @keyframes bcCurl{50%{transform:translateY(-55px) translateX(-10px);}}'
+      css: '.bc-hand{animation:bcCurl 1.4s ease-in-out infinite;} @keyframes bcCurl{50%{transform:translateY(-55px) translateX(-10px);}}',
+      endCss: '.bc-hand{transform:translateY(-55px) translateX(-10px);}'
     },
     shoulder_press: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="34" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="48" width="16" height="56" rx="6" fill="#45D6C4"/><rect x="60" y="104" width="14" height="42" rx="5" fill="#8C97A6"/><rect x="86" y="104" width="14" height="42" rx="5" fill="#8C97A6"/><g class="sp-arms"><circle cx="60" cy="80" r="9" fill="#F08A3C"/><circle cx="100" cy="80" r="9" fill="#F08A3C"/></g></svg>',
-      css: '.sp-arms{animation:spPress 1.6s ease-in-out infinite;} @keyframes spPress{50%{transform:translateY(-58px);}}'
+      css: '.sp-arms{animation:spPress 1.6s ease-in-out infinite;} @keyframes spPress{50%{transform:translateY(-58px);}}',
+      endCss: '.sp-arms{transform:translateY(-58px);}'
     },
     situp: {
       svg: '<svg viewBox="0 0 160 160"><rect x="50" y="130" width="60" height="12" rx="5" fill="#8C97A6"/><g class="su-torso" style="transform-box:fill-box; transform-origin:bottom center;"><circle cx="80" cy="100" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="60" width="16" height="46" rx="6" fill="#45D6C4" transform="rotate(90 80 106)"/></g></svg>',
-      css: '.su-torso{animation:suCurl 1.6s ease-in-out infinite;} @keyframes suCurl{50%{transform:rotate(-75deg) translate(20px,-10px);}}'
+      css: '.su-torso{animation:suCurl 1.6s ease-in-out infinite;} @keyframes suCurl{50%{transform:rotate(-75deg) translate(20px,-10px);}}',
+      endCss: '.su-torso{transform:rotate(-75deg) translate(20px,-10px);}'
     },
     jumping_jack: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="30" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="44" width="16" height="50" rx="6" fill="#45D6C4"/><g class="jj-armL"><rect x="40" y="46" width="12" height="42" rx="5" fill="#8C97A6"/></g><g class="jj-armR"><rect x="108" y="46" width="12" height="42" rx="5" fill="#8C97A6"/></g><g class="jj-legL"><rect x="60" y="94" width="14" height="48" rx="5" fill="#8C97A6"/></g><g class="jj-legR"><rect x="86" y="94" width="14" height="48" rx="5" fill="#8C97A6"/></g></svg>',
-      css: '.jj-armL{animation:jjArmL 1.1s ease-in-out infinite; transform-origin:top right;} .jj-armR{animation:jjArmR 1.1s ease-in-out infinite; transform-origin:top left;} .jj-legL{animation:jjLegL 1.1s ease-in-out infinite; transform-origin:top;} .jj-legR{animation:jjLegR 1.1s ease-in-out infinite; transform-origin:top;} @keyframes jjArmL{50%{transform:rotate(-35deg);}} @keyframes jjArmR{50%{transform:rotate(35deg);}} @keyframes jjLegL{50%{transform:translateX(-16px);}} @keyframes jjLegR{50%{transform:translateX(16px);}}'
+      css: '.jj-armL{animation:jjArmL 1.1s ease-in-out infinite; transform-origin:top right;} .jj-armR{animation:jjArmR 1.1s ease-in-out infinite; transform-origin:top left;} .jj-legL{animation:jjLegL 1.1s ease-in-out infinite; transform-origin:top;} .jj-legR{animation:jjLegR 1.1s ease-in-out infinite; transform-origin:top;} @keyframes jjArmL{50%{transform:rotate(-35deg);}} @keyframes jjArmR{50%{transform:rotate(35deg);}} @keyframes jjLegL{50%{transform:translateX(-16px);}} @keyframes jjLegR{50%{transform:translateX(16px);}}',
+      endCss: '.jj-armL{transform:rotate(-35deg); transform-origin:top right;} .jj-armR{transform:rotate(35deg); transform-origin:top left;} .jj-legL{transform:translateX(-16px); transform-origin:top;} .jj-legR{transform:translateX(16px); transform-origin:top;}'
     },
     glute_bridge: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="40" cy="120" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="46" y="114" width="60" height="12" rx="6" fill="#8C97A6"/><g class="gb-hips"><rect x="98" y="100" width="14" height="30" rx="5" fill="#45D6C4"/></g><rect x="106" y="126" width="14" height="30" rx="5" fill="#8C97A6"/></svg>',
-      css: '.gb-hips{animation:gbLift 1.6s ease-in-out infinite; transform-origin:bottom;} @keyframes gbLift{50%{transform:translateY(-18px);}}'
+      css: '.gb-hips{animation:gbLift 1.6s ease-in-out infinite; transform-origin:bottom;} @keyframes gbLift{50%{transform:translateY(-18px);}}',
+      endCss: '.gb-hips{transform:translateY(-18px); transform-origin:bottom;}'
     },
     mountain_climber: {
       svg: '<svg viewBox="0 0 160 160"><circle cx="30" cy="70" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="64" width="70" height="12" rx="6" fill="#45D6C4"/><g class="mc-legA"><rect x="108" y="60" width="12" height="40" rx="5" fill="#8C97A6"/></g><g class="mc-legB"><rect x="108" y="60" width="12" height="40" rx="5" fill="#F08A3C"/></g><rect x="30" y="60" width="12" height="40" rx="5" fill="#8C97A6" transform="rotate(-20 36 80)"/></svg>',
-      css: '.mc-legA{animation:mcA 0.8s ease-in-out infinite; transform-origin:top;} .mc-legB{animation:mcB 0.8s ease-in-out infinite; transform-origin:top;} @keyframes mcA{0%,100%{transform:rotate(15deg);}50%{transform:rotate(-55deg) translateX(-10px);}} @keyframes mcB{0%,100%{transform:rotate(-55deg) translateX(-10px);}50%{transform:rotate(15deg);}}'
+      css: '.mc-legA{animation:mcA 0.8s ease-in-out infinite; transform-origin:top;} .mc-legB{animation:mcB 0.8s ease-in-out infinite; transform-origin:top;} @keyframes mcA{0%,100%{transform:rotate(15deg);}50%{transform:rotate(-55deg) translateX(-10px);}} @keyframes mcB{0%,100%{transform:rotate(-55deg) translateX(-10px);}50%{transform:rotate(15deg);}}',
+      endCss: '.mc-legA{transform:rotate(-55deg) translateX(-10px); transform-origin:top;} .mc-legB{transform:rotate(15deg); transform-origin:top;}'
     }
   };
   function renderFigure(key, container){
     const f = FIGURES[key];
     if (!f){ container.innerHTML = '<div style="padding:40px 0; color:var(--text-dim); font-size:13px;">No illustration yet for this exercise.</div>'; return; }
     container.innerHTML = '<style>'+f.css+'</style>'+f.svg;
+  }
+  function renderPositions(key, container){
+    const f = FIGURES[key];
+    if (!f){ container.innerHTML = ''; return; }
+    if (f.hold){
+      container.innerHTML = '<div class="position-box"><div>'+f.svg+'</div><div class="position-label">Hold position</div></div>';
+      return;
+    }
+    if (!f.endCss){ container.innerHTML = ''; return; }
+    container.innerHTML =
+      '<div class="position-box"><div>'+f.svg+'</div><div class="position-label">Start</div></div>' +
+      '<div class="position-box"><div><style>'+f.endCss+'</style>'+f.svg+'</div><div class="position-label">Finish</div></div>';
   }
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
@@ -267,11 +298,13 @@ const supabase = createClient(
       restEl.style.display = 'none';
       stageAction.innerHTML = '';
       renderFigure('', document.getElementById('stageFigure'));
+      renderPositions('', document.getElementById('positionsRow'));
       return;
     }
 
     if (entry.type === 'work'){
       renderFigure(entry.ex.key, document.getElementById('stageFigure'));
+      renderPositions(entry.ex.key, document.getElementById('positionsRow'));
       document.getElementById('stageName').textContent = entry.ex.name;
       document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + entry.ex.reps + ' reps';
       document.getElementById('stageNotes').textContent = entry.ex.notes || '';
@@ -283,6 +316,7 @@ const supabase = createClient(
       document.getElementById('stageTarget').textContent = '';
       document.getElementById('stageNotes').textContent = 'Next: ' + entry.ex.name + ' · set ' + entry.nextSetNum + ' of ' + entry.ex.sets;
       renderFigure('', document.getElementById('stageFigure'));
+      renderPositions('', document.getElementById('positionsRow'));
       restEl.style.display = 'block';
       restEl.textContent = fmtDur(restRemaining);
       stageAction.innerHTML = '<button id="skipRestBtn">Skip rest</button>';

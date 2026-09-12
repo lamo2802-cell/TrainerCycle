@@ -1,0 +1,60 @@
+<svg viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#1D242D"/>
+      <stop offset="100%" stop-color="#10141A"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="420" fill="url(#glow)"/>
+
+  <!-- ground line -->
+  <line x1="40" y1="360" x2="600" y2="360" stroke="#2A323D" stroke-width="3"/>
+
+  <!-- rear wheel -->
+  <circle cx="200" cy="300" r="70" fill="none" stroke="#2A323D" stroke-width="6"/>
+  <circle cx="200" cy="300" r="70" fill="none" stroke="#45D6C4" stroke-width="4" stroke-dasharray="8 14" opacity="0.5"/>
+  <circle cx="200" cy="300" r="8" fill="#45D6C4"/>
+  <!-- front wheel -->
+  <circle cx="460" cy="300" r="70" fill="none" stroke="#2A323D" stroke-width="6"/>
+  <circle cx="460" cy="300" r="70" fill="none" stroke="#45D6C4" stroke-width="4" stroke-dasharray="8 14" opacity="0.5"/>
+  <circle cx="460" cy="300" r="8" fill="#45D6C4"/>
+
+  <!-- frame -->
+  <g stroke="#8C97A6" stroke-width="7" stroke-linecap="round" fill="none">
+    <line x1="200" y1="300" x2="330" y2="180"/>
+    <line x1="330" y1="180" x2="400" y2="300"/>
+    <line x1="200" y1="300" x2="400" y2="300"/>
+    <line x1="330" y1="180" x2="290" y2="300"/>
+    <line x1="400" y1="300" x2="460" y2="300"/>
+    <line x1="400" y1="300" x2="430" y2="190"/>
+    <line x1="430" y1="190" x2="460" y2="300"/>
+  </g>
+  <!-- seat post + saddle -->
+  <line x1="290" y1="300" x2="305" y2="210" stroke="#8C97A6" stroke-width="7" stroke-linecap="round"/>
+  <rect x="292" y="200" width="36" height="10" rx="5" fill="#8C97A6"/>
+  <!-- handlebar stem -->
+  <rect x="418" y="182" width="30" height="8" rx="4" fill="#8C97A6" transform="rotate(-25 433 186)"/>
+  <line x1="440" y1="170" x2="440" y2="195" stroke="#8C97A6" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- rider: aero tuck position -->
+  <g>
+    <!-- rear leg -->
+    <path d="M 305 210 L 260 250 L 275 300" stroke="#45D6C4" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.85"/>
+    <!-- torso -->
+    <path d="M 305 210 L 380 165" stroke="#E7ECF2" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <!-- front leg -->
+    <path d="M 305 210 L 340 260 L 400 300" stroke="#45D6C4" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <!-- arm -->
+    <path d="M 375 175 L 430 190" stroke="#E7ECF2" stroke-width="11" stroke-linecap="round" fill="none"/>
+    <!-- head + helmet -->
+    <circle cx="392" cy="152" r="20" fill="#E7ECF2"/>
+    <path d="M 372 150 A 20 20 0 0 1 412 150 L 408 138 A 22 14 0 0 0 376 138 Z" fill="#45D6C4"/>
+  </g>
+
+  <!-- motion lines -->
+  <g stroke="#45D6C4" stroke-width="4" stroke-linecap="round" opacity="0.5">
+    <line x1="90" y1="230" x2="150" y2="230"/>
+    <line x1="70" y1="255" x2="140" y2="255"/>
+    <line x1="95" y1="280" x2="150" y2="280"/>
+  </g>
+</svg>
