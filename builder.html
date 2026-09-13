@@ -98,7 +98,8 @@
 
   .lib-filters{ display:flex; gap:6px; margin-bottom:10px; }
   .lib-filters select{ font-size:12px; padding:5px 6px; }
-  .lib-item{ padding:10px 0; border-top:1px solid var(--line); }
+  .lib-item{ padding:10px 0; border-top:1px solid var(--line); cursor:pointer; }
+  .lib-item:hover{ background:var(--panel-2); margin:0 -8px; padding:10px 8px; border-radius:6px; }
   .lib-tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:6px; }
   .lib-item:first-child{ border-top:none; }
   .lib-name{ font-weight:600; font-size:13.5px; }
@@ -168,6 +169,7 @@
         <a href="builder.html" class="active">Builder</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
       </nav>
     </div>
 
@@ -191,10 +193,12 @@
           <option value="">All types</option>
           <option value="recovery">Recovery</option>
           <option value="endurance">Endurance</option>
+          <option value="tempo">Tempo</option>
           <option value="sweet_spot">Sweet Spot</option>
           <option value="threshold">Threshold</option>
           <option value="vo2max">VO2 Max</option>
           <option value="over_under">Over/Under</option>
+          <option value="anaerobic">Anaerobic</option>
           <option value="custom">Custom (mine)</option>
         </select>
         <select id="sortBy">
@@ -417,7 +421,8 @@ const supabase = createClient(
 
   const CATEGORY_LABELS = {
     recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
-    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under'
+    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under',
+    tempo:'Tempo', anaerobic:'Anaerobic'
   };
   function categoryLabel(cat){ return CATEGORY_LABELS[cat] || 'Custom'; }
 
@@ -474,12 +479,10 @@ const supabase = createClient(
     if (!items.length){ el.innerHTML = '<div class="empty-note">No workouts match this filter.</div>'; return; }
 
     el.innerHTML = items.map(({w, stats})=>{
-      return '<div class="lib-item">'
+      return '<div class="lib-item" data-preview="'+w.id+'">'
         + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
         + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.np!=null ? ('  ·  NP '+stats.np+'W') : '') +'</div>'
         + '<div class="lib-actions">'
-        + '<button class="ghost" data-load="'+w.id+'">Load</button>'
-        + '<button class="ghost" data-export="'+w.id+'">Export</button>'
         + '<button class="ghost danger" data-del="'+w.id+'">Delete</button>'
         + '</div></div>';
     }).join('');
@@ -643,27 +646,21 @@ const supabase = createClient(
   // ---- library row actions (delegated) ----
   document.getElementById('libraryList').addEventListener('click', async (e)=>{
     const t = e.target;
-    if (t.dataset.load !== undefined){
-      const w = library.find(x=>x.id===t.dataset.load);
+    if (t.dataset.del !== undefined){
+      if (confirm('Delete this workout?')){
+        await deleteWorkoutFromLibrary(t.dataset.del);
+        renderLibrary();
+      }
+      return;
+    }
+    const row = t.closest('[data-preview]');
+    if (row){
+      const w = library.find(x=>x.id===row.dataset.preview);
       if (w){
         buildSteps = JSON.parse(JSON.stringify(w.steps));
         document.getElementById('workoutName').value = w.name;
         document.querySelector('.tab[data-tab="builder"]').click();
         renderBuilder();
-      }
-    } else if (t.dataset.del !== undefined){
-      if (confirm('Delete this workout?')){
-        await deleteWorkoutFromLibrary(t.dataset.del);
-        renderLibrary();
-      }
-    } else if (t.dataset.export !== undefined){
-      const w = library.find(x=>x.id===t.dataset.export);
-      if (w){
-        const blob = new Blob([JSON.stringify(w,null,2)], {type:'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = w.name.replace(/[^a-z0-9]+/gi,'_') + '.json';
-        a.click();
       }
     }
   });

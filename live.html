@@ -71,6 +71,8 @@
   .next-step b{ color:var(--text); }
 
   .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .chart-click-info{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:8px; }
+  .chart-click-info b{ color:var(--text); }
 
   .controls{
     display:flex; gap:10px; margin-bottom:10px;
@@ -118,6 +120,7 @@
         <a href="builder.html">Builder</a>
         <a href="live.html" class="active">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
       </nav>
     </div>
 
@@ -178,7 +181,8 @@
         <span><i style="background:var(--danger)"></i>Heart rate</span>
         <span><i style="background:var(--text-dim); opacity:.5;"></i>Planned zones</span>
       </div>
-      <canvas id="overviewChart" width="760" height="150"></canvas>
+      <canvas id="overviewChart" width="760" height="150" style="cursor:crosshair;"></canvas>
+      <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
     </div>
 
     <div class="chart-panel">
@@ -323,9 +327,11 @@ const supabase = createClient(
     return null;
   }
 
+  let currentWorkoutMeta = { name: 'Free Ride', category: null };
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
     const w = library.find(x=>x.id===e.target.value);
     flatSteps = w ? flatten(w.steps) : [];
+    currentWorkoutMeta = w ? { name: w.name, category: w.category||null } : { name: 'Free Ride', category: null };
     stepIndex = -1; stepElapsed = 0;
     renderStepReadout();
     drawOverviewChart();
@@ -571,6 +577,31 @@ const supabase = createClient(
     line(r=>r.power, maxPower, '#45D6C4');
   }
 
+  document.getElementById('overviewChart').addEventListener('click', (e)=>{
+    const canvas = document.getElementById('overviewChart');
+    const rect = canvas.getBoundingClientRect();
+    const xFrac = (e.clientX - rect.left) / rect.width;
+    const infoEl = document.getElementById('overviewClickInfo');
+
+    if (!flatSteps.length){
+      infoEl.innerHTML = 'No workout selected — nothing to inspect.';
+      return;
+    }
+    const totalPlanned = flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    const clickTime = Math.max(0, Math.min(totalPlanned, xFrac*totalPlanned));
+
+    let cum = 0, foundStep = null;
+    for (const s of flatSteps){
+      const dur = s.duration||0;
+      if (clickTime <= cum+dur || s===flatSteps[flatSteps.length-1]){ foundStep = s; break; }
+      cum += dur;
+    }
+    const tgt = foundStep ? targetWatts(foundStep) : null;
+    infoEl.innerHTML = '<b>' + fmtDur(clickTime) + '</b> — ' + (foundStep ? escapeHtmlLive(foundStep.note||'Step') : '—') +
+      (tgt!=null ? (' · target <b>'+tgt+'W</b>') : '');
+  });
+  function escapeHtmlLive(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
   function drawStepChart(){
     const canvas = document.getElementById('stepChart');
     const ctx = canvas.getContext('2d');
@@ -704,9 +735,39 @@ const supabase = createClient(
 
   document.getElementById('skipBtn').addEventListener('click', ()=>{ advanceStep(); });
 
+  async function saveCompletedRide(completed){
+    if (!log.length) return;
+    const startedAt = sessionStart ? new Date(sessionStart).toISOString() : new Date(Date.now() - activeElapsedSec*1000).toISOString();
+    const powers = log.map(r=>Number(r.power)).filter(n=>!isNaN(n));
+    const hrs = log.map(r=>Number(r.hr)).filter(n=>!isNaN(n));
+    const cadences = log.map(r=>Number(r.cadence)).filter(n=>!isNaN(n));
+    const avgPower = powers.length ? Math.round(powers.reduce((a,b)=>a+b,0)/powers.length) : null;
+    const sumP4t = log.reduce((a,r)=>{ const p=Number(r.power); return isNaN(p)?a:a+Math.pow(p,4); },0);
+    const np = powers.length ? Math.round(Math.pow(sumP4t/powers.length, 0.25)) : null;
+    const IF = (np!=null && ftp>0) ? Math.round((np/ftp)*100)/100 : null;
+    const avgHr = hrs.length ? Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length) : null;
+    const maxHr = hrs.length ? Math.max(...hrs) : null;
+    const avgCadence = cadences.length ? Math.round(cadences.reduce((a,b)=>a+b,0)/cadences.length) : null;
+
+    const record = {
+      id: 'ride_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
+      workout_name: currentWorkoutMeta.name,
+      category: currentWorkoutMeta.category,
+      started_at: startedAt,
+      duration_sec: activeElapsedSec,
+      avg_power: avgPower, np, intensity_factor: IF,
+      avg_hr: avgHr, max_hr: maxHr, avg_cadence: avgCadence,
+      completed: !!completed,
+      samples: log
+    };
+    try { await supabase.from('completed_rides').insert(record); }
+    catch(e){ /* best effort — ride data stays exportable via CSV either way */ }
+  }
+
   function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
+    saveCompletedRide(completed);
     sessionStart = null;
     stepIndex = -1;
     stepElapsed = 0;

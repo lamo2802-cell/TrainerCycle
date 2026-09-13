@@ -27,7 +27,8 @@
   .hero img{ width:100%; display:block; }
 
   .cards{ display:grid; grid-template-columns:1fr; gap:14px; width:100%; max-width:760px; }
-  @media (min-width:620px){ .cards{ grid-template-columns:1fr 1fr 1fr; } }
+  @media (min-width:620px){ .cards{ grid-template-columns:1fr 1fr; } }
+  @media (min-width:860px){ .cards{ grid-template-columns:1fr 1fr 1fr 1fr; } }
   .card{
     background:var(--panel); border:1px solid var(--line); border-radius:12px;
     padding:20px; text-decoration:none; color:var(--text); transition:border-color .15s ease;
@@ -64,6 +65,11 @@
       <div class="card-title">TrainerStrength</div>
       <div class="card-desc">Follow a strength workout set by set, with the current exercise, target reps, and a position guide for each move.</div>
       <span class="card-accent">Open TrainerStrength →</span>
+    </a>
+    <a class="card" href="rides.html">
+      <div class="card-title">Rides</div>
+      <div class="card-desc">Review completed sessions with power, HR, and Intensity Factor, and export any ride as a TCX file.</div>
+      <span class="card-accent">View rides →</span>
     </a>
   </div>
 </body>

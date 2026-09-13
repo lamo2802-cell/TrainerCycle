@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerCycle — Rides</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
+  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:60px 20px 20px; }
+  .main{ flex:1; min-width:320px; padding:64px 28px 24px; max-width:900px; }
+  @media (min-width:701px){ .sidebar{ min-height:100vh; } }
+  @media (max-width:700px){
+    .app{ flex-direction:column; }
+    .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
+    .main{ max-width:100%; min-width:0; }
+  }
+  .app.sidebar-collapsed .sidebar{ display:none; }
+  .app.sidebar-collapsed .main{ max-width:1100px; margin:0 auto; }
+  .top-actions{ position:fixed; top:14px; left:14px; z-index:50; display:flex; gap:8px; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  .top-logo-link{ display:flex; }
+  .top-logo{ height:38px; width:auto; border-radius:8px; display:block; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:7px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+
+  select{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13px; width:100%; }
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+
+  .ride-card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:12px; }
+  .ride-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+  .ride-name{ font-size:16px; font-weight:600; }
+  .ride-date{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:2px; }
+  .ride-tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:6px; }
+  .ride-tag.partial{ color:var(--text-dim); }
+  .ride-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+  @media (max-width:480px){ .ride-stats{ grid-template-columns:repeat(2,1fr); } }
+  .ride-stat{ background:var(--panel-2); border-radius:6px; padding:8px; text-align:center; }
+  .ride-stat .val{ font-family:var(--mono); font-size:16px; font-weight:600; }
+  .ride-stat .lbl{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+  .empty-note{ color:var(--text-dim); font-size:13px; }
+  .filters{ display:flex; gap:8px; margin-bottom:18px; }
+  .filters select{ max-width:200px; }
+</style>
+</head>
+<body>
+<div class="top-actions">
+  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+</div>
+
+<div class="app">
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">Completed Rides</p>
+
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="builder.html">Builder</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html" class="active">Rides</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="filters">
+      <select id="filterCompleted">
+        <option value="">All rides</option>
+        <option value="completed">Completed only</option>
+        <option value="partial">Partial only</option>
+      </select>
+    </div>
+    <div id="ridesList"><div class="empty-note">Loading…</div></div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const supabase = createClient(
+  'https://uqevjhysxzkivmjwggvu.supabase.co',
+  'sb_publishable_SXXjaHNm8mfF8ZHUpYU9QQ_EJjq_E46'
+);
+
+(function(){
+  let rides = [];
+
+  function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+    return h>0 ? (h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')) : (m+':'+String(s).padStart(2,'0'));
+  }
+  function fmtDate(iso){
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}) + ' · ' + d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  async function loadRides(){
+    try {
+      const { data, error } = await supabase.from('completed_rides').select('*').order('started_at',{ascending:false}).limit(100);
+      if (error) throw error;
+      rides = data || [];
+    } catch(e){ rides = []; }
+    render();
+  }
+
+  function render(){
+    const el = document.getElementById('ridesList');
+    if (!rides.length){ el.innerHTML = '<div class="empty-note">No completed rides yet — finish a session on the Live Ride page and it\'ll show up here.</div>'; return; }
+
+    const filterVal = document.getElementById('filterCompleted').value;
+    let items = rides;
+    if (filterVal==='completed') items = items.filter(r=>r.completed);
+    if (filterVal==='partial') items = items.filter(r=>!r.completed);
+
+    if (!items.length){ el.innerHTML = '<div class="empty-note">No rides match this filter.</div>'; return; }
+
+    el.innerHTML = items.map(r=>{
+      return '<div class="ride-card">'
+        + '<div class="ride-top"><div>'
+        + '<div class="ride-name">'+escapeHtml(r.workout_name)
+        + '<span class="ride-tag'+(r.completed?'':' partial')+'">'+(r.completed?'Completed':'Partial')+'</span>'
+        + '</div><div class="ride-date">'+fmtDate(r.started_at)+'</div>'
+        + '</div><button data-tcx="'+r.id+'">Export TCX</button></div>'
+        + '<div class="ride-stats">'
+        + '<div class="ride-stat"><div class="val">'+fmtDur(r.duration_sec)+'</div><div class="lbl">Duration</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.avg_power ?? '—')+'</div><div class="lbl">Avg Power</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.np ?? '—')+'</div><div class="lbl">NP</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</div><div class="lbl">IF</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.avg_hr ?? '—')+'</div><div class="lbl">Avg HR</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
+        + '</div></div>';
+    }).join('');
+  }
+  document.getElementById('filterCompleted').addEventListener('change', render);
+
+  // ---- TCX export ----
+  function buildTcx(ride){
+    const start = new Date(ride.started_at);
+    const trackpoints = (ride.samples||[]).map(s=>{
+      const t = new Date(start.getTime() + (Number(s.elapsed)||0)*1000).toISOString();
+      let tp = '<Trackpoint><Time>'+t+'</Time>';
+      if (s.hr !== '' && s.hr != null) tp += '<HeartRateBpm><Value>'+Math.round(Number(s.hr))+'</Value></HeartRateBpm>';
+      if (s.cadence !== '' && s.cadence != null) tp += '<Cadence>'+Math.round(Number(s.cadence))+'</Cadence>';
+      if (s.power !== '' && s.power != null) tp += '<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Watts>'+Math.round(Number(s.power))+'</ns3:Watts></ns3:TPX></Extensions>';
+      tp += '</Trackpoint>';
+      return tp;
+    }).join('');
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n'
+      + '<Activities><Activity Sport="Biking">\n'
+      + '<Id>'+start.toISOString()+'</Id>\n'
+      + '<Lap StartTime="'+start.toISOString()+'">\n'
+      + '<TotalTimeSeconds>'+(ride.duration_sec||0)+'</TotalTimeSeconds>\n'
+      + '<DistanceMeters>0</DistanceMeters>\n'
+      + '<Calories>0</Calories>\n'
+      + '<Intensity>Active</Intensity>\n'
+      + '<TriggerMethod>Manual</TriggerMethod>\n'
+      + '<Track>'+trackpoints+'</Track>\n'
+      + '</Lap>\n'
+      + '<Creator xsi:type="Device_t"><Name>TrainerCycle</Name></Creator>\n'
+      + '</Activity></Activities>\n'
+      + '</TrainingCenterDatabase>';
+  }
+
+  document.getElementById('ridesList').addEventListener('click', (e)=>{
+    const id = e.target.dataset.tcx;
+    if (!id) return;
+    const ride = rides.find(r=>r.id===id);
+    if (!ride) return;
+    const xml = buildTcx(ride);
+    const blob = new Blob([xml], {type:'application/vnd.garmin.tcx+xml'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const dateStr = new Date(ride.started_at).toISOString().slice(0,10);
+    a.download = 'trainercycle-' + dateStr + '-' + ride.workout_name.replace(/[^a-z0-9]+/gi,'_') + '.tcx';
+    a.click();
+  });
+
+  // ---- sidebar collapse ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  let initCollapsed = false;
+  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
+  applyCollapsed(initCollapsed);
+
+  // ---- fullscreen toggle ----
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  fullscreenToggle.addEventListener('click', ()=>{
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen();
+  });
+  document.addEventListener('fullscreenchange', ()=>{
+    fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+  });
+
+  loadRides();
+})();
+</script>
+</body>
+</html>
