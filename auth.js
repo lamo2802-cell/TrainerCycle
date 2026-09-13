@@ -44,9 +44,9 @@ export function requireAuth(supabase){
       msg.textContent = 'Sending…';
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: window.location.href }
+        options: { emailRedirectTo: window.location.href, shouldCreateUser: false }
       });
-      msg.textContent = error ? ('Error: ' + error.message) : 'Check your email for the sign-in link.';
+      msg.textContent = error ? ('Error: ' + error.message) : 'If that email is on the approved list, check your inbox for the sign-in link.';
       btn.disabled = false;
     });
 
