@@ -273,7 +273,8 @@ const supabase = createClient(
 
   const CATEGORY_LABELS = {
     recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
-    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under'
+    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under',
+    tempo:'Tempo', anaerobic:'Anaerobic', test:'FTP Test'
   };
   function categoryLabel(cat){ return CATEGORY_LABELS[cat] || 'Custom'; }
   function stepWatts(s){
