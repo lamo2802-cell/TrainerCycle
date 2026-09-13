@@ -1,0 +1,94 @@
+<svg viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bgGlow2" cx="55%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#1B222B"/>
+      <stop offset="100%" stop-color="#10141A"/>
+    </radialGradient>
+    <linearGradient id="limbGrad2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#252E3A"/>
+      <stop offset="100%" stop-color="#161B22"/>
+    </linearGradient>
+    <linearGradient id="kitStripe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#E5484D"/>
+      <stop offset="100%" stop-color="#F08A3C"/>
+    </linearGradient>
+    <linearGradient id="climbRoad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1D242D"/>
+      <stop offset="100%" stop-color="#171D25"/>
+    </linearGradient>
+    <linearGradient id="wheelShine2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#45D6C4" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#45D6C4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="420" fill="url(#bgGlow2)"/>
+
+  <!-- climbing road, steep incline suggestion -->
+  <path d="M -20 420 L 260 130 L 660 130 L 660 420 Z" fill="url(#climbRoad)"/>
+  <g stroke="#45D6C4" stroke-width="4" opacity="0.3" stroke-linecap="round">
+    <line x1="300" y1="200" x2="340" y2="170"/>
+    <line x1="400" y1="230" x2="440" y2="200"/>
+    <line x1="500" y1="260" x2="540" y2="230"/>
+  </g>
+  <ellipse cx="330" cy="384" rx="220" ry="13" fill="#000000" opacity="0.35"/>
+
+  <!-- distant contour lines, stylized hills instead of literal green -->
+  <path d="M -20 260 Q 120 220 260 250 T 660 210" fill="none" stroke="#232B36" stroke-width="3" opacity="0.6"/>
+  <path d="M -20 300 Q 150 265 320 288 T 660 255" fill="none" stroke="#1D242D" stroke-width="3" opacity="0.7"/>
+
+  <!-- rear wheel -->
+  <circle cx="196" cy="320" r="66" fill="none" stroke="#20262F" stroke-width="13"/>
+  <circle cx="196" cy="320" r="66" fill="none" stroke="url(#wheelShine2)" stroke-width="4"/>
+  <circle cx="196" cy="320" r="8" fill="#0D1116" stroke="#45D6C4" stroke-width="2"/>
+  <!-- front wheel -->
+  <circle cx="452" cy="320" r="66" fill="none" stroke="#20262F" stroke-width="13"/>
+  <circle cx="452" cy="320" r="66" fill="none" stroke="url(#wheelShine2)" stroke-width="4"/>
+  <circle cx="452" cy="320" r="8" fill="#0D1116" stroke="#45D6C4" stroke-width="2"/>
+
+  <!-- frame -->
+  <g fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round">
+    <path d="M 196 320 C 235 320 265 320 305 316"/>
+    <path d="M 305 316 C 300 278 292 244 284 216"/>
+    <path d="M 284 216 C 322 210 366 206 404 206"/>
+    <path d="M 404 206 C 380 244 342 280 305 316"/>
+    <path d="M 404 206 C 424 240 440 278 452 320"/>
+  </g>
+  <path d="M 284 216 Q 278 196 272 180" fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 404 206 Q 410 188 416 172" fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 400 168 Q 418 160 436 168 Q 444 172 440 180" fill="none" stroke="#8C97A6" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- crankset -->
+  <circle cx="305" cy="316" r="23" fill="#161B22" stroke="#3A4450" stroke-width="3"/>
+  <circle cx="305" cy="316" r="5" fill="#45D6C4"/>
+
+  <!-- OUT OF SADDLE CLIMBING POSE: torso upright-ish, weight forward, one leg driving down hard -->
+
+  <!-- rear leg, bent, trailing up (this is the "up" pedal stroke leg) -->
+  <path d="M 262 210 C 250 226 244 244 252 260" fill="none" stroke="url(#limbGrad2)" stroke-width="17" stroke-linecap="round"/>
+  <path d="M 252 260 C 260 270 268 278 272 286" fill="none" stroke="url(#limbGrad2)" stroke-width="15" stroke-linecap="round"/>
+
+  <!-- torso, more upright than aero-tuck to read as a climbing effort -->
+  <path d="M 262 210 C 280 178 300 150 320 128 C 328 120 338 122 337 132 C 320 152 302 176 288 202 C 282 212 268 216 262 210 Z" fill="url(#limbGrad2)" stroke="#45D6C4" stroke-width="1.5"/>
+  <path d="M 292 190 L 322 145" stroke="url(#kitStripe)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- front arm, reaching down to bar, elbow bent, pulling -->
+  <path d="M 322 132 C 335 150 344 168 348 186" fill="none" stroke="url(#limbGrad2)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M 348 186 C 368 194 388 198 406 198" fill="none" stroke="url(#limbGrad2)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- head, tilted down slightly with effort -->
+  <circle cx="335" cy="112" r="22" fill="url(#limbGrad2)" stroke="#45D6C4" stroke-width="1.5"/>
+  <path d="M 314 110 C 315 90 330 78 346 80 C 358 82 366 92 366 104 C 354 98 337 96 323 102 C 319 104 316 107 314 110 Z" fill="#161B22" stroke="#45D6C4" stroke-width="2"/>
+  <path d="M 320 100 Q 336 92 353 98" fill="none" stroke="#45D6C4" stroke-width="2" opacity="0.6"/>
+  <!-- sunglasses hint -->
+  <path d="M 322 108 Q 335 112 348 106" fill="none" stroke="#0D1116" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- front leg, extended, driving hard into the pedal (climbing effort) -->
+  <path d="M 280 218 C 292 246 302 272 300 296" fill="none" stroke="url(#limbGrad2)" stroke-width="17" stroke-linecap="round"/>
+  <path d="M 300 296 C 302 306 303 312 305 316" fill="none" stroke="url(#limbGrad2)" stroke-width="15" stroke-linecap="round"/>
+  <ellipse cx="303" cy="317" rx="14" ry="7" fill="#0D1116" stroke="url(#kitStripe)" stroke-width="2" transform="rotate(12 303 317)"/>
+  <ellipse cx="272" cy="286" rx="13" ry="6.5" fill="#0D1116" stroke="url(#kitStripe)" stroke-width="2" transform="rotate(-25 272 286)"/>
+
+  <!-- saddle, rider out of it (visible empty, slightly behind) -->
+  <rect x="248" y="196" width="32" height="9" rx="4.5" fill="#161B22" stroke="#3A4450" stroke-width="1.5" transform="rotate(-18 264 200)"/>
+</svg>
