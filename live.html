@@ -202,7 +202,6 @@
       <button id="skipBtn" disabled>Skip step</button>
       <button class="danger" id="stopBtn" disabled>Stop</button>
     </div>
-    <button id="simulateBtn" style="margin-bottom:20px;">Simulate session (no hardware needed — preview only)</button>
   </div>
 </div>
 
@@ -244,8 +243,6 @@ const supabase = createSupabaseClient();
   let trainerDevice=null, trainerControl=null, trainerControlReady=false;
   let lastTargetWatts = null;
   let hrDevice=null;
-  let simulateMode = false;
-  let simHr = 68;
   let activeElapsedSec = 0; // running-time-only elapsed seconds, excludes paused time
 
   // ---- data load ----
@@ -569,15 +566,6 @@ const supabase = createSupabaseClient();
     }
   }
 
-  function genSimSample(){
-    const step = flatSteps[stepIndex];
-    const target = step ? (currentTargetWatts() || 150) : 150;
-    const power = Math.round(target + (Math.random()*16-8));
-    const cadence = Math.round(88 + (Math.random()*6-3));
-    simHr = simHr + ((60 + target*0.35) - simHr)*0.05 + (Math.random()*2-1);
-    return { power, cadence, heartRate: Math.round(simHr) };
-  }
-
   function drawOverviewChart(){
     const canvas = document.getElementById('overviewChart');
     const ctx = canvas.getContext('2d');
@@ -742,7 +730,6 @@ const supabase = createSupabaseClient();
     if (step && stepElapsed >= step.duration){
       advanceStep();
     }
-    if (simulateMode) handleBikeSample(genSimSample());
     renderStepReadout();
     drawOverviewChart();
     drawStepChart();
@@ -765,7 +752,7 @@ const supabase = createSupabaseClient();
     running = true;
     sessionStart = sessionStart || Date.now();
     if (freshStart){
-      log = []; simHr = 68; activeElapsedSec = 0;
+      log = []; activeElapsedSec = 0;
       document.getElementById('exportBtn').disabled = true;
       drawOverviewChart(); drawStepChart();
     }
@@ -847,22 +834,6 @@ const supabase = createSupabaseClient();
     if (completed) showCelebration('Workout Complete!', fmtDur(activeElapsedSec) + ' · ' + log.length + ' samples logged');
   }
   document.getElementById('stopBtn').addEventListener('click', ()=>stopSession(false));
-
-  document.getElementById('simulateBtn').addEventListener('click', ()=>{
-    simulateMode = !simulateMode;
-    const btn = document.getElementById('simulateBtn');
-    if (simulateMode){
-      btn.textContent = 'Stop simulating';
-      document.getElementById('trainerStatus').textContent = 'Simulated (no hardware)';
-      document.getElementById('trainerDot').classList.add('on');
-    } else {
-      btn.textContent = 'Simulate session (no hardware needed — preview only)';
-      if (!trainerDevice){
-        document.getElementById('trainerStatus').textContent = 'Not connected';
-        document.getElementById('trainerDot').classList.remove('on');
-      }
-    }
-  });
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const header = 'time_s,power_w,cadence_rpm,heart_rate_bpm,target_w\n';
