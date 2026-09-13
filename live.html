@@ -243,6 +243,7 @@ const supabase = createClient(
   let sessionStart = null;
 
   let trainerDevice=null, trainerControl=null, trainerControlReady=false;
+  let lastTargetWatts = null;
   let hrDevice=null;
   let simulateMode = false;
   let simHr = 68;
@@ -418,11 +419,66 @@ const supabase = createClient(
     return p;
   }
   async function setTargetPower(watts){
-    if (!trainerControlReady || watts==null) return;
+    if (watts==null) return;
+    lastTargetWatts = watts;
+    if (!trainerControlReady || !trainerControl) return;
     const w = Math.round(watts);
     const buf = new Uint8Array(3);
     buf[0]=0x05; buf[1]=w & 0xFF; buf[2]=(w>>8) & 0xFF;
-    try { await trainerControl.writeValueWithResponse(buf); } catch(e){ /* best effort */ }
+    for (let attempt=0; attempt<2; attempt++){
+      try { await trainerControl.writeValueWithResponse(buf); return; }
+      catch(e){ if (attempt===0) await new Promise(r=>setTimeout(r,400)); }
+    }
+    document.getElementById('trainerStatus').textContent = (trainerDevice&&trainerDevice.name || 'Trainer') + ' — target sync failed, will retry on reconnect';
+  }
+
+  async function setupTrainer(device){
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('fitness_machine');
+    const bikeData = await service.getCharacteristic('indoor_bike_data');
+    await bikeData.startNotifications();
+    bikeData.addEventListener('characteristicvaluechanged', (e)=>{
+      const parsed = parseIndoorBikeData(e.target.value);
+      handleBikeSample(parsed);
+    });
+
+    trainerControlReady = false;
+    try {
+      trainerControl = await service.getCharacteristic('fitness_machine_control_point');
+      await trainerControl.startNotifications();
+      const reqResp = await writeControl([0x00], 0x00);   // request control
+      const startResp = await writeControl([0x07], 0x07); // start/resume
+      trainerControlReady = (reqResp.resultCode===1 && startResp.resultCode===1);
+    } catch(ctrlErr){
+      trainerControlReady = false;
+    }
+
+    document.getElementById('trainerDot').classList.remove('err');
+    document.getElementById('trainerDot').classList.add('on');
+    document.getElementById('trainerStatus').textContent = (device.name || 'Connected') +
+      (trainerControlReady ? '' : ' (read-only — ERG control unavailable)');
+    document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
+
+    // if we were mid-workout when this (re)connected, resume holding the last known target
+    if (trainerControlReady && lastTargetWatts!=null) setTargetPower(lastTargetWatts);
+  }
+
+  function scheduleTrainerReconnect(device){
+    let attempt = 0;
+    const maxAttempts = 5;
+    (async function tryOnce(){
+      attempt++;
+      document.getElementById('trainerStatus').textContent = 'Reconnecting… (' + attempt + '/' + maxAttempts + ')';
+      try { await setupTrainer(device); }
+      catch(e){
+        if (attempt < maxAttempts) setTimeout(tryOnce, 1000*attempt);
+        else {
+          document.getElementById('trainerDot').classList.remove('on');
+          document.getElementById('trainerDot').classList.add('err');
+          document.getElementById('trainerStatus').textContent = 'Disconnected — reconnect failed';
+        }
+      }
+    })();
   }
 
   document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
@@ -432,35 +488,14 @@ const supabase = createClient(
         filters: [{ services: ['fitness_machine'] }],
         optionalServices: ['cycling_power']
       });
-      const server = await trainerDevice.gatt.connect();
-      const service = await server.getPrimaryService('fitness_machine');
-      const bikeData = await service.getCharacteristic('indoor_bike_data');
-      await bikeData.startNotifications();
-      bikeData.addEventListener('characteristicvaluechanged', (e)=>{
-        const parsed = parseIndoorBikeData(e.target.value);
-        handleBikeSample(parsed);
-      });
-
-      try {
-        trainerControl = await service.getCharacteristic('fitness_machine_control_point');
-        await trainerControl.startNotifications();
-        await writeControl([0x00], 0x00); // request control
-        const startResp = await writeControl([0x07], 0x07); // start/resume
-        trainerControlReady = true;
-      } catch(ctrlErr){
-        trainerControlReady = false; // read-only fallback
-      }
-
-      document.getElementById('trainerDot').classList.add('on');
-      document.getElementById('trainerStatus').textContent = trainerDevice.name || 'Connected' + (trainerControlReady ? '' : ' (read-only — ERG control unavailable)');
-      document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
-
       trainerDevice.addEventListener('gattserverdisconnected', ()=>{
         document.getElementById('trainerDot').classList.remove('on');
         document.getElementById('trainerDot').classList.add('err');
-        document.getElementById('trainerStatus').textContent = 'Disconnected';
+        document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
         trainerControlReady = false;
+        scheduleTrainerReconnect(trainerDevice);
       });
+      await setupTrainer(trainerDevice);
     } catch(e){
       document.getElementById('trainerDot').classList.add('err');
       document.getElementById('trainerStatus').textContent = 'Connection failed: ' + e.message;
@@ -468,28 +503,52 @@ const supabase = createClient(
   });
 
   // ---- Bluetooth: heart rate strap ----
+  async function setupHr(device){
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('heart_rate');
+    const char = await service.getCharacteristic('heart_rate_measurement');
+    await char.startNotifications();
+    char.addEventListener('characteristicvaluechanged', (e)=>{
+      const v = e.target.value;
+      const flags = v.getUint8(0);
+      const hr = (flags & 0x1) ? v.getUint16(1,true) : v.getUint8(1);
+      document.getElementById('mHr').textContent = hr;
+    });
+    document.getElementById('hrDot').classList.remove('err');
+    document.getElementById('hrDot').classList.add('on');
+    document.getElementById('hrStatus').textContent = device.name || 'Connected';
+    document.getElementById('connectHrBtn').textContent = 'Reconnect HR strap';
+  }
+
+  function scheduleHrReconnect(device){
+    let attempt = 0;
+    const maxAttempts = 5;
+    (async function tryOnce(){
+      attempt++;
+      document.getElementById('hrStatus').textContent = 'Reconnecting… (' + attempt + '/' + maxAttempts + ')';
+      try { await setupHr(device); }
+      catch(e){
+        if (attempt < maxAttempts) setTimeout(tryOnce, 1000*attempt);
+        else {
+          document.getElementById('hrDot').classList.remove('on');
+          document.getElementById('hrDot').classList.add('err');
+          document.getElementById('hrStatus').textContent = 'Disconnected — reconnect failed';
+        }
+      }
+    })();
+  }
+
   document.getElementById('connectHrBtn').addEventListener('click', async ()=>{
     if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser.'); return; }
     try {
       hrDevice = await navigator.bluetooth.requestDevice({ filters:[{ services:['heart_rate'] }] });
-      const server = await hrDevice.gatt.connect();
-      const service = await server.getPrimaryService('heart_rate');
-      const char = await service.getCharacteristic('heart_rate_measurement');
-      await char.startNotifications();
-      char.addEventListener('characteristicvaluechanged', (e)=>{
-        const v = e.target.value;
-        const flags = v.getUint8(0);
-        const hr = (flags & 0x1) ? v.getUint16(1,true) : v.getUint8(1);
-        document.getElementById('mHr').textContent = hr;
-      });
-      document.getElementById('hrDot').classList.add('on');
-      document.getElementById('hrStatus').textContent = hrDevice.name || 'Connected';
-      document.getElementById('connectHrBtn').textContent = 'Reconnect HR strap';
       hrDevice.addEventListener('gattserverdisconnected', ()=>{
         document.getElementById('hrDot').classList.remove('on');
         document.getElementById('hrDot').classList.add('err');
-        document.getElementById('hrStatus').textContent = 'Disconnected';
+        document.getElementById('hrStatus').textContent = 'Disconnected — reconnecting…';
+        scheduleHrReconnect(hrDevice);
       });
+      await setupHr(hrDevice);
     } catch(e){
       document.getElementById('hrDot').classList.add('err');
       document.getElementById('hrStatus').textContent = 'Connection failed: ' + e.message;
