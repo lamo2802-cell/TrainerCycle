@@ -1,0 +1,98 @@
+<svg viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bgGlow" cx="58%" cy="34%" r="70%">
+      <stop offset="0%" stop-color="#1B222B"/>
+      <stop offset="100%" stop-color="#10141A"/>
+    </radialGradient>
+    <linearGradient id="limbGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#232B36"/>
+      <stop offset="100%" stop-color="#161B22"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#252E3A"/>
+      <stop offset="100%" stop-color="#161B22"/>
+    </linearGradient>
+    <linearGradient id="wheelShine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#45D6C4" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#45D6C4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="420" fill="url(#bgGlow)"/>
+  <ellipse cx="330" cy="378" rx="230" ry="14" fill="#000000" opacity="0.35"/>
+
+  <!-- speed lines -->
+  <g stroke="#45D6C4" stroke-width="4" stroke-linecap="round" opacity="0.35">
+    <line x1="40" y1="150" x2="130" y2="150"/>
+    <line x1="20" y1="185" x2="145" y2="185"/>
+    <line x1="45" y1="220" x2="120" y2="220"/>
+  </g>
+
+  <!-- rear wheel -->
+  <circle cx="205" cy="300" r="72" fill="none" stroke="#20262F" stroke-width="14"/>
+  <circle cx="205" cy="300" r="72" fill="none" stroke="url(#wheelShine)" stroke-width="4"/>
+  <g stroke="#3A4450" stroke-width="1.5" opacity="0.8">
+    <line x1="205" y1="300" x2="205" y2="234"/>
+    <line x1="205" y1="300" x2="256" y2="266"/>
+    <line x1="205" y1="300" x2="256" y2="334"/>
+    <line x1="205" y1="300" x2="205" y2="366"/>
+    <line x1="205" y1="300" x2="154" y2="334"/>
+    <line x1="205" y1="300" x2="154" y2="266"/>
+  </g>
+  <circle cx="205" cy="300" r="9" fill="#0D1116" stroke="#45D6C4" stroke-width="2"/>
+
+  <!-- front wheel -->
+  <circle cx="462" cy="300" r="72" fill="none" stroke="#20262F" stroke-width="14"/>
+  <circle cx="462" cy="300" r="72" fill="none" stroke="url(#wheelShine)" stroke-width="4"/>
+  <g stroke="#3A4450" stroke-width="1.5" opacity="0.8">
+    <line x1="462" y1="300" x2="462" y2="234"/>
+    <line x1="462" y1="300" x2="513" y2="266"/>
+    <line x1="462" y1="300" x2="513" y2="334"/>
+    <line x1="462" y1="300" x2="462" y2="366"/>
+    <line x1="462" y1="300" x2="411" y2="334"/>
+    <line x1="462" y1="300" x2="411" y2="266"/>
+  </g>
+  <circle cx="462" cy="300" r="9" fill="#0D1116" stroke="#45D6C4" stroke-width="2"/>
+
+  <!-- frame, curved tubes -->
+  <g fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round">
+    <path d="M 205 300 C 250 300 280 300 322 300"/>
+    <path d="M 322 300 C 318 260 310 225 300 196"/>
+    <path d="M 300 196 C 340 200 385 204 424 210"/>
+    <path d="M 424 210 C 400 245 360 275 322 300"/>
+    <path d="M 424 210 C 440 240 452 268 462 300"/>
+  </g>
+  <path d="M 300 196 Q 296 178 292 164" fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round"/>
+  <rect x="278" y="156" width="32" height="11" rx="5.5" fill="#8C97A6" transform="rotate(-8 294 161)"/>
+  <path d="M 424 210 Q 428 195 432 182" fill="none" stroke="#8C97A6" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 415 178 Q 432 172 449 180 Q 456 184 452 192" fill="none" stroke="#8C97A6" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- crankset -->
+  <circle cx="322" cy="300" r="24" fill="#161B22" stroke="#3A4450" stroke-width="3"/>
+  <circle cx="322" cy="300" r="5" fill="#45D6C4"/>
+
+  <!-- rear leg (bent, driving up) -->
+  <path d="M 288 205 C 275 225 268 245 278 262" fill="none" stroke="url(#limbGrad)" stroke-width="17" stroke-linecap="round"/>
+  <path d="M 278 262 C 285 272 292 280 296 288" fill="none" stroke="url(#limbGrad)" stroke-width="15" stroke-linecap="round"/>
+
+  <!-- torso -->
+  <path d="M 288 205 C 320 185 358 172 392 160 C 400 157 406 160 404 168 C 372 178 340 190 312 208 C 302 214 292 212 288 205 Z" fill="url(#bodyGrad)" stroke="#45D6C4" stroke-width="1.5" opacity="0.98"/>
+  <path d="M 330 178 L 370 165" stroke="#45D6C4" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- front arm -->
+  <path d="M 388 163 C 405 172 418 182 424 196" fill="none" stroke="url(#limbGrad)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M 424 196 C 434 200 442 202 449 202" fill="none" stroke="url(#limbGrad)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- head + helmet -->
+  <circle cx="410" cy="145" r="23" fill="url(#bodyGrad)" stroke="#45D6C4" stroke-width="1.5"/>
+  <path d="M 388 143 C 390 122 405 110 422 112 C 434 114 442 124 442 136 C 430 130 412 128 398 134 C 394 136 390 139 388 143 Z" fill="#161B22" stroke="#45D6C4" stroke-width="2"/>
+  <path d="M 396 130 Q 412 122 430 128" fill="none" stroke="#45D6C4" stroke-width="2" opacity="0.6"/>
+
+  <!-- front leg (extended, pushing down) -->
+  <path d="M 305 210 C 320 235 335 258 335 278" fill="none" stroke="url(#limbGrad)" stroke-width="17" stroke-linecap="round"/>
+  <path d="M 335 278 C 332 288 327 296 322 300" fill="none" stroke="url(#limbGrad)" stroke-width="15" stroke-linecap="round"/>
+  <ellipse cx="320" cy="301" rx="14" ry="7" fill="#0D1116" stroke="#45D6C4" stroke-width="1.5" transform="rotate(18 320 301)"/>
+
+  <!-- saddle -->
+  <rect x="270" y="188" width="34" height="10" rx="5" fill="#161B22" stroke="#3A4450" stroke-width="1.5" transform="rotate(-8 287 193)"/>
+</svg>
