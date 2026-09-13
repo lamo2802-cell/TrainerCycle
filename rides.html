@@ -100,13 +100,12 @@
 </div>
 
 <script type="module">
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-const supabase = createClient(
-  'https://uqevjhysxzkivmjwggvu.supabase.co',
-  'sb_publishable_SXXjaHNm8mfF8ZHUpYU9QQ_EJjq_E46'
-);
+import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+const supabase = createSupabaseClient();
 
-(function(){
+(async function(){
+  const user = await requireAuth(supabase);
+  addSignOutButton(supabase, document.querySelector('.top-actions'));
   let rides = [];
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;

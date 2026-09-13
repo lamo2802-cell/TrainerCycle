@@ -287,12 +287,11 @@
 </div>
 
 <script type="module">
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-const supabase = createClient(
-  'https://uqevjhysxzkivmjwggvu.supabase.co',
-  'sb_publishable_SXXjaHNm8mfF8ZHUpYU9QQ_EJjq_E46'
-);
-(function(){
+import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+const supabase = createSupabaseClient();
+(async function(){
+  const user = await requireAuth(supabase);
+  addSignOutButton(supabase, document.querySelector('.top-actions'));
   const ZONES = [
     {max:60,  name:'Recovery',    color:'var(--z-recovery)'},
     {max:76,  name:'Endurance',   color:'var(--z-endurance)'},
@@ -327,31 +326,33 @@ const supabase = createClient(
   let buildSteps = []; // array of {type:'step',...} or {type:'repeat', repetitions, steps:[...]}
 
   // ---- storage (Supabase, with localStorage as an offline cache/fallback) ----
+  const ftpCacheKey = 'tc_ftp_' + user.id;
+  const libCacheKey = 'tc_workout_library_' + user.id;
   async function loadState(){
     // FTP
     try {
-      const { data, error } = await supabase.from('settings').select('value').eq('key','ftp').maybeSingle();
+      const { data, error } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
       if (error) throw error;
       if (data && data.value && typeof data.value.v === 'number'){
         ftp = data.value.v;
-        localStorage.setItem('tc_ftp', String(ftp));
+        localStorage.setItem(ftpCacheKey, String(ftp));
       } else {
-        const cached = localStorage.getItem('tc_ftp');
+        const cached = localStorage.getItem(ftpCacheKey);
         if (cached) ftp = parseFloat(cached) || 250;
       }
     } catch(e){
-      const cached = localStorage.getItem('tc_ftp');
+      const cached = localStorage.getItem(ftpCacheKey);
       if (cached) ftp = parseFloat(cached) || 250;
       showMsg('ftpMsg','Offline — showing last saved FTP.', true);
     }
-    // Library
+    // Library (RLS returns shared prebuilt rows plus this user's own rows)
     try {
       const { data, error } = await supabase.from('workouts').select('id,name,steps,category').order('created_at', {ascending:false});
       if (error) throw error;
       library = (data||[]).map(r=>({ id:r.id, name:r.name, steps:r.steps, category:r.category||null }));
-      localStorage.setItem('tc_workout_library', JSON.stringify(library));
+      localStorage.setItem(libCacheKey, JSON.stringify(library));
     } catch(e){
-      const cached = localStorage.getItem('tc_workout_library');
+      const cached = localStorage.getItem(libCacheKey);
       if (cached) { try { library = JSON.parse(cached); } catch(_){ library = []; } }
       showMsg('saveMsg','Offline — showing last synced library.', true);
     }
@@ -360,23 +361,26 @@ const supabase = createClient(
   }
   async function saveFtp(v){
     ftp = v;
-    localStorage.setItem('tc_ftp', String(v));
+    localStorage.setItem(ftpCacheKey, String(v));
     try {
-      const { error } = await supabase.from('settings').upsert({ key:'ftp', value:{v}, updated_at: new Date().toISOString() });
+      const { error } = await supabase.from('settings').upsert(
+        { user_id:user.id, key:'ftp', value:{v}, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,key' }
+      );
       if (error) throw error;
     } catch(e){ showMsg('ftpMsg','Saved locally, but sync failed — check connection.', true); }
   }
   async function addWorkoutToLibrary(w){
     library.unshift(w);
-    localStorage.setItem('tc_workout_library', JSON.stringify(library));
+    localStorage.setItem(libCacheKey, JSON.stringify(library));
     try {
-      const { error } = await supabase.from('workouts').insert({ id:w.id, name:w.name, steps:w.steps, source:'builder' });
+      const { error } = await supabase.from('workouts').insert({ id:w.id, name:w.name, steps:w.steps, source:'builder', user_id:user.id });
       if (error) throw error;
     } catch(e){ showMsg('saveMsg','Saved locally, but sync failed — check connection.', true); }
   }
   async function deleteWorkoutFromLibrary(id){
     library = library.filter(x=>x.id!==id);
-    localStorage.setItem('tc_workout_library', JSON.stringify(library));
+    localStorage.setItem(libCacheKey, JSON.stringify(library));
     try {
       const { error } = await supabase.from('workouts').delete().eq('id', id);
       if (error) throw error;
