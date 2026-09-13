@@ -226,6 +226,31 @@ const supabase = createClient(
       svg: '<svg viewBox="0 0 160 160"><circle cx="30" cy="70" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="64" width="70" height="12" rx="6" fill="#45D6C4"/><g class="mc-legA"><rect x="108" y="60" width="12" height="40" rx="5" fill="#8C97A6"/></g><g class="mc-legB"><rect x="108" y="60" width="12" height="40" rx="5" fill="#F08A3C"/></g><rect x="30" y="60" width="12" height="40" rx="5" fill="#8C97A6" transform="rotate(-20 36 80)"/></svg>',
       css: '.mc-legA{animation:mcA 0.8s ease-in-out infinite; transform-origin:top;} .mc-legB{animation:mcB 0.8s ease-in-out infinite; transform-origin:top;} @keyframes mcA{0%,100%{transform:rotate(15deg);}50%{transform:rotate(-55deg) translateX(-10px);}} @keyframes mcB{0%,100%{transform:rotate(-55deg) translateX(-10px);}50%{transform:rotate(15deg);}}',
       endCss: '.mc-legA{transform:rotate(-55deg) translateX(-10px); transform-origin:top;} .mc-legB{transform:rotate(15deg); transform-origin:top;}'
+    },
+    row: {
+      svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="30" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="44" width="16" height="56" rx="6" fill="#45D6C4"/><rect x="60" y="104" width="14" height="46" rx="5" fill="#8C97A6"/><rect x="86" y="104" width="14" height="46" rx="5" fill="#8C97A6"/><g class="rw-hand"><circle cx="122" cy="92" r="9" fill="#F08A3C"/></g></svg>',
+      css: '.rw-hand{animation:rwPull 1.4s ease-in-out infinite;} @keyframes rwPull{50%{transform:translate(-27px,-6px);}}',
+      endCss: '.rw-hand{transform:translate(-27px,-6px);}'
+    },
+    calf_raise: {
+      svg: '<svg viewBox="0 0 160 160"><g class="cr-body"><circle cx="80" cy="30" r="14" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="46" width="16" height="50" rx="6" fill="#45D6C4"/><rect x="55" y="96" width="14" height="46" rx="5" fill="#8C97A6"/><rect x="91" y="96" width="14" height="46" rx="5" fill="#8C97A6"/></g></svg>',
+      css: '.cr-body{animation:crRise 1.3s ease-in-out infinite; transform-origin:bottom;} @keyframes crRise{50%{transform:translateY(-9px);}}',
+      endCss: '.cr-body{transform:translateY(-9px); transform-origin:bottom;}'
+    },
+    clamshell: {
+      svg: '<svg viewBox="0 0 160 160"><circle cx="30" cy="70" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="64" width="55" height="12" rx="6" fill="#45D6C4"/><rect x="95" y="64" width="42" height="12" rx="6" fill="#8C97A6"/><g class="cl-topleg"><rect x="95" y="64" width="42" height="12" rx="6" fill="#F08A3C"/></g></svg>',
+      css: '.cl-topleg{animation:clOpen 1.6s ease-in-out infinite; transform-box:fill-box; transform-origin:left center;} @keyframes clOpen{50%{transform:rotate(-35deg);}}',
+      endCss: '.cl-topleg{transform:rotate(-35deg); transform-box:fill-box; transform-origin:left center;}'
+    },
+    standing_hip_abduction: {
+      svg: '<svg viewBox="0 0 160 160"><circle cx="80" cy="30" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="72" y="44" width="16" height="56" rx="6" fill="#45D6C4"/><rect x="60" y="100" width="14" height="48" rx="5" fill="#8C97A6"/><g class="ha-leg"><rect x="86" y="100" width="14" height="48" rx="5" fill="#F08A3C"/></g></svg>',
+      css: '.ha-leg{animation:haSwing 1.5s ease-in-out infinite; transform-box:fill-box; transform-origin:top center;} @keyframes haSwing{50%{transform:rotate(30deg);}}',
+      endCss: '.ha-leg{transform:rotate(30deg); transform-box:fill-box; transform-origin:top center;}'
+    },
+    straight_leg_raise: {
+      svg: '<svg viewBox="0 0 160 160"><circle cx="30" cy="110" r="13" fill="none" stroke="#E7ECF2" stroke-width="4"/><rect x="42" y="104" width="50" height="12" rx="6" fill="#45D6C4"/><rect x="92" y="104" width="40" height="12" rx="6" fill="#8C97A6"/><g class="sl-leg"><rect x="92" y="104" width="40" height="12" rx="6" fill="#F08A3C"/></g></svg>',
+      css: '.sl-leg{animation:slRaise 1.6s ease-in-out infinite; transform-box:fill-box; transform-origin:left center;} @keyframes slRaise{50%{transform:rotate(-40deg);}}',
+      endCss: '.sl-leg{transform:rotate(-40deg); transform-box:fill-box; transform-origin:left center;}'
     }
   };
   function renderFigure(key, container){
