@@ -61,6 +61,10 @@
 
   .block{ margin-bottom:26px; }
   .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:7px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
 
   .ftp-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:10px;}
   .ftp-value{ font-family:var(--mono); font-size:30px; font-weight:600; color:var(--accent); }
@@ -92,7 +96,10 @@
   button.ghost:hover{ color:var(--text); border-color:var(--line); }
   button:disabled{ opacity:.4; cursor:not-allowed; }
 
+  .lib-filters{ display:flex; gap:6px; margin-bottom:10px; }
+  .lib-filters select{ font-size:12px; padding:5px 6px; }
   .lib-item{ padding:10px 0; border-top:1px solid var(--line); }
+  .lib-tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:6px; }
   .lib-item:first-child{ border-top:none; }
   .lib-name{ font-weight:600; font-size:13.5px; }
   .lib-meta{ color:var(--text-dim); font-size:11.5px; font-family:var(--mono); margin:2px 0 6px; }
@@ -153,9 +160,15 @@
 <div class="app">
   <div class="sidebar">
     <p class="sub" style="margin-top:0;">Workout builder &amp; Tredict import</p>
-    <div style="margin:-14px 0 20px; display:flex; gap:10px;">
-      <a href="live.html" style="color:var(--accent); font-size:12.5px; text-decoration:none;">Live Session →</a>
-      <a href="trainerstrength.html" style="color:var(--accent); font-size:12.5px; text-decoration:none;">TrainerStrength →</a>
+
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="builder.html" class="active">Builder</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+      </nav>
     </div>
 
     <div class="block">
@@ -173,6 +186,25 @@
 
     <div class="block">
       <div class="block-title">Workout Library</div>
+      <div class="lib-filters">
+        <select id="filterCategory">
+          <option value="">All types</option>
+          <option value="recovery">Recovery</option>
+          <option value="endurance">Endurance</option>
+          <option value="sweet_spot">Sweet Spot</option>
+          <option value="threshold">Threshold</option>
+          <option value="vo2max">VO2 Max</option>
+          <option value="over_under">Over/Under</option>
+          <option value="custom">Custom (mine)</option>
+        </select>
+        <select id="sortBy">
+          <option value="duration_asc">Duration ↑</option>
+          <option value="duration_desc">Duration ↓</option>
+          <option value="if_asc">Intensity ↑</option>
+          <option value="if_desc">Intensity ↓</option>
+          <option value="name">Name</option>
+        </select>
+      </div>
       <div id="libraryList"><div class="empty-note">Loading…</div></div>
     </div>
   </div>
@@ -309,9 +341,9 @@ const supabase = createClient(
     }
     // Library
     try {
-      const { data, error } = await supabase.from('workouts').select('id,name,steps').order('created_at', {ascending:false});
+      const { data, error } = await supabase.from('workouts').select('id,name,steps,category').order('created_at', {ascending:false});
       if (error) throw error;
-      library = (data||[]).map(r=>({ id:r.id, name:r.name, steps:r.steps }));
+      library = (data||[]).map(r=>({ id:r.id, name:r.name, steps:r.steps, category:r.category||null }));
       localStorage.setItem('tc_workout_library', JSON.stringify(library));
     } catch(e){
       const cached = localStorage.getItem('tc_workout_library');
@@ -383,6 +415,31 @@ const supabase = createClient(
     return out;
   }
 
+  const CATEGORY_LABELS = {
+    recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
+    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under'
+  };
+  function categoryLabel(cat){ return CATEGORY_LABELS[cat] || 'Custom'; }
+
+  function stepWatts(s){
+    if (s.targetType==='ftp_pct') return ftp*(s.low+s.high)/200;
+    if (s.targetType==='watts') return (s.low+s.high)/2;
+    return null;
+  }
+  function computeStats(steps){
+    const flat = flatten(steps);
+    let totalDur = 0, sumP4t = 0, hasPower = false;
+    flat.forEach(s=>{
+      const w = stepWatts(s);
+      const dur = s.duration||0;
+      totalDur += dur;
+      if (w!=null){ sumP4t += Math.pow(w,4)*dur; hasPower = true; }
+    });
+    const np = (hasPower && totalDur>0) ? Math.pow(sumP4t/totalDur, 0.25) : null;
+    const IF = (np!=null && ftp>0) ? np/ftp : null;
+    return { totalDur, np: np!=null?Math.round(np):null, IF: IF!=null?Math.round(IF*100)/100:null };
+  }
+
   // ---- rendering ----
   function renderFtp(){
     document.getElementById('ftpDisplay').textContent = ftp ? Math.round(ftp) : '—';
@@ -392,14 +449,34 @@ const supabase = createClient(
   function renderLibrary(){
     const el = document.getElementById('libraryList');
     if (!library.length){ el.innerHTML = '<div class="empty-note">No saved workouts yet.</div>'; return; }
-    el.innerHTML = library.map(w=>{
-      const flat = flatten(w.steps);
-      const totalSec = flat.reduce((a,s)=>a+(s.duration||0),0);
-      const pcts = flat.map(effectivePct).filter(p=>p!=null);
-      const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
+
+    const filterVal = document.getElementById('filterCategory').value;
+    const sortVal = document.getElementById('sortBy').value;
+
+    let items = library.map(w=>{
+      const stats = computeStats(w.steps);
+      return { w, stats };
+    });
+
+    if (filterVal){
+      items = items.filter(it => filterVal==='custom' ? !it.w.category : it.w.category===filterVal);
+    }
+
+    items.sort((a,b)=>{
+      if (sortVal==='duration_asc') return a.stats.totalDur - b.stats.totalDur;
+      if (sortVal==='duration_desc') return b.stats.totalDur - a.stats.totalDur;
+      if (sortVal==='if_asc') return (a.stats.IF??0) - (b.stats.IF??0);
+      if (sortVal==='if_desc') return (b.stats.IF??0) - (a.stats.IF??0);
+      if (sortVal==='name') return a.w.name.localeCompare(b.w.name);
+      return 0;
+    });
+
+    if (!items.length){ el.innerHTML = '<div class="empty-note">No workouts match this filter.</div>'; return; }
+
+    el.innerHTML = items.map(({w, stats})=>{
       return '<div class="lib-item">'
-        + '<div class="lib-name">'+escapeHtml(w.name)+'</div>'
-        + '<div class="lib-meta">'+fmtDur(totalSec)+ (avg!=null ? ('  ·  avg '+avg+'% FTP') : '') +'</div>'
+        + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
+        + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.np!=null ? ('  ·  NP '+stats.np+'W') : '') +'</div>'
         + '<div class="lib-actions">'
         + '<button class="ghost" data-load="'+w.id+'">Load</button>'
         + '<button class="ghost" data-export="'+w.id+'">Export</button>'
@@ -407,6 +484,8 @@ const supabase = createClient(
         + '</div></div>';
     }).join('');
   }
+  document.getElementById('filterCategory').addEventListener('change', renderLibrary);
+  document.getElementById('sortBy').addEventListener('change', renderLibrary);
 
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 

@@ -40,6 +40,10 @@
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
   .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:7px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
   select, input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13.5px; width:100%; font-family:var(--sans); }
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
   button:hover{ border-color:var(--accent); }
@@ -106,9 +110,15 @@
 <div class="app">
   <div class="sidebar">
     <p class="sub" style="margin-top:0;">Live Session</p>
-    <div style="margin:-14px 0 20px; display:flex; gap:10px;">
-      <a href="builder.html">← Builder</a>
-      <a href="trainerstrength.html">TrainerStrength →</a>
+
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="builder.html">Builder</a>
+        <a href="live.html" class="active">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+      </nav>
     </div>
 
     <div class="block">
@@ -244,15 +254,41 @@ const supabase = createClient(
     document.getElementById('ftpDisplay').textContent = Math.round(ftp);
 
     try {
-      const { data } = await supabase.from('workouts').select('id,name,steps').order('created_at',{ascending:false});
+      const { data } = await supabase.from('workouts').select('id,name,steps,category').order('created_at',{ascending:false});
       library = data || [];
     } catch(e){
       try { library = JSON.parse(localStorage.getItem('tc_workout_library')||'[]'); } catch(_){ library = []; }
     }
     const sel = document.getElementById('workoutSelect');
     library.forEach(w=>{
-      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name; sel.appendChild(o);
+      const stats = computeStats(w.steps);
+      const label = w.name + ' · ' + fmtDur(stats.totalDur) + (stats.IF!=null ? (' · IF '+stats.IF.toFixed(2)) : '') + (w.category ? (' · '+categoryLabel(w.category)) : '');
+      const o = document.createElement('option'); o.value = w.id; o.textContent = label; sel.appendChild(o);
     });
+  }
+
+  const CATEGORY_LABELS = {
+    recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
+    threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under'
+  };
+  function categoryLabel(cat){ return CATEGORY_LABELS[cat] || 'Custom'; }
+  function stepWatts(s){
+    if (s.targetType==='ftp_pct') return ftp*(s.low+s.high)/200;
+    if (s.targetType==='watts') return (s.low+s.high)/2;
+    return null;
+  }
+  function computeStats(steps){
+    const flat = flatten(steps);
+    let totalDur = 0, sumP4t = 0, hasPower = false;
+    flat.forEach(s=>{
+      const w = stepWatts(s);
+      const dur = s.duration||0;
+      totalDur += dur;
+      if (w!=null){ sumP4t += Math.pow(w,4)*dur; hasPower = true; }
+    });
+    const np = (hasPower && totalDur>0) ? Math.pow(sumP4t/totalDur, 0.25) : null;
+    const IF = (np!=null && ftp>0) ? np/ftp : null;
+    return { totalDur, np: np!=null?Math.round(np):null, IF: IF!=null?Math.round(IF*100)/100:null };
   }
 
   function flatten(steps){
