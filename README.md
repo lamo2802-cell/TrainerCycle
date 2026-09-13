@@ -13,3 +13,4 @@ Structured indoor training, built around your FTP.
 
 Live Bluetooth control (reading power/cadence/HR from a trainer and pushing ERG targets from the workout steps) is next, as a separate standalone page — Web Bluetooth needs a top-level browser tab rather than an embedded view.
 
+
