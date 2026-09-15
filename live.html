@@ -68,6 +68,7 @@
   .step-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .3s linear; }
 
   .next-step{ font-size:12.5px; color:var(--text-dim); margin-bottom:18px; }
+  .auto-pause-banner{ background:rgba(232,185,61,0.12); border:1px solid var(--z-threshold); color:#E8B93D; border-radius:8px; padding:10px 14px; font-size:13px; margin:-10px 0 18px; }
   .next-step b{ color:var(--text); }
 
   .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
@@ -174,6 +175,7 @@
     </div>
     <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
     <div class="next-step" id="nextStepInfo">—</div>
+    <div class="auto-pause-banner" id="stageAutoPause" style="display:none;">⏸ Auto-paused — no pedaling detected. Start pedaling to resume automatically.</div>
 
     <div class="chart-panel">
       <div class="chart-panel-title">Workout overview</div>
@@ -249,6 +251,9 @@ const supabase = createSupabaseClient();
   let bailActive = false;
   let running = false;
   let tickHandle = null;
+  let autoPaused = false;
+  let zeroActivityStreak = 0;
+  const AUTO_PAUSE_THRESHOLD = 4; // consecutive ~1s samples with no pedaling
   let log = []; // {t,power,cadence,hr,target}
   let sessionStart = null;
 
@@ -567,10 +572,45 @@ const supabase = createSupabaseClient();
   });
 
   // ---- workout engine ----
+  function pauseWorkout(auto){
+    running = false;
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('startBtn').textContent = 'Resume';
+    document.getElementById('pauseBtn').disabled = true;
+    if (auto){
+      autoPaused = true;
+      document.getElementById('stageAutoPause') && (document.getElementById('stageAutoPause').style.display = 'block');
+    }
+  }
+  function resumeWorkout(){
+    running = true;
+    autoPaused = false;
+    zeroActivityStreak = 0;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('startBtn').textContent = 'Start';
+    document.getElementById('pauseBtn').disabled = false;
+    const banner = document.getElementById('stageAutoPause');
+    if (banner) banner.style.display = 'none';
+  }
+
   function handleBikeSample(parsed){
     if (parsed.power!=null) document.getElementById('mPower').textContent = parsed.power;
     if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
     if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
+
+    // auto-pause/resume based on pedaling activity (cadence preferred, power as fallback)
+    if (running || autoPaused){
+      const activitySignal = parsed.cadence!=null ? parsed.cadence : parsed.power;
+      const isPedaling = activitySignal!=null && activitySignal > 15;
+      if (isPedaling){
+        zeroActivityStreak = 0;
+        if (autoPaused) resumeWorkout();
+      } else if (running && !autoPaused){
+        zeroActivityStreak += 1;
+        if (zeroActivityStreak >= AUTO_PAUSE_THRESHOLD) pauseWorkout(true);
+      }
+    }
+
     if (running){
       logSample(parsed);
       drawOverviewChart();
@@ -762,6 +802,9 @@ const supabase = createSupabaseClient();
   document.getElementById('startBtn').addEventListener('click', async ()=>{
     const freshStart = !sessionStart;
     running = true;
+    autoPaused = false;
+    zeroActivityStreak = 0;
+    document.getElementById('stageAutoPause').style.display = 'none';
     sessionStart = sessionStart || Date.now();
     if (freshStart){
       log = []; activeElapsedSec = 0;
@@ -769,8 +812,9 @@ const supabase = createSupabaseClient();
       drawOverviewChart(); drawStepChart();
     }
     if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
-    tickHandle = setInterval(tick, 1000);
+    if (!tickHandle) tickHandle = setInterval(tick, 1000);
     document.getElementById('startBtn').disabled = true;
+    document.getElementById('startBtn').textContent = 'Start';
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('bailBtn').disabled = false;
     document.getElementById('skipBtn').disabled = false;
@@ -779,11 +823,7 @@ const supabase = createSupabaseClient();
   });
 
   document.getElementById('pauseBtn').addEventListener('click', ()=>{
-    running = false;
-    clearInterval(tickHandle);
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('startBtn').textContent = 'Resume';
-    document.getElementById('pauseBtn').disabled = true;
+    pauseWorkout(false);
   });
 
   document.getElementById('bailBtn').addEventListener('click', async ()=>{
@@ -859,6 +899,10 @@ const supabase = createSupabaseClient();
   function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
+    tickHandle = null;
+    autoPaused = false;
+    zeroActivityStreak = 0;
+    document.getElementById('stageAutoPause').style.display = 'none';
     saveCompletedRide(completed);
     const wasTest = currentWorkoutMeta.category === 'test';
     const bestMin = wasTest ? computeBestMinutePower() : null;
