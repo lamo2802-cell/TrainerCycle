@@ -121,6 +121,7 @@
         <a href="live.html" class="active">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
         <a href="rides.html">Rides</a>
+        <a href="plans.html">Plans</a>
       </nav>
     </div>
 
@@ -211,6 +212,17 @@
     <div class="celebrate-title" id="celebrateTitle">Workout Complete!</div>
     <div class="celebrate-subtitle" id="celebrateSubtitle"></div>
     <button class="primary" id="celebrateCloseBtn">Nice</button>
+  </div>
+</div>
+
+<div class="celebrate-overlay" id="ftpSuggestOverlay" style="display:none;">
+  <div class="celebrate-content">
+    <div class="celebrate-title">Ramp Test Complete!</div>
+    <div class="celebrate-subtitle" id="ftpSuggestText"></div>
+    <div style="display:flex; gap:10px; justify-content:center;">
+      <button class="primary" id="ftpAcceptBtn">Update my FTP</button>
+      <button id="ftpDeclineBtn">Keep current FTP</button>
+    </div>
   </div>
 </div>
 
@@ -814,10 +826,42 @@ const supabase = createSupabaseClient();
     catch(e){ /* best effort — ride data stays exportable via CSV either way */ }
   }
 
+  function computeBestMinutePower(){
+    const pts = log.map(s=>({t:Number(s.elapsed), p:Number(s.power)})).filter(s=>!isNaN(s.t)&&!isNaN(s.p));
+    if (!pts.length) return null;
+    let best = 0;
+    for (let i=0;i<pts.length;i++){
+      const t0 = pts[i].t;
+      const windowPts = pts.filter(p=>p.t>=t0 && p.t<t0+60);
+      if (!windowPts.length) continue;
+      const avg = windowPts.reduce((a,p)=>a+p.p,0)/windowPts.length;
+      if (avg>best) best = avg;
+    }
+    return best>0 ? best : null;
+  }
+
+  function showFtpSuggestion(bestMinPower){
+    const suggested = Math.round(bestMinPower*0.75);
+    document.getElementById('ftpSuggestText').innerHTML =
+      'Best 1-minute power: <b>'+Math.round(bestMinPower)+'W</b><br>' +
+      'Suggested new FTP: <b>'+suggested+'W</b> (current: '+Math.round(ftp)+'W)';
+    document.getElementById('ftpSuggestOverlay').style.display = 'flex';
+    document.getElementById('ftpAcceptBtn').onclick = async ()=>{
+      await saveFtp(suggested);
+      document.getElementById('ftpDisplay').textContent = Math.round(ftp);
+      document.getElementById('ftpSuggestOverlay').style.display = 'none';
+    };
+    document.getElementById('ftpDeclineBtn').onclick = ()=>{
+      document.getElementById('ftpSuggestOverlay').style.display = 'none';
+    };
+  }
+
   function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
     saveCompletedRide(completed);
+    const wasTest = currentWorkoutMeta.category === 'test';
+    const bestMin = wasTest ? computeBestMinutePower() : null;
     sessionStart = null;
     stepIndex = -1;
     stepElapsed = 0;
@@ -831,7 +875,11 @@ const supabase = createSupabaseClient();
     document.getElementById('workoutSelect').disabled = false;
     renderStepReadout();
     if (log.length) document.getElementById('exportBtn').disabled = false;
-    if (completed) showCelebration('Workout Complete!', fmtDur(activeElapsedSec) + ' · ' + log.length + ' samples logged');
+    if (bestMin){
+      showFtpSuggestion(bestMin);
+    } else if (completed){
+      showCelebration('Workout Complete!', fmtDur(activeElapsedSec) + ' · ' + log.length + ' samples logged');
+    }
   }
   document.getElementById('stopBtn').addEventListener('click', ()=>{
     if (confirm('End this ride? It will save what\'s been recorded so far, but the workout will stop.')){

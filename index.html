@@ -28,7 +28,7 @@
 
   .cards{ display:grid; grid-template-columns:1fr; gap:14px; width:100%; max-width:760px; }
   @media (min-width:620px){ .cards{ grid-template-columns:1fr 1fr; } }
-  @media (min-width:860px){ .cards{ grid-template-columns:1fr 1fr 1fr 1fr; } }
+  @media (min-width:860px){ .cards{ grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); } }
   .card{
     background:var(--panel); border:1px solid var(--line); border-radius:12px;
     padding:20px; text-decoration:none; color:var(--text); transition:border-color .15s ease;
@@ -70,6 +70,11 @@
       <div class="card-title">Rides</div>
       <div class="card-desc">Review completed sessions with power, HR, and Intensity Factor, and export any ride as a TCX file.</div>
       <span class="card-accent">View rides →</span>
+    </a>
+    <a class="card" href="plans.html">
+      <div class="card-title">Plans</div>
+      <div class="card-desc">Multi-week structured training plans — Sweet Spot, Threshold, Base Endurance, and a sharpening block ending in a ramp test.</div>
+      <span class="card-accent">Browse plans →</span>
     </a>
   </div>
 </body>

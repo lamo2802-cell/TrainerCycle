@@ -170,6 +170,7 @@
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
         <a href="rides.html">Rides</a>
+        <a href="plans.html">Plans</a>
       </nav>
     </div>
 
@@ -747,7 +748,17 @@ const supabase = createSupabaseClient();
     fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
   });
 
-  loadState();
+  await loadState();
+
+  const loadParam = new URLSearchParams(window.location.search).get('load');
+  if (loadParam){
+    const w = library.find(x=>x.id===loadParam);
+    if (w){
+      buildSteps = JSON.parse(JSON.stringify(w.steps));
+      document.getElementById('workoutName').value = w.name;
+      renderBuilder();
+    }
+  }
 })();
 </script>
 </body>
