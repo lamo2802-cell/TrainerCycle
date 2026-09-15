@@ -283,9 +283,18 @@ const supabase = createSupabaseClient();
 
   async function loadData(){
     try {
-      const { data } = await supabase.from('strength_workouts').select('id,name,exercises').order('created_at',{ascending:false});
+      const { data, error } = await supabase.from('strength_workouts').select('id,name,exercises').order('created_at',{ascending:false});
+      if (error) throw error;
       library = data || [];
-    } catch(e){ library = []; }
+      if (!library.length){
+        document.getElementById('stageName').textContent = 'No workouts found';
+        document.getElementById('stageNotes').textContent = 'The library came back empty — tell Claude if this persists.';
+      }
+    } catch(e){
+      library = [];
+      document.getElementById('stageName').textContent = 'Could not load workouts';
+      document.getElementById('stageNotes').textContent = 'Error: ' + (e && e.message ? e.message : String(e));
+    }
     const sel = document.getElementById('workoutSelect');
     library.forEach(w=>{
       const o = document.createElement('option'); o.value = w.id; o.textContent = w.name; sel.appendChild(o);
