@@ -61,6 +61,11 @@
   .ride-stat .lbl{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
   .empty-note{ color:var(--text-dim); font-size:13px; }
   .filters{ display:flex; gap:8px; margin-bottom:18px; }
+  .ride-chart-wrap{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
+  .chart-legend span{ display:flex; align-items:center; gap:5px; }
+  .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
+  #ridesList canvas{ width:100%; height:150px; display:block; }
   .filters select{ max-width:200px; }
 </style>
 </head>
@@ -143,7 +148,7 @@ const supabase = createSupabaseClient();
         + '<div class="ride-name">'+escapeHtml(r.workout_name)
         + '<span class="ride-tag'+(r.completed?'':' partial')+'">'+(r.completed?'Completed':'Partial')+'</span>'
         + '</div><div class="ride-date">'+fmtDate(r.started_at)+'</div>'
-        + '</div><button data-tcx="'+r.id+'">Export TCX</button></div>'
+        + '</div><div style="display:flex; gap:6px;"><button data-details="'+r.id+'">View chart</button><button data-tcx="'+r.id+'">Export TCX</button></div></div>'
         + '<div class="ride-stats">'
         + '<div class="ride-stat"><div class="val">'+fmtDur(r.duration_sec)+'</div><div class="lbl">Duration</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_power ?? '—')+'</div><div class="lbl">Avg Power</div></div>'
@@ -151,10 +156,55 @@ const supabase = createSupabaseClient();
         + '<div class="ride-stat"><div class="val">'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</div><div class="lbl">IF</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_hr ?? '—')+'</div><div class="lbl">Avg HR</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
-        + '</div></div>';
+        + '</div>'
+        + '<div class="ride-chart-wrap" id="chartwrap-'+r.id+'" style="display:none;">'
+        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span></div>'
+        + '<canvas id="chart-'+r.id+'" width="760" height="150"></canvas>'
+        + '</div>'
+        + '</div>';
     }).join('');
   }
   document.getElementById('filterCompleted').addEventListener('change', render);
+
+  function drawRideChart(ride){
+    const canvas = document.getElementById('chart-'+ride.id);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    const samples = ride.samples || [];
+    if (!samples.length) return;
+    const n = samples.length;
+    const maxPower = Math.max(50, ...samples.map(s=>Number(s.power)||0)) * 1.15;
+    const maxHr = Math.max(60, ...samples.map(s=>Number(s.hr)||0)) * 1.1;
+    const xAt = i => (i/Math.max(1,n-1))*w;
+    function line(getVal, max, color){
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      samples.forEach((s,i)=>{
+        const v = Number(getVal(s))||0;
+        const y = h - (v/max)*h;
+        if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
+      });
+      ctx.stroke();
+    }
+    line(s=>s.hr, maxHr, '#E5484D');
+    line(s=>s.power, maxPower, '#45D6C4');
+  }
+
+  document.getElementById('ridesList').addEventListener('click', (e)=>{
+    const detailsId = e.target.dataset.details;
+    if (detailsId){
+      const wrap = document.getElementById('chartwrap-'+detailsId);
+      const showing = wrap.style.display !== 'none';
+      wrap.style.display = showing ? 'none' : 'block';
+      e.target.textContent = showing ? 'View chart' : 'Hide chart';
+      if (!showing){
+        const ride = rides.find(r=>r.id===detailsId);
+        if (ride) drawRideChart(ride);
+      }
+      return;
+    }
+  });
 
   // ---- TCX export ----
   function buildTcx(ride){

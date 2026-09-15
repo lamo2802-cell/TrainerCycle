@@ -833,7 +833,11 @@ const supabase = createSupabaseClient();
     if (log.length) document.getElementById('exportBtn').disabled = false;
     if (completed) showCelebration('Workout Complete!', fmtDur(activeElapsedSec) + ' · ' + log.length + ' samples logged');
   }
-  document.getElementById('stopBtn').addEventListener('click', ()=>stopSession(false));
+  document.getElementById('stopBtn').addEventListener('click', ()=>{
+    if (confirm('End this ride? It will save what\'s been recorded so far, but the workout will stop.')){
+      stopSession(false);
+    }
+  });
 
   document.getElementById('exportBtn').addEventListener('click', ()=>{
     const header = 'time_s,power_w,cadence_rpm,heart_rate_bpm,target_w\n';
