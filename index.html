@@ -84,11 +84,12 @@
   </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
   addUserBadge(supabase, user);
+  await requireSubscription(supabase, user);
 })();
 </script>
 </body>

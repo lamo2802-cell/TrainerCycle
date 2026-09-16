@@ -289,11 +289,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
   addUserBadge(supabase, user);
+  await requireSubscription(supabase, user);
   const ZONES = [
     {max:60,  name:'Recovery',    color:'var(--z-recovery)'},
     {max:76,  name:'Endurance',   color:'var(--z-endurance)'},

@@ -111,6 +111,58 @@ export function addUserBadge(supabase, user){
   document.body.appendChild(badge);
 }
 
+// Checks the user's subscription status; shows a paywall gate and blocks until active.
+export async function requireSubscription(supabase, user){
+  const { data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+  const activeStatuses = ['active', 'owner', 'trialing'];
+  if (data && activeStatuses.includes(data.status)) return true;
+
+  return new Promise((resolve)=>{
+    const gate = document.createElement('div');
+    gate.id = 'subGate';
+    gate.innerHTML =
+      '<style>' +
+      '#subGate{ position:fixed; inset:0; background:#10141A; z-index:999; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }' +
+      '#subGate .box{ background:#171D25; border:1px solid #2A323D; border-radius:12px; padding:32px; max-width:360px; width:90%; text-align:center; }' +
+      '#subGate img{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
+      '#subGate h2{ color:#E7ECF2; font-size:18px; margin:0 0 6px; }' +
+      '#subGate p{ color:#8C97A6; font-size:13px; margin:0 0 18px; line-height:1.5; }' +
+      '#subGate .price{ color:#45D6C4; font-size:28px; font-weight:700; margin-bottom:4px; }' +
+      '#subGate .price span{ font-size:13px; color:#8C97A6; font-weight:400; }' +
+      '#subGate button{ width:100%; padding:11px; border-radius:6px; border:1px solid #45D6C4; background:#45D6C4; color:#08211E; font-weight:600; font-size:14px; cursor:pointer; margin-top:14px; }' +
+      '#subGate button:disabled{ opacity:.5; cursor:not-allowed; }' +
+      '#subGate .msg{ color:#8C97A6; font-size:12px; margin-top:12px; min-height:16px; }' +
+      '</style>' +
+      '<div class="box">' +
+      '<img src="logo.svg" alt="TrainerCycle">' +
+      '<h2>Subscribe to TrainerCycle</h2>' +
+      '<div class="price">£3<span>–5 / month</span></div>' +
+      '<p>Structured cycling and strength training, built around your FTP — live trainer control, training plans, and full ride history.</p>' +
+      '<button id="subBtn">Subscribe</button>' +
+      '<div class="msg" id="subMsg"></div>' +
+      '</div>';
+    document.body.appendChild(gate);
+
+    document.getElementById('subBtn').addEventListener('click', async ()=>{
+      const btn = document.getElementById('subBtn');
+      const msg = document.getElementById('subMsg');
+      btn.disabled = true;
+      msg.textContent = 'Setting up checkout…';
+      const { data: fnData, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { returnUrl: window.location.href }
+      });
+      if (error || !fnData || !fnData.url){
+        msg.textContent = 'Checkout isn\'t available yet — try again shortly.';
+        btn.disabled = false;
+        return;
+      }
+      window.location.href = fnData.url;
+    });
+    // Note: this gate does not auto-resolve — a real subscription redirects away to Stripe
+    // and back, at which point the page reloads and this check runs again.
+  });
+}
+
 // Adds a compact sign-out button into the given container element.
 export function addSignOutButton(supabase, container){
   const btn = document.createElement('button');

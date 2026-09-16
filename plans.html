@@ -98,12 +98,13 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
   addUserBadge(supabase, user);
+  await requireSubscription(supabase, user);
 
   const FOCUS_LABELS = {
     recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
