@@ -235,12 +235,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
-  addSignOutButton(supabase, document.querySelector('.top-actions'));
+  addUserBadge(supabase, user);
   const ZONES = [
     {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
     {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},

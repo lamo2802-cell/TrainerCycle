@@ -65,6 +65,52 @@ export function requireAuth(supabase){
   });
 }
 
+// Shows a compact user badge (avatar + name/email) fixed top-right; click to sign out.
+export function addUserBadge(supabase, user){
+  const badge = document.createElement('div');
+  badge.id = 'userBadge';
+  badge.title = 'Click to sign out';
+
+  const style = document.createElement('style');
+  style.textContent =
+    '#userBadge{ position:fixed; top:14px; right:14px; z-index:50; display:flex; align-items:center; gap:8px; background:#171D25; border:1px solid #2A323D; border-radius:24px; padding:5px 12px 5px 5px; cursor:pointer; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }' +
+    '#userBadge:hover{ border-color:#45D6C4; }' +
+    '#userBadge .avatar{ width:28px; height:28px; border-radius:50%; background:#45D6C4; color:#08211E; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; overflow:hidden; flex-shrink:0; }' +
+    '#userBadge .avatar img{ width:100%; height:100%; object-fit:cover; }' +
+    '#userBadge .label{ color:#E7ECF2; font-size:12.5px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
+    '@media (max-width:480px){ #userBadge .label{ display:none; } #userBadge{ padding:5px; } }';
+  badge.appendChild(style);
+
+  const avatarUrl = user.user_metadata && user.user_metadata.avatar_url;
+  const label = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email || 'Account';
+
+  const avatarEl = document.createElement('span');
+  avatarEl.className = 'avatar';
+  if (avatarUrl){
+    const img = document.createElement('img');
+    img.src = avatarUrl;
+    img.alt = '';
+    avatarEl.appendChild(img);
+  } else {
+    avatarEl.textContent = (label || '?').trim().charAt(0).toUpperCase();
+  }
+
+  const labelEl = document.createElement('span');
+  labelEl.className = 'label';
+  labelEl.textContent = label;
+
+  badge.appendChild(avatarEl);
+  badge.appendChild(labelEl);
+
+  badge.addEventListener('click', async ()=>{
+    if (confirm('Sign out of TrainerCycle?')){
+      await supabase.auth.signOut();
+      location.reload();
+    }
+  });
+  document.body.appendChild(badge);
+}
+
 // Adds a compact sign-out button into the given container element.
 export function addSignOutButton(supabase, container){
   const btn = document.createElement('button');

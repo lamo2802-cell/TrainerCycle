@@ -289,11 +289,11 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
-  addSignOutButton(supabase, document.querySelector('.top-actions'));
+  addUserBadge(supabase, user);
   const ZONES = [
     {max:60,  name:'Recovery',    color:'var(--z-recovery)'},
     {max:76,  name:'Endurance',   color:'var(--z-endurance)'},

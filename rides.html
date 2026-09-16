@@ -107,12 +107,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
-  addSignOutButton(supabase, document.querySelector('.top-actions'));
+  addUserBadge(supabase, user);
   let rides = [];
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;

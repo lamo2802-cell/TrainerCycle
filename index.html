@@ -82,5 +82,14 @@
       <span class="card-accent">Read the guide →</span>
     </a>
   </div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
+const supabase = createSupabaseClient();
+(async function(){
+  const user = await requireAuth(supabase);
+  addUserBadge(supabase, user);
+})();
+</script>
 </body>
 </html>

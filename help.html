@@ -178,12 +178,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+import { createSupabaseClient, requireAuth, addUserBadge } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   await requireAuth(supabase);
-  addSignOutButton(supabase, document.querySelector('.top-actions'));
+  addUserBadge(supabase, user);
 
   const appRoot = document.querySelector('.app');
   const sidebarToggle = document.getElementById('sidebarToggle');
