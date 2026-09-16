@@ -75,6 +75,7 @@
   .chart-click-info{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:8px; }
   .chart-click-info b{ color:var(--text); }
 
+  .start-hint{ font-size:12.5px; color:var(--text-dim); text-align:center; margin-bottom:8px; }
   .controls{
     display:flex; gap:10px; margin-bottom:10px;
     position:sticky; bottom:0; background:var(--bg);
@@ -133,7 +134,10 @@
 
     <div class="block">
       <div class="block-title">Workout</div>
-      <select id="workoutSelect"><option value="">Free ride (no target)</option></select>
+      <select id="workoutSelect">
+        <option value="" disabled selected>Choose a workout…</option>
+        <option value="freeride">Free ride (no target)</option>
+      </select>
     </div>
 
     <div class="block">
@@ -198,8 +202,9 @@
       <canvas id="stepChart" width="760" height="120"></canvas>
     </div>
 
+    <div class="start-hint" id="startHint">Open the menu (☰) and choose a workout to begin.</div>
     <div class="controls">
-      <button class="primary" id="startBtn">Start</button>
+      <button class="primary" id="startBtn" disabled>Start</button>
       <button id="pauseBtn" disabled>Pause</button>
       <button id="bailBtn" disabled>Bail to recovery</button>
       <button id="skipBtn" disabled>Skip step</button>
@@ -346,6 +351,13 @@ const supabase = createSupabaseClient();
   }
 
   let currentWorkoutMeta = { name: 'Free Ride', category: null };
+  function updateStartAvailability(){
+    const hasSelection = document.getElementById('workoutSelect').value !== '';
+    if (!running){
+      document.getElementById('startBtn').disabled = !hasSelection;
+    }
+    document.getElementById('startHint').style.display = hasSelection ? 'none' : 'block';
+  }
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
     const w = library.find(x=>x.id===e.target.value);
     flatSteps = w ? flatten(w.steps) : [];
@@ -354,6 +366,7 @@ const supabase = createSupabaseClient();
     renderStepReadout();
     drawOverviewChart();
     drawStepChart();
+    updateStartAvailability();
   });
 
   function renderStepReadout(){
@@ -809,6 +822,10 @@ const supabase = createSupabaseClient();
   }
 
   document.getElementById('startBtn').addEventListener('click', async ()=>{
+    if (!trainerDevice || !trainerDevice.gatt.connected){
+      alert('Connect your trainer before starting a ride — use the "Connect trainer" button in the menu.');
+      return;
+    }
     const freshStart = !sessionStart;
     running = true;
     autoPaused = false;
@@ -1038,6 +1055,7 @@ const supabase = createSupabaseClient();
   }
   loadData().then(()=>{ drawOverviewChart(); drawStepChart(); });
   renderStepReadout();
+  updateStartAvailability();
 })();
 </script>
 </body>
