@@ -598,10 +598,19 @@ const supabase = createSupabaseClient();
     if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
     if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
 
-    // auto-pause/resume based on pedaling activity (cadence preferred, power as fallback)
+    // auto-pause/resume based on pedaling activity — requires both cadence and power to be near zero when both are reported
     if (running || autoPaused){
-      const activitySignal = parsed.cadence!=null ? parsed.cadence : parsed.power;
-      const isPedaling = activitySignal!=null && activitySignal > 15;
+      const hasCadence = parsed.cadence!=null, hasPower = parsed.power!=null;
+      let isPedaling;
+      if (hasCadence && hasPower){
+        isPedaling = parsed.cadence > 15 || parsed.power > 15; // only "not pedaling" if BOTH are near zero
+      } else if (hasCadence){
+        isPedaling = parsed.cadence > 15;
+      } else if (hasPower){
+        isPedaling = parsed.power > 15;
+      } else {
+        isPedaling = true; // no signal at all — don't guess, avoid a false pause
+      }
       if (isPedaling){
         zeroActivityStreak = 0;
         if (autoPaused) resumeWorkout();
