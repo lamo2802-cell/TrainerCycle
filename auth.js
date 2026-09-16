@@ -140,6 +140,7 @@ export async function requireSubscription(supabase, user){
       '<p>Structured cycling and strength training, built around your FTP — live trainer control, training plans, and full ride history.</p>' +
       '<button id="subBtn">Subscribe</button>' +
       '<div class="msg" id="subMsg"></div>' +
+      '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By subscribing you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>, including immediate access and the loss of the 14-day cancellation right described there.</div>' +
       '</div>';
     document.body.appendChild(gate);
 
