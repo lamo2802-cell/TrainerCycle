@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerCycle — How to Use</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.6; }
+  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
+  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:72px 20px 20px; }
+  .main{ flex:1; min-width:320px; padding:76px 28px 60px; max-width:760px; }
+  @media (min-width:701px){ .sidebar{ min-height:100vh; } }
+  @media (max-width:700px){
+    .app{ flex-direction:column; }
+    .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
+    .main{ max-width:100%; min-width:0; }
+  }
+  .app.sidebar-collapsed .sidebar{ display:none; }
+  .app.sidebar-collapsed .main{ max-width:900px; margin:0 auto; }
+  .top-actions{ position:fixed; top:14px; left:14px; z-index:50; display:flex; align-items:center; gap:8px; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  .top-logo-link{ display:flex; }
+  .top-logo{ height:52px; width:auto; border-radius:8px; display:block; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:7px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+  .toc a{ display:block; padding:5px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:12.5px; }
+  .toc a:hover{ background:var(--panel-2); color:var(--text); }
+
+  h1{ font-size:24px; margin:0 0 4px; }
+  h2{ font-size:18px; margin:36px 0 10px; padding-top:12px; border-top:1px solid var(--line); color:var(--accent); }
+  h2:first-of-type{ border-top:none; margin-top:20px; }
+  h3{ font-size:14px; margin:18px 0 6px; color:var(--text); }
+  p{ color:var(--text-dim); margin:0 0 12px; }
+  ol, ul{ color:var(--text-dim); margin:0 0 14px; padding-left:20px; }
+  li{ margin-bottom:6px; }
+  code{ background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-family:var(--mono); font-size:12.5px; color:var(--accent); }
+  .callout{ background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:6px; padding:12px 14px; margin:14px 0; font-size:13px; color:var(--text-dim); }
+  .callout b{ color:var(--text); }
+  .callout.warn{ border-left-color:#E8B93D; }
+</style>
+</head>
+<body>
+<div class="top-actions">
+  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+</div>
+
+<div class="app">
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">How to Use</p>
+
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="builder.html">Builder</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
+        <a href="plans.html">Plans</a>
+        <a href="help.html" class="active">How to Use</a>
+      </nav>
+    </div>
+
+    <div class="block">
+      <div class="block-title">On this page</div>
+      <nav class="toc">
+        <a href="#ftp">Setting your FTP</a>
+        <a href="#builder">Building a workout</a>
+        <a href="#library">Using the library</a>
+        <a href="#plans">Following a plan</a>
+        <a href="#live">Riding live</a>
+        <a href="#strength">Strength sessions</a>
+        <a href="#rides">Reviewing rides</a>
+        <a href="#tips">Tips &amp; troubleshooting</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1>How to use TrainerCycle</h1>
+    <p>A quick walkthrough of everything the app can do, in the order you'd actually use it.</p>
+
+    <h2 id="ftp">Setting your FTP</h2>
+    <p>Everything in TrainerCycle is built around your FTP (Functional Threshold Power) — it's what every %FTP target in every workout is calculated from.</p>
+    <ol>
+      <li>Open <a href="builder.html">Builder</a> and find the <b>Current FTP</b> box in the sidebar.</li>
+      <li>Enter your number and hit Save. It's saved to your account, so it applies everywhere — Live Ride, Plans, the library's Intensity Factor numbers, all of it.</li>
+    </ol>
+    <div class="callout">Don't know your FTP? Run the <b>Ramp Test</b> from the library (see <a href="#live">Riding Live</a> below) — it suggests a new FTP automatically based on your best minute of power.</div>
+
+    <h2 id="builder">Building a workout</h2>
+    <p>The Builder page is where you create your own structured workouts from scratch.</p>
+    <h3>Add a single step</h3>
+    <ol>
+      <li>Set a duration (mm:ss), a target type (% FTP, Watts, or % HRmax), and a low/high range.</li>
+      <li>Click <b>Add step</b>. It appears in the step list below, colored by intensity zone.</li>
+    </ol>
+    <h3>Add an interval set</h3>
+    <p>For repeated work/recovery blocks (e.g. 4x8 minutes), use the <b>Add interval set</b> form instead — set the work duration/target, recovery duration/target, and how many repetitions, and it builds the whole block in one go.</p>
+    <h3>Save it</h3>
+    <p>Give it a name and click <b>Save to library</b>. It's now yours, synced to your account, and available from every page's workout picker.</p>
+    <h3>Import from Tredict</h3>
+    <p>If you use Tredict for planning, ask Claude to fetch a specific workout and hand you its JSON — paste it into the <b>Import from Tredict</b> tab and it converts automatically into the builder, ready to review and save.</p>
+
+    <h2 id="library">Using the library</h2>
+    <p>Every workout you've built, plus a large set of prebuilt ones (Recovery through VO2 Max, Threshold, Over/Unders, Anaerobic, and the FTP Test) live in the library on the Builder page.</p>
+    <ul>
+      <li><b>Filter</b> by type, or choose "Custom (mine)" to see only what you've built.</li>
+      <li><b>Sort</b> by duration or Intensity Factor, either direction.</li>
+      <li><b>Click any workout row</b> to load it into the builder view so you can see its full profile.</li>
+      <li>Every entry shows its duration and <b>IF</b> (Intensity Factor) — calculated properly from normalized power, so hard intervals push the number up the way they do on Strava or TrainerRoad.</li>
+    </ul>
+
+    <h2 id="plans">Following a plan</h2>
+    <p>The <a href="plans.html">Plans</a> page has multi-week structured plans — Sweet Spot Build, Threshold Build, Base Endurance, and a short VO2/Anaerobic sharpening block that ends with a ramp test.</p>
+    <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into the Builder with that session loaded, ready to review or take into Live Ride.</p>
+
+    <h2 id="live">Riding live</h2>
+    <h3>Connect your gear</h3>
+    <ol>
+      <li>Open <a href="live.html">Live Ride</a> in <b>Chrome or Edge</b> (Safari/iOS doesn't support the Bluetooth this needs).</li>
+      <li>Click <b>Connect trainer</b> and pick your trainer from the browser's device list.</li>
+      <li>Optionally click <b>Connect HR strap</b> too.</li>
+    </ol>
+    <div class="callout">A trainer connection is required before you can start a ride — this stops you from starting a session that won't actually control resistance.</div>
+    <h3>Pick a workout and start</h3>
+    <p>Choose a workout from the menu (or "Free ride" if you just want to monitor without a script), then hit <b>Start</b>. The overview chart shows your whole ride's planned intensity with your live power/HR traced on top; the zoomed chart below it shows just the current step in detail.</p>
+    <h3>While riding</h3>
+    <ul>
+      <li><b>Bail to recovery</b> — drops the current interval's target to an easy recovery pace, holding it until the workout naturally moves to the next step.</li>
+      <li><b>Skip step</b> — jumps straight to the next step.</li>
+      <li><b>Auto-pause</b> — if you stop pedaling (both cadence and power drop to near zero) for a few seconds, the ride pauses itself automatically, and resumes the moment you start pedaling again.</li>
+      <li><b>Stop</b> — asks for confirmation first, then ends and saves the ride.</li>
+    </ul>
+    <h3>The Ramp Test</h3>
+    <p>A structured warm-up followed by 1-minute steps rising in intensity until you can't hold on any more — stop it whenever you need to. It works out your best minute of power from the actual data and suggests a new FTP, with a popup to accept or keep your current number.</p>
+
+    <h2 id="strength">Strength sessions</h2>
+    <p>Open <a href="trainerstrength.html">TrainerStrength</a>, pick a session (Full Body, Upper Body, Legs, Core, Push/Pull Day, or the hip/glute-focused Knee &amp; Hip Support routine), and hit Start.</p>
+    <p>Each exercise shows an animated illustration plus static Start/Finish position frames so you can see exactly what the move looks like. Tap <b>Set complete</b> when you're done with a set — a rest timer counts down automatically before the next one.</p>
+
+    <h2 id="rides">Reviewing rides</h2>
+    <p>Every completed (or manually stopped) ride from Live Ride is saved automatically to <a href="rides.html">Rides</a> — no extra step needed. Each entry shows duration, average power, Normalized Power, Intensity Factor, and heart rate stats.</p>
+    <ul>
+      <li>Click <b>View chart</b> on any ride to see power and heart rate plotted over the whole session.</li>
+      <li>Click <b>Export TCX</b> to download a file you can manually upload to Garmin Connect, Strava, or Tredict.</li>
+    </ul>
+
+    <h2 id="tips">Tips &amp; troubleshooting</h2>
+    <ul>
+      <li><b>Collapsed menu?</b> Tap the ☰ icon top-left on any page to open the sidebar — that's where workout pickers, FTP, and connection buttons live.</li>
+      <li><b>Nothing loading?</b> Most pages will show the actual error message if a load fails, rather than just staying blank — if you see one, send it over and it points straight at the cause.</li>
+      <li><b>Signed out unexpectedly?</b> Sign back in with the same email — a fresh magic link works every time, no password to remember.</li>
+      <li><b>Fullscreen icon</b> (top-left, next to the menu) is handy for a clean, distraction-free view while mounted on the bike.</li>
+    </ul>
+  </div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, addSignOutButton } from './auth.js';
+const supabase = createSupabaseClient();
+
+(async function(){
+  await requireAuth(supabase);
+  addSignOutButton(supabase, document.querySelector('.top-actions'));
+
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  let initCollapsed = false;
+  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
+  applyCollapsed(initCollapsed);
+
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  fullscreenToggle.addEventListener('click', ()=>{
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen();
+  });
+  document.addEventListener('fullscreenchange', ()=>{
+    fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+  });
+})();
+</script>
+</body>
+</html>
