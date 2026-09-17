@@ -34,18 +34,23 @@
   .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
 
-  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
-  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:72px 20px 20px; }
+  .app{ position:relative; min-height:100vh; }
+  .sidebar{
+    position:fixed; top:60px; left:0; bottom:0; width:300px; max-width:85vw;
+    background:var(--panel); border-right:1px solid var(--line);
+    padding:20px; overflow-y:auto; z-index:60;
+    transform:translateX(-100%); transition:transform .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
+  .sidebar-backdrop{
+    position:fixed; top:60px; left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
   .main{
-    flex:1; min-width:320px; padding:76px 24px 60px;
+    padding:76px 24px 60px;
     display:flex; flex-direction:column; align-items:center;
   }
-  @media (min-width:701px){ .sidebar{ min-height:100vh; } }
-  @media (max-width:700px){
-    .app{ flex-direction:column; }
-    .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
-  }
-  .app.sidebar-collapsed .sidebar{ display:none; }
 
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
@@ -102,7 +107,8 @@
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
 
-<div class="app">
+<div class="app sidebar-collapsed">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div class="sidebar">
     <p class="sub" style="margin-top:0;">Home</p>
     <div class="block">
@@ -223,25 +229,23 @@ const supabase = createSupabaseClient();
   });
 
   const { data: { session } } = await supabase.auth.getSession();
-  if (session){
+  if (session && !handled){
     handled = true;
     await showSignedIn(session.user);
-  } else {
+  } else if (!session){
     showSignedOut();
   }
 
   // ---- sidebar collapse ----
   const appRoot = document.querySelector('.app');
   const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
     sidebarToggle.textContent = collapsed ? '☰' : '✕';
-    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
-  let initCollapsed = false;
-  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
-  applyCollapsed(initCollapsed);
+  sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
 
   // ---- fullscreen toggle ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');

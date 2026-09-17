@@ -169,7 +169,7 @@ export function renderSidebarUserBadge(supabase, user, container){
   const avatarUrl = user.user_metadata && user.user_metadata.avatar_url;
   const label = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email || 'Account';
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 8px; margin:-10px -8px 18px; border-bottom:1px solid #2A323D;';
+  wrap.style.cssText = 'display:flex; align-items:center; gap:10px; padding:14px 8px 4px; margin:24px -8px 0; border-top:1px solid #2A323D;';
 
   const avatarEl = document.createElement('span');
   avatarEl.style.cssText = 'width:32px; height:32px; border-radius:50%; background:#45D6C4; color:#08211E; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; overflow:hidden; flex-shrink:0;';
@@ -195,7 +195,7 @@ export function renderSidebarUserBadge(supabase, user, container){
   wrap.appendChild(avatarEl);
   wrap.appendChild(labelEl);
   wrap.appendChild(signOutBtn);
-  container.insertBefore(wrap, container.firstChild);
+  container.appendChild(wrap);
 }
 
 // Adds a compact sign-out button into the given container element (legacy top-right usage).

@@ -18,17 +18,20 @@
   }
   *{box-sizing:border-box;}
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
-  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
-  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:72px 20px 20px; }
-  .main{ flex:1; min-width:340px; padding:76px 28px 24px; max-width:820px; }
-  @media (min-width:701px){ .sidebar{ min-height:100vh; } }
-  @media (max-width:700px){
-    .app{ flex-direction:column; }
-    .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
-    .main{ max-width:100%; min-width:0; }
+  .app{ position:relative; min-height:100vh; }
+  .sidebar{
+    position:fixed; top:60px; left:0; bottom:0; width:300px; max-width:85vw;
+    background:var(--panel); border-right:1px solid var(--line);
+    padding:20px; overflow-y:auto; z-index:60;
+    transform:translateX(-100%); transition:transform .25s ease;
   }
-  .app.sidebar-collapsed .sidebar{ display:none; }
-  .app.sidebar-collapsed .main{ max-width:1100px; margin:0 auto; }
+  .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
+  .sidebar-backdrop{
+    position:fixed; top:60px; left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
+  .main{ padding:76px 28px 24px; max-width:820px; margin:0 auto; }
   .top-bar{
     position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
     display:flex; align-items:center; padding:0 14px;
@@ -112,7 +115,8 @@
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
 
-<div class="app">
+<div class="app sidebar-collapsed">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div class="sidebar">
     <p class="sub" style="margin-top:0;">TrainerStrength Session</p>
 
@@ -577,18 +581,16 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('celebrateCloseBtn').addEventListener('click', hideCelebration);
 
-  // ---- sidebar collapse ----
+  // ---- sidebar drawer (overlay on all screen sizes) ----
   const appRoot = document.querySelector('.app');
   const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
     sidebarToggle.textContent = collapsed ? '☰' : '✕';
-    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
-  let initCollapsed = false;
-  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
-  applyCollapsed(initCollapsed);
+  sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
 
   // ---- fullscreen toggle ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');
