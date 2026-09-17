@@ -247,15 +247,20 @@ const supabase = createSupabaseClient();
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
   sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
 
-  // ---- fullscreen toggle ----
+  // ---- fullscreen toggle (not needed when already running as an installed app) ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');
-  fullscreenToggle.addEventListener('click', ()=>{
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-    else document.exitFullscreen();
-  });
-  document.addEventListener('fullscreenchange', ()=>{
-    fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
-  });
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone){
+    fullscreenToggle.style.display = 'none';
+  } else {
+    fullscreenToggle.addEventListener('click', ()=>{
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', ()=>{
+      fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+    });
+  }
 })();
 </script>
 </body>
