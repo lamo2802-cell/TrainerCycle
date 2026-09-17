@@ -754,12 +754,15 @@ const supabase = createSupabaseClient();
     const totalPlanned = hasPlan ? (flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1) : null;
 
     if (hasPlan){
-      // background: full workout profile, vivid — matching the Workouts library's chart style
+      // background: full workout profile, vivid — matching the Workouts library's chart style.
+      // Bar HEIGHT scales with intensity (a skyline profile), not just color — same technique as the mini chart.
       let x = 0;
       flatSteps.forEach(s=>{
         const seg = ((s.duration||0)/totalPlanned)*w;
-        ctx.fillStyle = zoneColorRGBA(effectivePct(s), 0.85);
-        ctx.fillRect(x, 0, seg, h);
+        const pct = effectivePct(s);
+        const barH = pct!=null ? Math.max(h*0.08, Math.min(h*0.95, (pct/160)*h)) : h*0.25;
+        ctx.fillStyle = zoneColorRGBA(pct, 0.85);
+        ctx.fillRect(x, h-barH, seg, barH);
         x += seg;
       });
       // progress cursor — bright line + marker dot + elapsed-time label
