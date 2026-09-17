@@ -211,10 +211,11 @@ const supabase = createSupabaseClient();
     const statusEl = document.getElementById('stravaStatus');
     const btn = document.getElementById('stravaConnectBtn');
     try {
-      const { data } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle();
+      const { data } = await supabase.from('strava_connections').select('connected_at, athlete_firstname, athlete_lastname').eq('user_id', user.id).maybeSingle();
       if (data){
         dot.classList.add('on');
-        statusEl.textContent = 'Connected';
+        const name = [data.athlete_firstname, data.athlete_lastname].filter(Boolean).join(' ');
+        statusEl.textContent = name ? ('Connected as ' + name) : 'Connected';
         btn.textContent = 'Reconnect Strava';
       } else {
         statusEl.textContent = 'Not connected';
