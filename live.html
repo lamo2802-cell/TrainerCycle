@@ -580,9 +580,14 @@ const supabase = createSupabaseClient();
     for (let attempt=1; attempt<=3; attempt++){
       const reqResp = await writeControl([0x00], 0x00);   // request control
       if (reqResp.resultCode===1){
-        const startResp = await writeControl([0x07], 0x07); // start/resume
-        if (startResp.resultCode===1) return { ok:true };
-        if (attempt===3) return { ok:false, reason: startResp.timedOut ? 'start/resume timed out' : ('start/resume rejected (code '+startResp.resultCode+')') };
+        // Start/Resume is best-effort here: some trainers (Elite Zumo among them) reject it
+        // as a no-op ("Operation Failed") on a fresh connection where there's nothing to resume
+        // from, but still accept power targets once control is granted. Don't hard-block on it.
+        const startResp = await writeControl([0x07], 0x07);
+        if (startResp.resultCode!==1){
+          console.warn('start/resume not acknowledged (code ' + (startResp.resultCode ?? 'timeout') + ') — proceeding anyway since Request Control succeeded');
+        }
+        return { ok:true };
       } else if (attempt===3){
         return { ok:false, reason: reqResp.timedOut ? 'request-control timed out' : ('request-control rejected (code '+reqResp.resultCode+') — another app may still be connected to it') };
       }
