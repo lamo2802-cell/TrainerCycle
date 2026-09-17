@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrainerCycle — Settings</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10141A">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ display:flex; min-height:100vh; flex-wrap:wrap; }
+  .sidebar{ width:300px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:72px 20px 20px; }
+  .main{ flex:1; min-width:320px; padding:76px 28px 60px; max-width:640px; }
+  @media (min-width:701px){ .sidebar{ min-height:100vh; } }
+  @media (max-width:700px){
+    .app{ flex-direction:column; }
+    .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--line); }
+    .main{ max-width:100%; min-width:0; }
+  }
+  .app.sidebar-collapsed .sidebar{ display:none; }
+  .app.sidebar-collapsed .main{ max-width:900px; margin:0 auto; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
+    display:flex; align-items:center; padding:0 14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:7px 8px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:13px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+
+  h1{ font-size:22px; margin:0 0 24px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:16px; }
+  .panel-title{ font-size:15px; font-weight:600; margin-bottom:4px; }
+  .panel-desc{ color:var(--text-dim); font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  .ftp-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .ftp-value{ font-family:var(--mono); font-size:32px; font-weight:600; color:var(--accent); }
+  .ftp-unit{ color:var(--text-dim); font-size:13px; }
+  input[type=number], input[type=text]{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:8px 10px; font-family:var(--mono); font-size:14px; width:140px;
+  }
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 14px; font-size:13.5px; cursor:pointer; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  .status-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-dim); margin-bottom:12px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
+  .dot.on{ background:var(--accent); }
+  .msg{ font-size:12.5px; margin-top:10px; color:var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+</div>
+
+<div class="app">
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">Settings</p>
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="builder.html">Workouts</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
+        <a href="settings.html" class="active">Settings</a>
+        <a href="help.html">How to Use</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1>Settings</h1>
+
+    <div class="panel">
+      <div class="panel-title">FTP</div>
+      <div class="panel-desc">Your Functional Threshold Power — every %FTP target across the app is calculated from this.</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="ftpDisplay">—</span>
+        <span class="ftp-unit">watts</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="number" id="ftpInput" placeholder="e.g. 254" min="1" max="2000">
+        <button class="primary" id="ftpSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="ftpMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Trainer</div>
+      <div class="panel-desc">Pairing here just remembers your trainer's name for convenience — you'll still connect and control it live from the Live Ride page each session (that's a Bluetooth requirement, not something we can skip).</div>
+      <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not paired</span></div>
+      <button id="pairTrainerBtn">Pair a trainer</button>
+      <div class="msg" id="trainerMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Strava</div>
+      <div class="panel-desc">Connect your Strava account to enable one-tap uploads from the Rides page.</div>
+      <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
+      <button id="stravaConnectBtn">Connect Strava</button>
+      <div class="msg" id="stravaMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js';
+const supabase = createSupabaseClient();
+
+(async function(){
+  const user = await requireAuth(supabase);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
+  await requireSubscription(supabase, user);
+
+  // ---- FTP ----
+  let ftp = 250;
+  const ftpCacheKey = 'tc_ftp_' + user.id;
+  async function loadFtp(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
+      if (data && data.value && typeof data.value.v === 'number') ftp = data.value.v;
+      else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
+    } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
+    document.getElementById('ftpDisplay').textContent = Math.round(ftp);
+    document.getElementById('ftpInput').value = Math.round(ftp);
+  }
+  document.getElementById('ftpSaveBtn').addEventListener('click', async ()=>{
+    const v = parseFloat(document.getElementById('ftpInput').value);
+    const msg = document.getElementById('ftpMsg');
+    if (!v || v <= 0){ msg.textContent = 'Enter a valid FTP in watts.'; return; }
+    ftp = v;
+    localStorage.setItem(ftpCacheKey, String(v));
+    document.getElementById('ftpDisplay').textContent = Math.round(v);
+    try {
+      const { error } = await supabase.from('settings').upsert(
+        { user_id:user.id, key:'ftp', value:{v}, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,key' }
+      );
+      if (error) throw error;
+      msg.textContent = 'Saved.';
+    } catch(e){ msg.textContent = 'Saved locally, but sync failed — check connection.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  });
+
+  // ---- Trainer pairing (name-only — live control happens on Live Ride) ----
+  function refreshTrainerDisplay(){
+    const name = localStorage.getItem('tc_paired_trainer_name');
+    if (name){
+      document.getElementById('trainerDot').classList.add('on');
+      document.getElementById('trainerStatus').textContent = name;
+      document.getElementById('pairTrainerBtn').textContent = 'Pair a different trainer';
+    }
+  }
+  document.getElementById('pairTrainerBtn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('trainerMsg');
+    if (!navigator.bluetooth){ msg.textContent = 'Web Bluetooth isn\'t supported in this browser — use Chrome or Edge.'; return; }
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['fitness_machine'] }]
+      });
+      localStorage.setItem('tc_paired_trainer_name', device.name || 'Trainer');
+      refreshTrainerDisplay();
+      msg.textContent = 'Paired. Connect it from the Live Ride page each ride to control it.';
+    } catch(e){
+      msg.textContent = e.name === 'NotFoundError' ? 'No device selected.' : ('Could not pair: ' + e.message);
+    }
+  });
+  refreshTrainerDisplay();
+
+  // ---- Strava ----
+  const STRAVA_CLIENT_ID = ''; // set once the Strava API app is created
+  async function refreshStravaStatus(){
+    const dot = document.getElementById('stravaDot');
+    const statusEl = document.getElementById('stravaStatus');
+    const btn = document.getElementById('stravaConnectBtn');
+    try {
+      const { data } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle();
+      if (data){
+        dot.classList.add('on');
+        statusEl.textContent = 'Connected';
+        btn.textContent = 'Reconnect Strava';
+      } else {
+        statusEl.textContent = 'Not connected';
+        btn.textContent = 'Connect Strava';
+      }
+    } catch(e){
+      statusEl.textContent = 'Not connected';
+    }
+  }
+  document.getElementById('stravaConnectBtn').addEventListener('click', ()=>{
+    const msg = document.getElementById('stravaMsg');
+    if (!STRAVA_CLIENT_ID){
+      msg.textContent = 'Strava isn\'t configured yet — the Client ID needs to be set once the Strava API app is created.';
+      return;
+    }
+    const redirectUri = 'https://uqevjhysxzkivmjwggvu.supabase.co/functions/v1/strava-oauth-callback';
+    const params = new URLSearchParams({
+      client_id: STRAVA_CLIENT_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      approval_prompt: 'auto',
+      scope: 'activity:write',
+      state: user.id,
+      'return': window.location.origin + window.location.pathname
+    });
+    window.location.href = 'https://www.strava.com/oauth/authorize?' + params.toString();
+  });
+
+  // Show a quick status if we just came back from the Strava OAuth redirect
+  (function(){
+    const params = new URLSearchParams(window.location.search);
+    const strava = params.get('strava');
+    const msg = document.getElementById('stravaMsg');
+    if (strava === 'connected') msg.textContent = 'Strava connected!';
+    else if (strava === 'denied') msg.textContent = 'Strava connection was cancelled.';
+    else if (strava === 'error') msg.textContent = 'Something went wrong connecting Strava — try again.';
+    if (strava) window.history.replaceState({}, '', window.location.pathname);
+  })();
+
+  await loadFtp();
+  refreshStravaStatus();
+
+  // ---- sidebar collapse ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    try { localStorage.setItem('tc_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  let initCollapsed = false;
+  try { initCollapsed = localStorage.getItem('tc_sidebar_collapsed') === '1'; } catch(e){}
+  applyCollapsed(initCollapsed);
+
+  // ---- fullscreen toggle ----
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  fullscreenToggle.addEventListener('click', ()=>{
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen();
+  });
+  document.addEventListener('fullscreenchange', ()=>{
+    fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+  });
+})();
+</script>
+</body>
+</html>

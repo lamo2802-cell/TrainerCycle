@@ -29,15 +29,21 @@
   }
   .app.sidebar-collapsed .sidebar{ display:none; }
   .app.sidebar-collapsed .main{ max-width:900px; margin:0 auto; }
-  .top-actions{ position:fixed; top:14px; left:14px; z-index:50; display:flex; align-items:center; gap:8px; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
+    display:flex; align-items:center; padding:0 14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
   .icon-btn{
     width:38px; height:38px; border-radius:8px;
     background:var(--panel-2); border:1px solid var(--line); color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
-  .top-logo-link{ display:flex; }
-  .top-logo{ height:52px; width:auto; border-radius:8px; display:block; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
 
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
@@ -63,9 +69,10 @@
 </style>
 </head>
 <body>
-<div class="top-actions">
-  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+<div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
 
@@ -77,11 +84,12 @@
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
         <a href="index.html">Home</a>
-        <a href="builder.html">Builder</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
         <a href="rides.html">Rides</a>
-        <a href="plans.html">Plans</a>
+        <a href="settings.html">Settings</a>
         <a href="help.html" class="active">How to Use</a>
       </nav>
     </div>
@@ -108,13 +116,13 @@
     <h2 id="ftp">Setting your FTP</h2>
     <p>Everything in TrainerCycle is built around your FTP (Functional Threshold Power) — it's what every %FTP target in every workout is calculated from.</p>
     <ol>
-      <li>Open <a href="builder.html">Builder</a> and find the <b>Current FTP</b> box in the sidebar.</li>
+      <li>Open <a href="settings.html">Settings</a> and find the <b>Current FTP</b> box.</li>
       <li>Enter your number and hit Save. It's saved to your account, so it applies everywhere — Live Ride, Plans, the library's Intensity Factor numbers, all of it.</li>
     </ol>
     <div class="callout">Don't know your FTP? Run the <b>Ramp Test</b> from the library (see <a href="#live">Riding Live</a> below) — it suggests a new FTP automatically based on your best minute of power.</div>
 
     <h2 id="builder">Building a workout</h2>
-    <p>The Builder page is where you create your own structured workouts from scratch.</p>
+    <p>The Workouts page is where you create your own structured workouts from scratch.</p>
     <h3>Add a single step</h3>
     <ol>
       <li>Set a duration (mm:ss), a target type (% FTP, Watts, or % HRmax), and a low/high range.</li>
@@ -124,11 +132,10 @@
     <p>For repeated work/recovery blocks (e.g. 4x8 minutes), use the <b>Add interval set</b> form instead — set the work duration/target, recovery duration/target, and how many repetitions, and it builds the whole block in one go.</p>
     <h3>Save it</h3>
     <p>Give it a name and click <b>Save to library</b>. It's now yours, synced to your account, and available from every page's workout picker.</p>
-    <h3>Import from Tredict</h3>
-    <p>If you use Tredict for planning, ask Claude to fetch a specific workout and hand you its JSON — paste it into the <b>Import from Tredict</b> tab and it converts automatically into the builder, ready to review and save.</p>
+
 
     <h2 id="library">Using the library</h2>
-    <p>Every workout you've built, plus a large set of prebuilt ones (Recovery through VO2 Max, Threshold, Over/Unders, Anaerobic, and the FTP Test) live in the library on the Builder page.</p>
+    <p>Every workout you've built, plus a large set of prebuilt ones (Recovery through VO2 Max, Threshold, Over/Unders, Anaerobic, and the FTP Test) live in the library on the Workouts page.</p>
     <ul>
       <li><b>Filter</b> by type, or choose "Custom (mine)" to see only what you've built.</li>
       <li><b>Sort</b> by duration or Intensity Factor, either direction.</li>
@@ -138,7 +145,7 @@
 
     <h2 id="plans">Following a plan</h2>
     <p>The <a href="plans.html">Plans</a> page has multi-week structured plans — Sweet Spot Build, Threshold Build, Base Endurance, and a short VO2/Anaerobic sharpening block that ends with a ramp test.</p>
-    <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into the Builder with that session loaded, ready to review or take into Live Ride.</p>
+    <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into Workouts with that session loaded, ready to review or take into Live Ride.</p>
 
     <h2 id="live">Riding live</h2>
     <h3>Connect your gear</h3>
@@ -168,12 +175,12 @@
     <p>Every completed (or manually stopped) ride from Live Ride is saved automatically to <a href="rides.html">Rides</a> — no extra step needed. Each entry shows duration, average power, Normalized Power, Intensity Factor, and heart rate stats.</p>
     <ul>
       <li>Click <b>View chart</b> on any ride to see power and heart rate plotted over the whole session.</li>
-      <li>Click <b>Export TCX</b> to download a file you can manually upload to Garmin Connect, Strava, or Tredict.</li>
+      <li>Click <b>Export TCX</b> to download a file you can manually upload to Garmin Connect or Strava.</li>
     </ul>
 
     <h2 id="tips">Tips &amp; troubleshooting</h2>
     <ul>
-      <li><b>Collapsed menu?</b> Tap the ☰ icon top-left on any page to open the sidebar — that's where workout pickers, FTP, and connection buttons live.</li>
+      <li><b>Collapsed menu?</b> Tap the ☰ icon top-left on any page to open the sidebar — that's where workout pickers and connection buttons live. FTP, trainer pairing, and Strava are all on the <a href="settings.html">Settings</a> page.</li>
       <li><b>Nothing loading?</b> Most pages will show the actual error message if a load fails, rather than just staying blank — if you see one, send it over and it points straight at the cause.</li>
       <li><b>Signed out unexpectedly?</b> Sign back in with the same email — a fresh magic link works every time, no password to remember.</li>
       <li><b>Fullscreen icon</b> (top-left, next to the menu) is handy for a clean, distraction-free view while mounted on the bike.</li>
@@ -182,12 +189,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   await requireAuth(supabase);
-  addUserBadge(supabase, user);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
 
   const appRoot = document.querySelector('.app');

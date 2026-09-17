@@ -164,7 +164,41 @@ export async function requireSubscription(supabase, user){
   });
 }
 
-// Adds a compact sign-out button into the given container element.
+// Renders the user's avatar/name inline inside a sidebar container, with a sign-out action.
+export function renderSidebarUserBadge(supabase, user, container){
+  const avatarUrl = user.user_metadata && user.user_metadata.avatar_url;
+  const label = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email || 'Account';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex; align-items:center; gap:10px; padding:10px 8px; margin:-10px -8px 18px; border-bottom:1px solid #2A323D;';
+
+  const avatarEl = document.createElement('span');
+  avatarEl.style.cssText = 'width:32px; height:32px; border-radius:50%; background:#45D6C4; color:#08211E; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; overflow:hidden; flex-shrink:0;';
+  if (avatarUrl){
+    const img = document.createElement('img');
+    img.src = avatarUrl; img.alt = ''; img.style.cssText = 'width:100%; height:100%; object-fit:cover;';
+    avatarEl.appendChild(img);
+  } else {
+    avatarEl.textContent = (label || '?').trim().charAt(0).toUpperCase();
+  }
+
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+  labelEl.style.cssText = 'color:#E7ECF2; font-size:12.5px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+
+  const signOutBtn = document.createElement('button');
+  signOutBtn.textContent = 'Sign out';
+  signOutBtn.style.cssText = 'width:auto; font-size:11px; padding:5px 10px; flex-shrink:0;';
+  signOutBtn.addEventListener('click', async ()=>{
+    if (confirm('Sign out of TrainerCycle?')){ await supabase.auth.signOut(); location.reload(); }
+  });
+
+  wrap.appendChild(avatarEl);
+  wrap.appendChild(labelEl);
+  wrap.appendChild(signOutBtn);
+  container.insertBefore(wrap, container.firstChild);
+}
+
+// Adds a compact sign-out button into the given container element (legacy top-right usage).
 export function addSignOutButton(supabase, container){
   const btn = document.createElement('button');
   btn.className = 'icon-btn';

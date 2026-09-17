@@ -50,15 +50,21 @@
   }
   .app.sidebar-collapsed .sidebar{ display:none; }
   .app.sidebar-collapsed .main{ max-width:1100px; margin:0 auto; }
-  .top-actions{ position:fixed; top:14px; left:14px; z-index:50; display:flex; align-items:center; gap:8px; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
+    display:flex; align-items:center; padding:0 14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
   .icon-btn{
     width:38px; height:38px; border-radius:8px;
     background:var(--panel-2); border:1px solid var(--line); color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
-  .top-logo-link{ display:flex; }
-  .top-logo{ height:52px; width:auto; border-radius:8px; display:block; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
 
   h1{ font-size:19px; margin:0 0 2px; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:0 0 24px; }
@@ -108,6 +114,9 @@
   .lib-item:first-child{ border-top:none; }
   .lib-name{ font-weight:600; font-size:13.5px; }
   .lib-meta{ color:var(--text-dim); font-size:11.5px; font-family:var(--mono); margin:2px 0 6px; }
+  .lib-item-row{ display:flex; gap:10px; align-items:center; }
+  .lib-chart{ width:56px; height:34px; flex-shrink:0; border-radius:4px; background:var(--panel-2); }
+  .lib-item-text{ flex:1; min-width:0; }
   .lib-actions{ display:flex; gap:6px; }
   .lib-actions button{ font-size:11.5px; padding:4px 8px; }
   .empty-note{ color:var(--text-dim); font-size:12.5px; font-style:italic; }
@@ -157,43 +166,33 @@
 </style>
 </head>
 <body>
-<div class="top-actions">
-  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+<div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
 <div class="app">
   <div class="sidebar">
-    <p class="sub" style="margin-top:0;">Workout builder &amp; Tredict import</p>
+    <p class="sub" style="margin-top:0;">Workouts</p>
 
     <div class="block">
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
         <a href="index.html">Home</a>
-        <a href="builder.html" class="active">Builder</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="builder.html" class="active">Workouts</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
         <a href="rides.html">Rides</a>
-        <a href="plans.html">Plans</a>
+        <a href="settings.html">Settings</a>
         <a href="help.html">How to Use</a>
       </nav>
     </div>
 
     <div class="block">
-      <div class="block-title">Current FTP</div>
-      <div class="ftp-row">
-        <span class="ftp-value" id="ftpDisplay">—</span>
-        <span class="ftp-unit">watts</span>
-      </div>
-      <div class="ftp-edit">
-        <input type="number" id="ftpInput" placeholder="e.g. 254" min="1" max="2000">
-        <button class="primary" id="ftpSaveBtn">Save</button>
-      </div>
-      <div id="ftpMsg"></div>
-    </div>
-
-    <div class="block">
       <div class="block-title">Workout Library</div>
+      <input type="text" id="librarySearch" placeholder="Search workouts…" style="margin-bottom:10px;">
       <div class="lib-filters">
         <select id="filterCategory">
           <option value="">All types</option>
@@ -221,11 +220,6 @@
   </div>
 
   <div class="main">
-    <div class="tabs">
-      <div class="tab active" data-tab="builder">Builder</div>
-      <div class="tab" data-tab="import">Import from Tredict</div>
-    </div>
-
     <div id="tab-builder">
       <div class="panel">
         <div class="hint">Add a steady step, or a work/recovery interval set. Targets are stored as %FTP so they stay correct if your FTP changes.</div>
@@ -280,24 +274,15 @@
       </div>
       <div id="saveMsg"></div>
     </div>
-
-    <div id="tab-import" style="display:none;">
-      <div class="panel">
-        <div class="hint">Ask Claude to fetch a planned workout from Tredict (the raw JSON from the <span style="font-family:var(--mono)">planned-workout</span> tool), then paste it below. It loads into the Builder above so you can review, tweak, and save it.</div>
-        <textarea id="importText" placeholder='Paste Tredict workout JSON here...'></textarea>
-        <div style="margin-top:10px;"><button class="primary" id="parseImportBtn">Parse &amp; load into builder</button></div>
-        <div id="importMsg"></div>
-      </div>
-    </div>
   </div>
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
-  addUserBadge(supabase, user);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
   const ZONES = [
     {max:60,  name:'Recovery',    color:'var(--z-recovery)'},
@@ -459,8 +444,23 @@ const supabase = createSupabaseClient();
 
   // ---- rendering ----
   function renderFtp(){
-    document.getElementById('ftpDisplay').textContent = ftp ? Math.round(ftp) : '—';
-    document.getElementById('ftpInput').value = ftp || '';
+    // FTP is now edited on the Settings page — this page just reads the value for calculations.
+  }
+
+  function miniChartSVG(steps){
+    const flat = flatten(steps);
+    const total = flat.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    let x = 0;
+    const bars = flat.map(s=>{
+      const pct = effectivePct(s);
+      const z = zoneFor(pct);
+      const w = ((s.duration||1)/total) * 100;
+      const h = pct!=null ? Math.max(15, Math.min(100, (pct/160)*100)) : 30;
+      const bar = '<rect x="'+x+'" y="'+(100-h)+'" width="'+Math.max(0.5,w-0.3)+'" height="'+h+'" fill="'+z.color+'"/>';
+      x += w;
+      return bar;
+    }).join('');
+    return '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="lib-chart">'+bars+'</svg>';
   }
 
   function renderLibrary(){
@@ -469,6 +469,7 @@ const supabase = createSupabaseClient();
 
     const filterVal = document.getElementById('filterCategory').value;
     const sortVal = document.getElementById('sortBy').value;
+    const searchVal = document.getElementById('librarySearch').value.trim().toLowerCase();
 
     let items = library.map(w=>{
       const stats = computeStats(w.steps);
@@ -477,6 +478,9 @@ const supabase = createSupabaseClient();
 
     if (filterVal){
       items = items.filter(it => filterVal==='custom' ? !it.w.category : it.w.category===filterVal);
+    }
+    if (searchVal){
+      items = items.filter(it => it.w.name.toLowerCase().includes(searchVal));
     }
 
     items.sort((a,b)=>{
@@ -492,8 +496,12 @@ const supabase = createSupabaseClient();
 
     el.innerHTML = items.map(({w, stats})=>{
       return '<div class="lib-item" data-preview="'+w.id+'">'
+        + '<div class="lib-item-row">'
+        + miniChartSVG(w.steps)
+        + '<div class="lib-item-text">'
         + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
         + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.np!=null ? ('  ·  NP '+stats.np+'W') : '') +'</div>'
+        + '</div></div>'
         + '<div class="lib-actions">'
         + '<button class="ghost danger" data-del="'+w.id+'">Delete</button>'
         + '</div></div>';
@@ -501,6 +509,7 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('filterCategory').addEventListener('change', renderLibrary);
   document.getElementById('sortBy').addEventListener('change', renderLibrary);
+  document.getElementById('librarySearch').addEventListener('input', renderLibrary);
 
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -568,25 +577,6 @@ const supabase = createSupabaseClient();
       + '<button class="ghost danger" data-remove="'+i+'">✕</button>'
       + '</div>';
   }
-
-  // ---- events: FTP ----
-  document.getElementById('ftpSaveBtn').addEventListener('click', async ()=>{
-    const v = parseFloat(document.getElementById('ftpInput').value);
-    if (!v || v <= 0){ showMsg('ftpMsg','Enter a valid FTP in watts.', true); return; }
-    await saveFtp(v);
-    renderFtp(); renderBuilder(); renderLibrary();
-    showMsg('ftpMsg','FTP saved.', false);
-  });
-
-  // ---- events: tabs ----
-  document.querySelectorAll('.tab').forEach(t=>{
-    t.addEventListener('click', ()=>{
-      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      t.classList.add('active');
-      document.getElementById('tab-builder').style.display = t.dataset.tab==='builder' ? '' : 'none';
-      document.getElementById('tab-import').style.display = t.dataset.tab==='import' ? '' : 'none';
-    });
-  });
 
   // ---- events: add single step ----
   document.getElementById('addStepBtn').addEventListener('click', ()=>{
@@ -674,60 +664,6 @@ const supabase = createSupabaseClient();
         document.querySelector('.tab[data-tab="builder"]').click();
         renderBuilder();
       }
-    }
-  });
-
-  // ---- Tredict import ----
-  function convertTredictStep(step){
-    if (step.repetitions){
-      return { type:'repeat', repetitions: step.repetitions, steps: step.steps.map(convertTredictStep) };
-    }
-    const duration = step.duration || 0;
-    const t = step.targets || {};
-    let targetType = 'ftp_pct', low = 0, high = 0;
-
-    if (step.targetZoneType === 'power'){
-      if (step.targetMode === 'padding' && t.power){
-        targetType = 'watts';
-        low = t.power.value - (t.power.padding||0);
-        high = t.power.value + (t.power.padding||0);
-      } else if (t.ftp){
-        targetType = 'ftp_pct';
-        low = Math.round(t.ftp.from*100);
-        high = Math.round(t.ftp.to*100);
-      }
-    } else if (step.targetZoneType === 'heartrate'){
-      if (step.targetMode === 'padding' && t.heartrate){
-        targetType = 'hr_bpm';
-        low = t.heartrate.value - (t.heartrate.padding||0);
-        high = t.heartrate.value + (t.heartrate.padding||0);
-      } else if (t.hrMax){
-        targetType = 'hr_pct';
-        low = Math.round(t.hrMax.from*100);
-        high = Math.round(t.hrMax.to*100);
-      }
-    } else {
-      targetType = 'ftp_pct'; low = 60; high = 65; // fallback guess, flagged in note
-    }
-    const note = step.note || step.intensityType || '';
-    return { type:'step', duration, targetType, low, high, note };
-  }
-
-  document.getElementById('parseImportBtn').addEventListener('click', ()=>{
-    const raw = document.getElementById('importText').value.trim();
-    if (!raw){ showMsg('importMsg','Paste the Tredict workout JSON first.', true); return; }
-    let data;
-    try { data = JSON.parse(raw); }
-    catch(e){ showMsg('importMsg','That isn\'t valid JSON.', true); return; }
-    if (!Array.isArray(data.steps)){ showMsg('importMsg','No "steps" array found in this JSON.', true); return; }
-    try {
-      buildSteps = data.steps.map(convertTredictStep);
-      document.getElementById('workoutName').value = data.title || 'Imported workout';
-      renderBuilder();
-      document.querySelector('.tab[data-tab="builder"]').click();
-      showMsg('importMsg','Loaded into builder — review and save.', false);
-    } catch(e){
-      showMsg('importMsg','Could not convert this workout: ' + e.message, true);
     }
   });
 

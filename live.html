@@ -31,15 +31,21 @@
   }
   .app.sidebar-collapsed .sidebar{ display:none; }
   .app.sidebar-collapsed .main{ max-width:1100px; margin:0 auto; }
-  .top-actions{ position:fixed; top:14px; left:14px; z-index:50; display:flex; align-items:center; gap:8px; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
+    display:flex; align-items:center; padding:0 14px;
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
   .icon-btn{
     width:38px; height:38px; border-radius:8px;
     background:var(--panel-2); border:1px solid var(--line); color:var(--text);
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
-  .top-logo-link{ display:flex; }
-  .top-logo{ height:52px; width:auto; border-radius:8px; display:block; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
   h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
@@ -59,8 +65,7 @@
   .dot.on{ background:var(--accent); }
   .dot.err{ background:var(--danger); }
 
-  .dash{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
-  .dash.time-dash{ grid-template-columns:1fr 1fr; margin-bottom:18px; }
+  .dash{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
   .dash.time-dash .val{ font-size:22px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
   .metric .val{ font-family:var(--mono); font-size:34px; font-weight:600; }
@@ -110,9 +115,10 @@
 </style>
 </head>
 <body>
-<div class="top-actions">
-  <a href="index.html" class="top-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+<div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
 </div>
 <div class="app">
@@ -123,11 +129,12 @@
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
         <a href="index.html">Home</a>
-        <a href="builder.html">Builder</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="builder.html">Workouts</a>
         <a href="live.html" class="active">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
         <a href="rides.html">Rides</a>
-        <a href="plans.html">Plans</a>
+        <a href="settings.html">Settings</a>
         <a href="help.html">How to Use</a>
       </nav>
     </div>
@@ -169,14 +176,11 @@
 
     <div class="dash">
       <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
+      <div class="metric"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval Time</div></div>
+      <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
       <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
+      <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Total Time</div></div>
       <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
-      <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart rate</div></div>
-    </div>
-
-    <div class="dash time-dash">
-      <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Workout elapsed / total</div></div>
-      <div class="metric"><div class="val" id="mIntervalRemaining">—</div><div class="lbl">Interval remaining</div></div>
     </div>
 
     <div class="step-readout">
@@ -250,12 +254,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, addUserBadge, requireSubscription } from './auth.js';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
-  addUserBadge(supabase, user);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
   const ZONES = [
     {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
@@ -410,7 +414,7 @@ const supabase = createSupabaseClient();
     document.getElementById('mWorkoutTime').textContent = totalPlanned!=null
       ? (fmtDur(activeElapsedSec) + ' / ' + fmtDur(totalPlanned))
       : (fmtDur(activeElapsedSec) + ' / —');
-    document.getElementById('mIntervalRemaining').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '—';
+    document.getElementById('mIntervalTime').textContent = step ? fmtDur(stepElapsed) : '0:00';
 
     const nextEl = document.getElementById('nextStepInfo');
     if (!flatSteps.length){
