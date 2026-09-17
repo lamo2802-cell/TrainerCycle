@@ -512,8 +512,15 @@ const supabase = createSupabaseClient();
     else { appendCalibrationLog('Trainer reported an error (code ' + resultCode + ').'); calibrationActive = false; }
   }
   function handleFitnessMachineStatus(dataview){
-    if (!calibrationActive || dataview.byteLength < 1) return;
+    if (dataview.byteLength < 1) return;
     const opCode = dataview.getUint8(0);
+    if (opCode === 0xFF){ // Control Permission Lost — another client (app/device) has taken control
+      trainerControlReady = false;
+      document.getElementById('trainerStatus').textContent = (trainerDevice&&trainerDevice.name || 'Trainer') + ' — ERG control lost (another app may have connected to it)';
+      document.getElementById('calibrateBtn').disabled = true;
+      return;
+    }
+    if (!calibrationActive) return;
     if (opCode === 0x14){ // Spin Down Status — exact stage codes vary a little by manufacturer
       const stage = dataview.byteLength > 1 ? dataview.getUint8(1) : null;
       const stageText = {
@@ -587,20 +594,16 @@ const supabase = createSupabaseClient();
   async function setupTrainer(device){
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService('fitness_machine');
-    const bikeData = await service.getCharacteristic('indoor_bike_data');
-    await bikeData.startNotifications();
-    bikeData.addEventListener('characteristicvaluechanged', (e)=>{
-      const parsed = parseIndoorBikeData(e.target.value);
-      handleBikeSample(parsed);
-    });
 
+    // Negotiate ERG control FIRST, before subscribing to Indoor Bike Data — some trainer
+    // firmware struggles to process a control write while also mid-stream on notification
+    // traffic, and rejects it with a generic "Operation Failed" (result code 4).
     trainerControlReady = false;
     let controlFailReason = '';
     try {
       trainerControl = await service.getCharacteristic('fitness_machine_control_point');
       await trainerControl.startNotifications();
       trainerControl.addEventListener('characteristicvaluechanged', handleControlPointMessage);
-      await new Promise(r=>setTimeout(r, 400)); // let the initial notification burst settle before negotiating control
       const result = await acquireControlWithRetry();
       trainerControlReady = result.ok;
       if (!result.ok) controlFailReason = result.reason;
@@ -608,6 +611,13 @@ const supabase = createSupabaseClient();
       trainerControlReady = false;
       controlFailReason = ctrlErr.message;
     }
+
+    const bikeData = await service.getCharacteristic('indoor_bike_data');
+    await bikeData.startNotifications();
+    bikeData.addEventListener('characteristicvaluechanged', (e)=>{
+      const parsed = parseIndoorBikeData(e.target.value);
+      handleBikeSample(parsed);
+    });
 
     try {
       const statusChar = await service.getCharacteristic('fitness_machine_status');
