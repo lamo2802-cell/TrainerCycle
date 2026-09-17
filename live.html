@@ -34,7 +34,7 @@
     z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
   }
   .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
-  .main{ padding:76px 28px 24px; max-width:820px; margin:0 auto; }
+  .main{ padding:76px 28px 24px; max-width:1300px; margin:0 auto; }
   .top-bar{
     position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
     display:flex; align-items:center; padding:0 14px;
@@ -113,6 +113,8 @@
 
   .celebrate-overlay{ position:fixed; inset:0; background:rgba(16,20,26,0.94); z-index:200; display:flex; align-items:center; justify-content:center; }
   .celebrate-overlay canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  #overviewChart, #stepChart{ width:100%; height:150px; display:block; }
+  #stepChart{ height:120px; }
   .celebrate-content{ position:relative; z-index:2; text-align:center; padding:0 20px; }
   .celebrate-title{ font-size:clamp(28px,6vw,48px); font-weight:700; color:var(--accent); margin-bottom:10px; }
   .celebrate-subtitle{ font-size:14px; color:var(--text-dim); margin-bottom:26px; font-family:var(--mono); }
@@ -744,8 +746,16 @@ const supabase = createSupabaseClient();
     }
   }
 
+  // Keeps a canvas's actual pixel buffer in sync with its rendered CSS width, so charts
+  // fill wide containers (tablets in landscape, etc.) instead of staying a fixed small size.
+  function fitCanvasWidth(canvas){
+    const displayWidth = Math.round(canvas.getBoundingClientRect().width);
+    if (displayWidth > 0 && canvas.width !== displayWidth) canvas.width = displayWidth;
+  }
+
   function drawOverviewChart(){
     const canvas = document.getElementById('overviewChart');
+    fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
@@ -838,6 +848,7 @@ const supabase = createSupabaseClient();
 
   function drawStepChart(){
     const canvas = document.getElementById('stepChart');
+    fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
@@ -1174,6 +1185,13 @@ const supabase = createSupabaseClient();
   });
   renderStepReadout();
   updateStartAvailability();
+
+  // redraw charts when the viewport changes (rotation, window resize) so they keep filling their container
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{ drawOverviewChart(); drawStepChart(); }, 150);
+  });
 })();
 </script>
 </body>

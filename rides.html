@@ -32,7 +32,7 @@
     z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
   }
   .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
-  .main{ padding:76px 28px 24px; max-width:900px; margin:0 auto; }
+  .main{ padding:76px 28px 24px; max-width:1200px; margin:0 auto; }
   .top-bar{
     position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
     display:flex; align-items:center; padding:0 14px;
@@ -187,9 +187,16 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('filterCompleted').addEventListener('change', render);
 
+  // Keeps a canvas's actual pixel buffer in sync with its rendered CSS width.
+  function fitCanvasWidth(canvas){
+    const displayWidth = Math.round(canvas.getBoundingClientRect().width);
+    if (displayWidth > 0 && canvas.width !== displayWidth) canvas.width = displayWidth;
+  }
+
   function drawRideChart(ride){
     const canvas = document.getElementById('chart-'+ride.id);
     if (!canvas) return;
+    fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
     const w = canvas.width, h = canvas.height;
     ctx.clearRect(0,0,w,h);
