@@ -180,7 +180,7 @@ const supabase = createSupabaseClient();
         const label = wk ? wk.name : d.workoutId;
         const tag = wk && wk.category ? focusLabel(wk.category) : '';
         return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div>'
-          + '<div class="day-workout"><a href="builder.html?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+          + '<div class="day-workout"><a href="live.html?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div></div>';
       }).join('');
       return '<div class="week-block"><div class="week-title">Week '+w.week+'</div>'+days+'</div>';

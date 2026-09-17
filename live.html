@@ -142,7 +142,9 @@
         <a href="help.html">How to Use</a>
       </nav>
     </div>
+  </div>
 
+  <div class="main">
     <div class="block">
       <div class="block-title">FTP</div>
       <div style="font-family:var(--mono); font-size:22px; font-weight:600;" id="ftpDisplay">—</div>
@@ -173,9 +175,7 @@
       <div class="block-title">Session</div>
       <button id="exportBtn" disabled>Export CSV</button>
     </div>
-  </div>
 
-  <div class="main">
     <div id="unsupportedNote"></div>
 
     <div class="dash">
@@ -383,8 +383,8 @@ const supabase = createSupabaseClient();
     }
     document.getElementById('startHint').style.display = hasSelection ? 'none' : 'block';
   }
-  document.getElementById('workoutSelect').addEventListener('change', (e)=>{
-    const w = library.find(x=>x.id===e.target.value);
+  function selectWorkout(id){
+    const w = library.find(x=>x.id===id);
     flatSteps = w ? flatten(w.steps) : [];
     currentWorkoutMeta = w ? { name: w.name, category: w.category||null } : { name: 'Free Ride', category: null };
     stepIndex = -1; stepElapsed = 0;
@@ -392,6 +392,9 @@ const supabase = createSupabaseClient();
     drawOverviewChart();
     drawStepChart();
     updateStartAvailability();
+  }
+  document.getElementById('workoutSelect').addEventListener('change', (e)=>{
+    selectWorkout(e.target.value);
   });
 
   function renderStepReadout(){
@@ -1150,7 +1153,15 @@ const supabase = createSupabaseClient();
     document.getElementById('unsupportedNote').innerHTML =
       '<div class="unsupported">Web Bluetooth isn\'t available in this browser. Use Chrome or Edge (desktop or Android) — Safari and iOS don\'t support it.</div>';
   }
-  loadData().then(()=>{ drawOverviewChart(); drawStepChart(); });
+  loadData().then(()=>{
+    drawOverviewChart(); drawStepChart();
+    const loadParam = new URLSearchParams(window.location.search).get('load');
+    if (loadParam && library.find(x=>x.id===loadParam)){
+      document.getElementById('workoutSelect').value = loadParam;
+      selectWorkout(loadParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  });
   renderStepReadout();
   updateStartAvailability();
 })();
