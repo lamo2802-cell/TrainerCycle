@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainerCycle — Live Session</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10141A">
@@ -46,6 +47,7 @@
     flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
   .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
   .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
@@ -200,7 +202,7 @@
       <div class="chart-legend">
         <span><i style="background:var(--accent)"></i>Power</span>
         <span><i style="background:var(--danger)"></i>Heart rate</span>
-        <span><i style="background:var(--text-dim); opacity:.5;"></i>Planned zones</span>
+        <span><i style="background:var(--text-dim); opacity:.5;"></i>Workout profile</span>
       </div>
       <canvas id="overviewChart" width="760" height="150" style="cursor:crosshair;"></canvas>
       <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
@@ -752,11 +754,11 @@ const supabase = createSupabaseClient();
     const totalPlanned = hasPlan ? (flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1) : null;
 
     if (hasPlan){
-      // background: planned intensity zones
+      // background: full workout profile, vivid — matching the Workouts library's chart style
       let x = 0;
       flatSteps.forEach(s=>{
         const seg = ((s.duration||0)/totalPlanned)*w;
-        ctx.fillStyle = zoneColorRGBA(effectivePct(s), 0.30);
+        ctx.fillStyle = zoneColorRGBA(effectivePct(s), 0.85);
         ctx.fillRect(x, 0, seg, h);
         x += seg;
       });
@@ -768,13 +770,13 @@ const supabase = createSupabaseClient();
       ctx.beginPath(); ctx.arc(cx, 8, 4, 0, Math.PI*2); ctx.fill();
 
       ctx.font = '11px -apple-system,sans-serif';
-      ctx.fillStyle = 'rgba(231,236,242,0.85)';
+      ctx.fillStyle = 'rgba(16,20,26,0.85)';
       const label = fmtDur(activeElapsedSec);
       const labelX = cx < w-40 ? cx+6 : cx-34;
       ctx.fillText(label, labelX, 20);
 
       // scale labels at bottom corners
-      ctx.fillStyle = 'rgba(140,151,166,0.9)';
+      ctx.fillStyle = 'rgba(16,20,26,0.85)';
       ctx.fillText('0:00', 4, h-6);
       const totalLabel = fmtDur(totalPlanned);
       ctx.fillText(totalLabel, w - ctx.measureText(totalLabel).width - 4, h-6);
@@ -789,18 +791,21 @@ const supabase = createSupabaseClient();
       ? (r => Math.min(w, (r.elapsed/totalPlanned)*w))
       : (i => (i/Math.max(1,n-1))*w);
 
-    function line(getVal, max, color){
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([]);
-      log.forEach((r,i)=>{
-        const v = Number(getVal(r))||0;
-        const x = hasPlan ? xAt(r) : xAt(i);
-        const y = h - (v/max)*h;
-        if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    function line(getVal, max, color, outline){
+      // draw a dark outline pass first so the trace stays legible over the now-vivid zone background
+      [ {c: outline, lw: 4.5}, {c: color, lw: 2} ].forEach(pass=>{
+        ctx.beginPath(); ctx.strokeStyle = pass.c; ctx.lineWidth = pass.lw; ctx.setLineDash([]);
+        log.forEach((r,i)=>{
+          const v = Number(getVal(r))||0;
+          const x = hasPlan ? xAt(r) : xAt(i);
+          const y = h - (v/max)*h;
+          if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
       });
-      ctx.stroke();
     }
-    line(r=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
-    line(r=>r.power, maxPower, '#45D6C4');
+    line(r=>r.hr, maxHr, '#E5484D', 'rgba(255,255,255,0.6)');
+    line(r=>r.power, maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
   }
 
   document.getElementById('overviewChart').addEventListener('click', (e)=>{
@@ -1140,10 +1145,7 @@ const supabase = createSupabaseClient();
 
   // ---- fullscreen toggle (not needed when already running as an installed app) ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (isStandalone){
-    fullscreenToggle.style.display = 'none';
-  } else {
+  if (!document.documentElement.classList.contains('standalone')){
     fullscreenToggle.addEventListener('click', ()=>{
       if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
       else document.exitFullscreen();

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainerCycle</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10141A">
@@ -30,6 +31,7 @@
     flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
   .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
   .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
@@ -83,6 +85,21 @@
   .footer-links{ margin-top:40px; display:flex; gap:16px; font-size:12px; }
   .footer-links a{ color:var(--text-dim); text-decoration:none; }
   .footer-links a:hover{ color:var(--accent); }
+
+  .quickstart{
+    width:100%; max-width:760px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:20px 24px; margin-bottom:28px;
+  }
+  .quickstart-title{ font-size:11.5px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; font-weight:600; }
+  .quickstart-steps{ display:flex; flex-direction:column; gap:10px; }
+  .qs-step{ display:flex; align-items:baseline; gap:10px; font-size:13.5px; color:var(--text-dim); line-height:1.4; }
+  .qs-step a{ color:var(--text); }
+  .qs-num{
+    flex-shrink:0; width:20px; height:20px; border-radius:50%; background:var(--panel-2);
+    border:1px solid var(--line); color:var(--accent); font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  @media (min-width:620px){ .quickstart-steps{ flex-direction:row; } .qs-step{ flex:1; } }
 
   .signin-card{
     background:var(--panel); border:1px solid var(--line); border-radius:12px;
@@ -149,6 +166,15 @@
       </div>
     </div>
 
+    <div class="quickstart" id="quickstart" style="display:none;">
+      <div class="quickstart-title">Quick start</div>
+      <div class="quickstart-steps">
+        <div class="qs-step"><span class="qs-num">1</span>Connect your trainer in <a href="live.html">Live Ride</a> (or pair it once in <a href="settings.html">Settings</a>)</div>
+        <div class="qs-step"><span class="qs-num">2</span>Pick a workout from <a href="builder.html">Workouts</a> or a <a href="plans.html">Training Plan</a></div>
+        <div class="qs-step"><span class="qs-num">3</span>Hit Start and ride</div>
+      </div>
+    </div>
+
     <div class="cards" id="cardsSection" style="display:none;">
       <a class="card" href="plans.html">
         <div class="card-title">Training Plans</div>
@@ -206,6 +232,7 @@ const supabase = createSupabaseClient();
   }
   async function showSignedIn(user){
     document.getElementById('signinSection').style.display = 'none';
+    document.getElementById('quickstart').style.display = '';
     document.getElementById('cardsSection').style.display = '';
     renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
     await requireSubscription(supabase, user);
@@ -249,10 +276,7 @@ const supabase = createSupabaseClient();
 
   // ---- fullscreen toggle (not needed when already running as an installed app) ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (isStandalone){
-    fullscreenToggle.style.display = 'none';
-  } else {
+  if (!document.documentElement.classList.contains('standalone')){
     fullscreenToggle.addEventListener('click', ()=>{
       if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
       else document.exitFullscreen();

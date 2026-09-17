@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrainerCycle — How to Use</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10141A">
@@ -44,6 +45,7 @@
     flex-shrink:0;
   }
   .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
   .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
   .top-logo{ height:36px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
@@ -213,10 +215,7 @@ const supabase = createSupabaseClient();
 
   // ---- fullscreen toggle (not needed when already running as an installed app) ----
   const fullscreenToggle = document.getElementById('fullscreenToggle');
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  if (isStandalone){
-    fullscreenToggle.style.display = 'none';
-  } else {
+  if (!document.documentElement.classList.contains('standalone')){
     fullscreenToggle.addEventListener('click', ()=>{
       if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
       else document.exitFullscreen();
