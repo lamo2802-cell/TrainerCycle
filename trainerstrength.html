@@ -423,13 +423,16 @@ const supabase = createSupabaseClient();
     return out;
   }
 
-  document.getElementById('workoutSelect').addEventListener('change', (e)=>{
-    const w = library.find(x=>x.id===e.target.value);
+  function selectWorkout(id){
+    const w = library.find(x=>x.id===id);
     flat = w ? flatten(w.exercises) : [];
     idx = -1;
     totalSets = w ? w.exercises.reduce((a,ex)=>a+ex.sets,0) : 0;
     renderExerciseList(w);
     renderStage();
+  }
+  document.getElementById('workoutSelect').addEventListener('change', (e)=>{
+    selectWorkout(e.target.value);
   });
 
   function renderExerciseList(w){
@@ -631,7 +634,14 @@ const supabase = createSupabaseClient();
     });
   }
 
-  loadData();
+  loadData().then(()=>{
+    const loadParam = new URLSearchParams(window.location.search).get('load');
+    if (loadParam && library.find(x=>x.id===loadParam)){
+      document.getElementById('workoutSelect').value = loadParam;
+      selectWorkout(loadParam);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  });
   renderStage();
 })();
 </script>

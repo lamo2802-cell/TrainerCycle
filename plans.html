@@ -128,7 +128,7 @@ const supabase = createSupabaseClient();
   const FOCUS_LABELS = {
     recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
     threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under',
-    tempo:'Tempo', anaerobic:'Anaerobic', test:'FTP Test'
+    tempo:'Tempo', anaerobic:'Anaerobic', test:'FTP Test', strength:'Strength'
   };
   function focusLabel(f){ return FOCUS_LABELS[f] || f || ''; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -146,6 +146,10 @@ const supabase = createSupabaseClient();
       const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category');
       if (wErr) throw wErr;
       (workoutData||[]).forEach(w=>{ workoutNames[w.id] = w; });
+
+      const { data: strengthData, error: sErr } = await supabase.from('strength_workouts').select('id,name');
+      if (sErr) throw sErr;
+      (strengthData||[]).forEach(w=>{ workoutNames[w.id] = { name: w.name, category: 'strength' }; });
 
       render();
     } catch(e){
@@ -181,9 +185,11 @@ const supabase = createSupabaseClient();
         }
         const wk = workoutNames[d.workoutId];
         const label = wk ? wk.name : d.workoutId;
-        const tag = wk && wk.category ? focusLabel(wk.category) : '';
+        const isStrength = d.workoutType === 'strength';
+        const tag = isStrength ? 'Strength' : (wk && wk.category ? focusLabel(wk.category) : '');
+        const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
         return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div>'
-          + '<div class="day-workout"><a href="live.html?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+          + '<div class="day-workout"><a href="'+targetPage+'?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div></div>';
       }).join('');
       return '<div class="week-block"><div class="week-title">Week '+w.week+'</div>'+days+'</div>';
