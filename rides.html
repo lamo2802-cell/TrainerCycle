@@ -312,7 +312,7 @@ const supabase = createSupabaseClient();
     try {
       const xml = buildTcx(ride);
       const { data, error } = await supabase.functions.invoke('strava-upload', {
-        body: { tcx: xml, name: ride.workout_name }
+        body: { tcx: xml, name: ride.workout_name + ' (via TrainerCycle)' }
       });
       if (error || (data && data.error)){
         btn.textContent = 'Failed';
