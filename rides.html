@@ -165,6 +165,13 @@ const supabase = createSupabaseClient();
       const ride = rides.find(r=>r.id===summaryId);
       if (ride) drawRideChart(ride);
       window.history.replaceState({}, '', window.location.pathname);
+
+      // auto-upload to Strava if connected — this is what "connecting Strava" is actually for
+      try {
+        const { data: conn } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle();
+        const stravaBtn = document.querySelector('[data-strava="'+summaryId+'"]');
+        if (conn && stravaBtn) uploadRideToStrava(ride, stravaBtn, true);
+      } catch(e){ /* best effort — the manual button is still right there either way */ }
     }
   }
 
@@ -298,12 +305,7 @@ const supabase = createSupabaseClient();
   });
 
   // ---- Strava upload (connection itself is managed on the Settings page) ----
-  document.getElementById('ridesList').addEventListener('click', async (e)=>{
-    const id = e.target.dataset.strava;
-    if (!id) return;
-    const ride = rides.find(r=>r.id===id);
-    if (!ride) return;
-    const btn = e.target;
+  async function uploadRideToStrava(ride, btn, silent){
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Uploading…';
@@ -314,17 +316,26 @@ const supabase = createSupabaseClient();
       });
       if (error || (data && data.error)){
         btn.textContent = 'Failed';
-        const isNotConnected = data && data.error === 'Strava not connected';
-        alert(isNotConnected ? 'Connect Strava first from the Settings page.' : ('Strava upload failed: ' + (data && data.error ? JSON.stringify(data.error) : (error ? error.message : 'unknown error'))));
+        if (!silent){
+          const isNotConnected = data && data.error === 'Strava not connected';
+          alert(isNotConnected ? 'Connect Strava first from the Settings page.' : ('Strava upload failed: ' + (data && data.error ? JSON.stringify(data.error) : (error ? error.message : 'unknown error'))));
+        }
       } else {
         btn.textContent = 'Uploaded ✓';
       }
     } catch(err){
       btn.textContent = 'Failed';
-      alert('Strava upload failed: ' + err.message);
+      if (!silent) alert('Strava upload failed: ' + err.message);
     } finally {
       setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
     }
+  }
+  document.getElementById('ridesList').addEventListener('click', async (e)=>{
+    const id = e.target.dataset.strava;
+    if (!id) return;
+    const ride = rides.find(r=>r.id===id);
+    if (!ride) return;
+    uploadRideToStrava(ride, e.target, false);
   });
 
   // ---- sidebar drawer (overlay on all screen sizes) ----
