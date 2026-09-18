@@ -61,7 +61,7 @@
   .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
   select, input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13.5px; width:100%; font-family:var(--sans); }
   html, body{ height:100%; }
-  .main{ height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+  .main{ height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
   .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
   .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; transition:width .2s ease, opacity .2s ease; }
   .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
@@ -105,6 +105,7 @@
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
   .metric .val{ font-family:var(--mono); font-size:clamp(28px, 7vw, 58px); font-weight:600; }
   .metric .lbl{ font-size:clamp(11px, 2.6vw, 16px); }
+  .metric .sub-val{ font-family:var(--mono); font-size:clamp(10px, 2.2vw, 13px); color:var(--text-dim); margin-top:2px; }
   .dash{ gap:clamp(8px, 2vw, 20px); margin-bottom:16px; }
   .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
   .metric.power .val{ color:var(--accent); }
@@ -223,7 +224,7 @@
           <div class="metric"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval Time Remaining</div></div>
           <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
           <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
-          <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Total Time</div></div>
+          <div class="metric"><div class="val" id="mWorkoutTime">0:00</div><div class="sub-val" id="mWorkoutTotal"></div><div class="lbl">Elapsed Time</div></div>
           <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
         </div>
 
@@ -291,6 +292,18 @@
 
 <div class="celebrate-overlay" id="countdownOverlay" style="display:none; z-index:400;">
   <div style="font-family:var(--mono); font-size:clamp(80px,20vw,180px); font-weight:700; color:var(--accent);" id="countdownNumber">3</div>
+</div>
+
+<div class="celebrate-overlay" id="stopConfirmOverlay" style="display:none; z-index:400;">
+  <div class="celebrate-content" style="max-width:340px;">
+    <div class="celebrate-title" style="font-size:21px;">Stop this ride?</div>
+    <div class="celebrate-subtitle" style="margin-bottom:22px;">You can save what's been recorded, discard it, or keep riding.</div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="primary" id="stopSaveBtn">Save &amp; End Ride</button>
+      <button class="danger" id="stopDiscardBtn">Discard Ride</button>
+      <button id="stopResumeBtn">Resume Riding</button>
+    </div>
+  </div>
 </div>
 
 <div class="celebrate-overlay" id="calibrationOverlay" style="display:none;">
@@ -470,9 +483,10 @@ const supabase = createSupabaseClient();
       document.getElementById('totalRemaining').textContent = '—';
     }
 
-    document.getElementById('mWorkoutTime').textContent = totalPlanned!=null
-      ? (fmtDur(activeElapsedSec) + ' / ' + fmtDur(totalPlanned))
-      : (fmtDur(activeElapsedSec) + ' / —');
+    document.getElementById('mWorkoutTime').textContent = fmtDur(activeElapsedSec);
+    document.getElementById('mWorkoutTotal').textContent = totalPlanned!=null
+      ? ('of ' + fmtDur(totalPlanned))
+      : '';
     document.getElementById('mIntervalTime').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '0:00';
 
     const nextEl = document.getElementById('nextStepInfo');
@@ -1216,7 +1230,7 @@ const supabase = createSupabaseClient();
     };
   }
 
-  async function stopSession(completed){
+  function resetSessionState(){
     running = false;
     clearInterval(tickHandle);
     tickHandle = null;
@@ -1225,9 +1239,6 @@ const supabase = createSupabaseClient();
     autoPaused = false;
     zeroActivityStreak = 0;
     document.getElementById('stageAutoPause').style.display = 'none';
-    const record = await saveCompletedRide(completed);
-    const wasTest = currentWorkoutMeta.category === 'test';
-    const bestMin = wasTest ? computeBestMinutePower() : null;
     sessionStart = null;
     stepIndex = -1;
     stepElapsed = 0;
@@ -1240,6 +1251,13 @@ const supabase = createSupabaseClient();
     document.getElementById('stopBtn').disabled = true;
     document.getElementById('workoutSelect').disabled = false;
     renderStepReadout();
+  }
+
+  async function stopSession(completed){
+    const record = await saveCompletedRide(completed);
+    resetSessionState();
+    const wasTest = currentWorkoutMeta.category === 'test';
+    const bestMin = wasTest ? computeBestMinutePower() : null;
 
     function goToSummary(){
       if (record) window.location.href = 'rides.html?summary=' + encodeURIComponent(record.id);
@@ -1250,10 +1268,34 @@ const supabase = createSupabaseClient();
       goToSummary();
     }
   }
+
+  function discardSession(){
+    resetSessionState();
+    log = [];
+    activeElapsedSec = 0;
+    drawOverviewChart();
+    drawStepChart();
+  }
+
   document.getElementById('stopBtn').addEventListener('click', ()=>{
-    if (confirm('End this ride? It will save what\'s been recorded so far, but the workout will stop.')){
+    const wasRunning = running;
+    pauseWorkout(false); // freeze the clock/target while the rider decides
+    document.getElementById('stopConfirmOverlay').style.display = 'flex';
+
+    document.getElementById('stopSaveBtn').onclick = ()=>{
+      document.getElementById('stopConfirmOverlay').style.display = 'none';
       stopSession(false);
-    }
+    };
+    document.getElementById('stopDiscardBtn').onclick = ()=>{
+      if (confirm('Discard this ride? This can\'t be undone.')){
+        document.getElementById('stopConfirmOverlay').style.display = 'none';
+        discardSession();
+      }
+    };
+    document.getElementById('stopResumeBtn').onclick = ()=>{
+      document.getElementById('stopConfirmOverlay').style.display = 'none';
+      if (wasRunning) resumeWorkout();
+    };
   });
 
   // ---- celebration (fireworks) ----
