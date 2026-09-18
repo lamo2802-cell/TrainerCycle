@@ -71,35 +71,48 @@
   .exercise-list-row:first-child{ border-top:none; }
   .exercise-list-row.current{ color:var(--accent); font-weight:600; }
 
-  .dash{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; }
+  html, body{ height:100%; }
+  .main{ height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+  .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
+  .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; overflow-y:auto; justify-content:center; }
+  .live-layout.session-active .side-panel{ display:none; }
+  @media (max-width:800px){
+    .live-layout{ flex-direction:column; }
+    .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
+    .side-panel .block{ flex:1; min-width:150px; }
+  }
+
+  .dash{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:26px; font-weight:600; }
-  .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+  .metric .val{ font-family:var(--mono); font-size:40px; font-weight:600; }
+  .metric .lbl{ font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
 
   .stage{
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:20px; text-align:center; margin-bottom:16px;
   }
-  .stage-figure{ width:100%; max-width:220px; margin:0 auto 12px; }
+  .stage-figure{ width:100%; max-width:320px; margin:0 auto 12px; }
   .positions-row{ display:flex; gap:14px; justify-content:center; margin-bottom:14px; }
-  .position-box{ flex:1; max-width:130px; }
+  .position-box{ flex:1; max-width:170px; }
   .position-box svg{ width:100%; display:block; }
-  .position-label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
-  .stage-name{ font-size:22px; font-weight:600; margin-bottom:4px; }
-  .stage-target{ font-family:var(--mono); font-size:16px; color:var(--accent); margin-bottom:4px; }
-  .stage-notes{ font-size:12.5px; color:var(--text-dim); margin-bottom:16px; }
-  .stage-rest-count{ font-family:var(--mono); font-size:48px; font-weight:600; color:var(--accent); margin-bottom:8px; }
-  .stage-action button{ width:auto; padding:14px 28px; font-size:16px; margin:0 6px; }
+  .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
+  .stage-name{ font-size:32px; font-weight:600; margin-bottom:6px; }
+  .stage-target{ font-family:var(--mono); font-size:22px; color:var(--accent); margin-bottom:6px; }
+  .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
+  .stage-rest-count{ font-family:var(--mono); font-size:64px; font-weight:600; color:var(--accent); margin-bottom:8px; }
+  .stage-action button{ width:auto; padding:16px 32px; font-size:17px; margin:0 6px; }
 
-  .next-step{ font-size:12.5px; color:var(--text-dim); text-align:center; margin-bottom:20px; }
+  .next-step{ font-size:13px; color:var(--text-dim); text-align:center; margin-bottom:12px; }
   .next-step b{ color:var(--text); }
 
   .controls{
-    display:flex; gap:10px; margin-bottom:10px;
+    display:flex; gap:10px; margin-bottom:0;
     position:sticky; bottom:0; background:var(--bg);
-    padding:10px 0 4px; z-index:10; border-top:1px solid var(--line);
+    padding:12px 0 4px; z-index:10; border-top:1px solid var(--line);
   }
-  .controls button{ width:auto; flex:1; margin-bottom:0; }
+  .controls button{ width:auto; flex:1; margin-bottom:0; padding:16px 14px; font-size:16px; font-weight:600; }
 
   .celebrate-overlay{ position:fixed; inset:0; background:rgba(16,20,26,0.94); z-index:200; display:flex; align-items:center; justify-content:center; }
   .celebrate-overlay canvas{ position:absolute; inset:0; width:100%; height:100%; }
@@ -138,37 +151,43 @@
   </div>
 
   <div class="main">
-    <div class="block">
-      <div class="block-title">Workout</div>
-      <select id="workoutSelect"><option value="">Choose a workout…</option></select>
-    </div>
+    <div class="live-layout">
+      <div class="side-panel">
+        <div class="block">
+          <div class="block-title">Workout</div>
+          <select id="workoutSelect"><option value="">Choose a workout…</option></select>
+        </div>
 
-    <div class="block">
-      <div class="block-title">Exercises</div>
-      <div class="exercise-list" id="exerciseList"></div>
-    </div>
+        <div class="block">
+          <div class="block-title">Exercises</div>
+          <div class="exercise-list" id="exerciseList"></div>
+        </div>
+      </div>
 
-    <div class="dash">
-      <div class="metric"><div class="val" id="mProgress">0 / 0</div><div class="lbl">Sets complete</div></div>
-      <div class="metric"><div class="val" id="mElapsed">0:00</div><div class="lbl">Elapsed</div></div>
-    </div>
+      <div class="live-main">
+        <div class="dash">
+          <div class="metric"><div class="val" id="mProgress">0 / 0</div><div class="lbl">Sets complete</div></div>
+          <div class="metric"><div class="val" id="mElapsed">0:00</div><div class="lbl">Elapsed</div></div>
+        </div>
 
-    <div class="stage">
-      <div class="stage-figure" id="stageFigure"></div>
-      <div class="positions-row" id="positionsRow"></div>
-      <div class="stage-name" id="stageName">Choose a workout to begin</div>
-      <div class="stage-target" id="stageTarget"></div>
-      <div class="stage-notes" id="stageNotes"></div>
-      <div class="stage-rest-count" id="stageRestCount" style="display:none;"></div>
-      <div class="stage-action" id="stageAction"></div>
-    </div>
+        <div class="stage">
+          <div class="stage-figure" id="stageFigure"></div>
+          <div class="positions-row" id="positionsRow"></div>
+          <div class="stage-name" id="stageName">Choose a workout to begin</div>
+          <div class="stage-target" id="stageTarget"></div>
+          <div class="stage-notes" id="stageNotes"></div>
+          <div class="stage-rest-count" id="stageRestCount" style="display:none;"></div>
+          <div class="stage-action" id="stageAction"></div>
+        </div>
 
-    <div class="next-step" id="nextStepInfo">—</div>
+        <div class="next-step" id="nextStepInfo">—</div>
 
-    <div class="controls">
-      <button class="primary" id="startBtn">Start</button>
-      <button id="pauseBtn" disabled>Pause</button>
-      <button class="danger" id="stopBtn" disabled>Stop</button>
+        <div class="controls">
+          <button class="primary" id="startBtn">Start</button>
+          <button id="pauseBtn" disabled>Pause</button>
+          <button class="danger" id="stopBtn" disabled>Stop</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -501,6 +520,7 @@ const supabase = createSupabaseClient();
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('stopBtn').disabled = false;
     document.getElementById('workoutSelect').disabled = true;
+    document.querySelector('.live-layout').classList.add('session-active');
   });
   document.getElementById('pauseBtn').addEventListener('click', ()=>{
     running = false;
@@ -512,6 +532,7 @@ const supabase = createSupabaseClient();
   function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
+    document.querySelector('.live-layout').classList.remove('session-active');
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
     idx = -1; elapsedSec = 0;

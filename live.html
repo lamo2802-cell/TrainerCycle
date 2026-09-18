@@ -188,6 +188,7 @@
           <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
           <button id="connectTrainerBtn">Connect trainer</button>
           <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
+          <button id="simulateTrainerBtn" style="display:none; margin-top:0;">Simulate trainer (test)</button>
         </div>
 
         <div class="block">
@@ -293,6 +294,9 @@ const supabase = createSupabaseClient();
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
+  if (user.id === '24629e67-0ec6-4e80-a1a1-cff123ee1aa5'){
+    document.getElementById('simulateTrainerBtn').style.display = '';
+  }
   const ZONES = [
     {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
     {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},
@@ -672,6 +676,30 @@ const supabase = createSupabaseClient();
       }
     })();
   }
+
+  // ---- trainer simulator (owner account only, for testing without real hardware) ----
+  let simInterval = null;
+  let simPower = null;
+  function startSimulatedTrainer(){
+    clearInterval(simInterval);
+    trainerDevice = { name: 'Simulated Trainer', gatt: { connected: true, disconnect(){ this.connected = false; } } };
+    trainerControlReady = true;
+    simPower = null;
+    document.getElementById('trainerDot').classList.remove('err');
+    document.getElementById('trainerDot').classList.add('on');
+    document.getElementById('trainerStatus').textContent = 'Simulated Trainer (test mode — no real hardware)';
+    document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
+    document.getElementById('calibrateBtn').disabled = true;
+    updateStartAvailability();
+    simInterval = setInterval(()=>{
+      const target = lastTargetWatts || 150;
+      simPower = simPower==null ? target : simPower + (target - simPower)*0.3 + (Math.random()*16-8);
+      simPower = Math.max(0, Math.round(simPower));
+      const cadence = Math.round(75 + (Math.random()*14-7));
+      handleBikeSample({ power: simPower, cadence, heartRate: null });
+    }, 1000);
+  }
+  document.getElementById('simulateTrainerBtn').addEventListener('click', startSimulatedTrainer);
 
   document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
     if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser. Use Chrome or Edge on desktop or Android.'); return; }

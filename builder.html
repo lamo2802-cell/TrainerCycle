@@ -110,7 +110,9 @@
 
   .lib-filters{ display:flex; gap:6px; margin-bottom:10px; }
   .lib-filters select{ font-size:12px; padding:5px 6px; }
-  .lib-item{ padding:14px 0; border-top:1px solid var(--line); cursor:pointer; }
+  #libraryList{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+  .lib-item{ padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--panel); cursor:pointer; }
+  .lib-item .lib-actions{ margin-top:10px; }
   .lib-item:hover{ background:var(--panel-2); margin:0 -8px; padding:10px 8px; border-radius:6px; }
   .lib-tag{ display:inline-block; font-size:12px; padding:2px 9px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:8px; }
   .lib-item:first-child{ border-top:none; }
