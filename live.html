@@ -23,20 +23,20 @@
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
   .app{ position:relative; min-height:100vh; }
   .sidebar{
-    position:fixed; top:60px; left:0; bottom:0; width:340px; max-width:85vw;
+    position:fixed; top:80px; left:0; bottom:0; width:340px; max-width:85vw;
     background:var(--panel); border-right:1px solid var(--line);
     padding:20px; overflow-y:auto; z-index:60;
     transform:translateX(-100%); transition:transform .25s ease;
   }
   .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
   .sidebar-backdrop{
-    position:fixed; top:60px; left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    position:fixed; top:80px; left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
     z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
   }
   .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
-  .main{ padding:76px 28px 24px; max-width:min(1700px, 97vw); margin:0 auto; }
+  .main{ padding:96px 28px 24px; max-width:min(1700px, 97vw); margin:0 auto; }
   .top-bar{
-    position:fixed; top:0; left:0; right:0; height:60px; z-index:50;
+    position:fixed; top:0; left:0; right:0; height:80px; z-index:50;
     display:flex; align-items:center; padding:0 14px;
     background:var(--bg); border-bottom:1px solid var(--line);
   }
@@ -49,21 +49,33 @@
   .icon-btn:hover{ border-color:var(--accent); }
   html.standalone #fullscreenToggle{ display:none; }
   .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
-  .top-logo{ height:48px; width:auto; border-radius:8px; display:block; }
+  .top-logo{ height:60px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
   h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
   .block{ margin-bottom:24px; }
-  .setup-grid{ display:grid; grid-template-columns:1fr; gap:16px; margin-bottom:8px; }
-  .setup-grid .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-  @media (min-width:720px){ .setup-grid{ grid-template-columns:repeat(5, 1fr); } }
-  @media (min-width:720px) and (max-width:1099px){ .setup-grid{ grid-template-columns:repeat(3, 1fr); } }
   .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
   .page-nav{ display:flex; flex-direction:column; gap:2px; }
   .page-nav a{ padding:10px 10px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:16px; }
   .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
   .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
   select, input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13.5px; width:100%; font-family:var(--sans); }
+  html, body{ height:100%; }
+  .main{ height:calc(100vh - 80px); overflow:hidden; display:flex; flex-direction:column; }
+  .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
+  .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; }
+  .chart-panel.flex-chart{ flex:1; min-height:0; display:flex; flex-direction:column; margin-bottom:10px; }
+  .chart-panel.flex-chart canvas{ flex:1; min-height:0; width:100%; }
+  @media (max-width:800px){
+    .main{ height:auto; overflow:visible; }
+    .live-layout{ flex-direction:column; }
+    .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
+    .side-panel .block{ flex:1; min-width:150px; }
+    .chart-panel.flex-chart canvas{ height:180px; }
+  }
+
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
   button:hover{ border-color:var(--accent); }
   button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
@@ -77,10 +89,10 @@
   .dash{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
   .dash.time-dash .val{ font-size:22px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:52px; font-weight:600; }
-  .metric .lbl{ font-size:13px; }
-  .dash{ gap:20px; margin-bottom:28px; }
-  @media (max-width:480px){ .metric .val{ font-size:34px; } .dash{ gap:12px; margin-bottom:20px; } }
+  .metric .val{ font-family:var(--mono); font-size:58px; font-weight:600; }
+  .metric .lbl{ font-size:16px; }
+  .dash{ gap:20px; margin-bottom:20px; }
+  @media (max-width:480px){ .metric .val{ font-size:36px; } .metric .lbl{ font-size:13px; } .dash{ gap:12px; margin-bottom:14px; } }
   .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
   .metric.power .val{ color:var(--accent); }
   .metric.target .val{ color:var(--text-dim); }
@@ -100,18 +112,15 @@
   .controls{
     display:flex; gap:10px; margin-bottom:10px;
     position:sticky; bottom:0; background:var(--bg);
-    padding:10px 0 4px; z-index:10; border-top:1px solid var(--line);
+    padding:12px 0 6px; z-index:10; border-top:1px solid var(--line);
   }
-  .controls button{ width:auto; flex:1; margin-bottom:0; }
+  .controls button{ width:auto; flex:1; margin-bottom:0; padding:16px 14px; font-size:16px; font-weight:600; }
 
   .chart-panel{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
   .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
   .chart-legend span{ display:flex; align-items:center; gap:5px; }
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
   #overviewChart, #stepChart{ width:100%; display:block; }
-  #overviewChart{ height:220px; }
-  #stepChart{ height:170px; }
-  @media (max-width:480px){ #overviewChart{ height:150px; } #stepChart{ height:120px; } }
 
   .step-readout{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; color:var(--text-dim); margin-bottom:8px; }
   .step-readout b{ color:var(--text); font-weight:600; }
@@ -155,86 +164,85 @@
   </div>
 
   <div class="main">
-    <div class="setup-grid">
-      <div class="block">
-        <div class="block-title">FTP</div>
-        <div style="font-family:var(--mono); font-size:22px; font-weight:600;" id="ftpDisplay">—</div>
+    <div class="live-layout">
+      <div class="side-panel">
+        <div class="block">
+          <div class="block-title">FTP</div>
+          <div style="font-family:var(--mono); font-size:20px; font-weight:600;" id="ftpDisplay">—</div>
+        </div>
+
+        <div class="block">
+          <div class="block-title">Workout</div>
+          <select id="workoutSelect">
+            <option value="" disabled selected>Choose a workout…</option>
+            <option value="freeride">Free ride (no target)</option>
+          </select>
+        </div>
+
+        <div class="block">
+          <div class="block-title">Trainer (ERG control)</div>
+          <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
+          <button id="connectTrainerBtn">Connect trainer</button>
+          <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
+        </div>
+
+        <div class="block">
+          <div class="block-title">Heart Rate</div>
+          <div class="status-row"><span class="dot" id="hrDot"></span><span id="hrStatus">Not connected</span></div>
+          <button id="connectHrBtn">Connect HR strap</button>
+        </div>
       </div>
 
-      <div class="block">
-        <div class="block-title">Workout</div>
-        <select id="workoutSelect">
-          <option value="" disabled selected>Choose a workout…</option>
-          <option value="freeride">Free ride (no target)</option>
-        </select>
+      <div class="live-main">
+        <div id="unsupportedNote"></div>
+
+        <div class="dash">
+          <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
+          <div class="metric"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval Time Remaining</div></div>
+          <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
+          <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
+          <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Total Time</div></div>
+          <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
+        </div>
+
+        <div class="step-readout">
+          <span>Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="stepNote">—</b></span>
+          <span><b id="stepElapsed">0:00</b> / <span id="stepDur">0:00</span> · <b id="totalRemaining">—</b> remaining</span>
+        </div>
+        <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
+        <div class="next-step" id="nextStepInfo">—</div>
+        <div class="auto-pause-banner" id="stageAutoPause" style="display:none;">⏸ Auto-paused — no pedaling detected. Start pedaling to resume automatically.</div>
+
+        <div class="chart-panel flex-chart">
+          <div class="chart-panel-title">Workout overview</div>
+          <div class="chart-legend">
+            <span><i style="background:var(--accent)"></i>Power</span>
+            <span><i style="background:var(--danger)"></i>Heart rate</span>
+            <span><i style="background:var(--text-dim); opacity:.5;"></i>Workout profile</span>
+          </div>
+          <canvas id="overviewChart" width="760" height="150" style="cursor:crosshair;"></canvas>
+          <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
+        </div>
+
+        <div class="chart-panel flex-chart">
+          <div class="chart-panel-title">Current step (zoomed)</div>
+          <div class="chart-legend">
+            <span><i style="background:var(--accent)"></i>Power</span>
+            <span><i style="background:var(--danger)"></i>Heart rate</span>
+            <span><i style="background:var(--text-dim); opacity:.5;"></i>Target band</span>
+          </div>
+          <canvas id="stepChart" width="760" height="120"></canvas>
+        </div>
+
+        <div class="start-hint" id="startHint">Open the menu (☰) and choose a workout to begin.</div>
+        <div class="controls">
+          <button class="primary" id="startBtn" disabled>Start</button>
+          <button id="pauseBtn" disabled>Pause</button>
+          <button id="bailBtn" disabled>Bail to recovery</button>
+          <button id="skipBtn" disabled>Skip step</button>
+          <button class="danger" id="stopBtn" disabled>Stop</button>
+        </div>
       </div>
-
-      <div class="block">
-        <div class="block-title">Trainer (ERG control)</div>
-        <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
-        <button id="connectTrainerBtn">Connect trainer</button>
-        <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
-      </div>
-
-      <div class="block">
-        <div class="block-title">Heart Rate</div>
-        <div class="status-row"><span class="dot" id="hrDot"></span><span id="hrStatus">Not connected</span></div>
-        <button id="connectHrBtn">Connect HR strap</button>
-      </div>
-
-      <div class="block">
-        <div class="block-title">Session</div>
-        <button id="exportBtn" disabled>Export CSV</button>
-      </div>
-    </div>
-
-    <div id="unsupportedNote"></div>
-
-    <div class="dash">
-      <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
-      <div class="metric"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval Time</div></div>
-      <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
-      <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
-      <div class="metric"><div class="val" id="mWorkoutTime">0:00 / 0:00</div><div class="lbl">Total Time</div></div>
-      <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
-    </div>
-
-    <div class="step-readout">
-      <span>Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="stepNote">—</b></span>
-      <span><b id="stepElapsed">0:00</b> / <span id="stepDur">0:00</span> · <b id="totalRemaining">—</b> remaining</span>
-    </div>
-    <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
-    <div class="next-step" id="nextStepInfo">—</div>
-    <div class="auto-pause-banner" id="stageAutoPause" style="display:none;">⏸ Auto-paused — no pedaling detected. Start pedaling to resume automatically.</div>
-
-    <div class="chart-panel">
-      <div class="chart-panel-title">Workout overview</div>
-      <div class="chart-legend">
-        <span><i style="background:var(--accent)"></i>Power</span>
-        <span><i style="background:var(--danger)"></i>Heart rate</span>
-        <span><i style="background:var(--text-dim); opacity:.5;"></i>Workout profile</span>
-      </div>
-      <canvas id="overviewChart" width="760" height="150" style="cursor:crosshair;"></canvas>
-      <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
-    </div>
-
-    <div class="chart-panel">
-      <div class="chart-panel-title">Current step (zoomed)</div>
-      <div class="chart-legend">
-        <span><i style="background:var(--accent)"></i>Power</span>
-        <span><i style="background:var(--danger)"></i>Heart rate</span>
-        <span><i style="background:var(--text-dim); opacity:.5;"></i>Target band</span>
-      </div>
-      <canvas id="stepChart" width="760" height="120"></canvas>
-    </div>
-
-    <div class="start-hint" id="startHint">Open the menu (☰) and choose a workout to begin.</div>
-    <div class="controls">
-      <button class="primary" id="startBtn" disabled>Start</button>
-      <button id="pauseBtn" disabled>Pause</button>
-      <button id="bailBtn" disabled>Bail to recovery</button>
-      <button id="skipBtn" disabled>Skip step</button>
-      <button class="danger" id="stopBtn" disabled>Stop</button>
     </div>
   </div>
 </div>
@@ -437,7 +445,7 @@ const supabase = createSupabaseClient();
     document.getElementById('mWorkoutTime').textContent = totalPlanned!=null
       ? (fmtDur(activeElapsedSec) + ' / ' + fmtDur(totalPlanned))
       : (fmtDur(activeElapsedSec) + ' / —');
-    document.getElementById('mIntervalTime').textContent = step ? fmtDur(stepElapsed) : '0:00';
+    document.getElementById('mIntervalTime').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '0:00';
 
     const nextEl = document.getElementById('nextStepInfo');
     if (!flatSteps.length){
@@ -1058,7 +1066,6 @@ const supabase = createSupabaseClient();
     sessionStart = sessionStart || Date.now();
     if (freshStart){
       log = []; activeElapsedSec = 0;
-      document.getElementById('exportBtn').disabled = true;
       drawOverviewChart(); drawStepChart();
     }
     if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
@@ -1131,7 +1138,7 @@ const supabase = createSupabaseClient();
     return best>0 ? best : null;
   }
 
-  function showFtpSuggestion(bestMinPower){
+  function showFtpSuggestion(bestMinPower, onDone){
     const suggested = Math.round(bestMinPower*0.75);
     document.getElementById('ftpSuggestText').innerHTML =
       'Best 1-minute power: <b>'+Math.round(bestMinPower)+'W</b><br>' +
@@ -1141,9 +1148,11 @@ const supabase = createSupabaseClient();
       await saveFtp(suggested);
       document.getElementById('ftpDisplay').textContent = Math.round(ftp);
       document.getElementById('ftpSuggestOverlay').style.display = 'none';
+      onDone();
     };
     document.getElementById('ftpDeclineBtn').onclick = ()=>{
       document.getElementById('ftpSuggestOverlay').style.display = 'none';
+      onDone();
     };
   }
 
@@ -1170,33 +1179,20 @@ const supabase = createSupabaseClient();
     document.getElementById('stopBtn').disabled = true;
     document.getElementById('workoutSelect').disabled = false;
     renderStepReadout();
-    if (log.length) document.getElementById('exportBtn').disabled = false;
+
+    function goToSummary(){
+      if (record) window.location.href = 'rides.html?summary=' + encodeURIComponent(record.id);
+    }
     if (bestMin){
-      showFtpSuggestion(bestMin);
-    } else if (record){
-      const parts = [fmtDur(record.duration_sec)];
-      if (record.avg_power!=null) parts.push('Avg ' + record.avg_power + 'W');
-      if (record.np!=null) parts.push('NP ' + record.np + 'W');
-      if (record.intensity_factor!=null) parts.push('IF ' + record.intensity_factor.toFixed(2));
-      if (record.avg_hr!=null) parts.push('Avg HR ' + record.avg_hr);
-      if (record.avg_cadence!=null) parts.push('Avg Cad ' + record.avg_cadence);
-      showCelebration(completed ? 'Workout Complete!' : 'Ride Saved', parts.join('  ·  '), completed);
+      showFtpSuggestion(bestMin, goToSummary);
+    } else {
+      goToSummary();
     }
   }
   document.getElementById('stopBtn').addEventListener('click', ()=>{
     if (confirm('End this ride? It will save what\'s been recorded so far, but the workout will stop.')){
       stopSession(false);
     }
-  });
-
-  document.getElementById('exportBtn').addEventListener('click', ()=>{
-    const header = 'time_s,power_w,cadence_rpm,heart_rate_bpm,target_w\n';
-    const rows = log.map(r=>[r.elapsed,r.power,r.cadence,r.hr,r.target].join(',')).join('\n');
-    const blob = new Blob([header+rows], {type:'text/csv'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'trainercycle-session-' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.csv';
-    a.click();
   });
 
   // ---- celebration (fireworks) ----
