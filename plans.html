@@ -81,6 +81,14 @@
   .day-workout a:hover{ color:var(--accent); }
   .day-workout .tag{ color:var(--text-dim); font-size:11px; margin-left:6px; }
   .empty-note{ color:var(--text-dim); font-size:13px; }
+  .ftp-prompt{
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    background:var(--panel); border:1px solid var(--accent); border-radius:10px;
+    padding:18px 22px; margin-bottom:20px;
+  }
+  .ftp-prompt-text b{ font-size:14.5px; display:block; margin-bottom:4px; }
+  .ftp-prompt-text p{ color:var(--text-dim); font-size:13px; margin:0; max-width:520px; line-height:1.4; }
+  .ftp-prompt button{ white-space:nowrap; padding:11px 20px; }
 </style>
 </head>
 <body>
@@ -112,6 +120,13 @@
   </div>
 
   <div class="main">
+    <div class="ftp-prompt">
+      <div class="ftp-prompt-text">
+        <b>New here or not sure of your current FTP?</b>
+        <p>These plans are built around %FTP, so it's worth starting with a Ramp Test to get an accurate number before picking a plan.</p>
+      </div>
+      <a href="live.html?load=prebuilt-ramp-test-25"><button class="primary">Start Ramp Test</button></a>
+    </div>
     <div id="plansList"><div class="empty-note">Loading…</div></div>
   </div>
 </div>
