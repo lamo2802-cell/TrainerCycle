@@ -74,6 +74,16 @@
      while actually riding. */
   .live-layout.riding-active .side-panel{ display:none; }
 
+  .rotate-hint{
+    display:none; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--panel-2); border:1px solid var(--accent); border-radius:8px;
+    padding:10px 14px; margin-bottom:12px; font-size:13px; line-height:1.4;
+  }
+  .rotate-hint button{ width:auto; margin:0; padding:4px 10px; font-size:14px; flex-shrink:0; }
+  @media (orientation:portrait) and (max-width:700px){
+    .rotate-hint:not(.dismissed){ display:flex; }
+  }
+
   @media (max-width:800px){
     .live-layout{ flex-direction:column; }
     .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
@@ -93,10 +103,9 @@
   .dash{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
   .dash.time-dash .val{ font-size:22px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:58px; font-weight:600; }
-  .metric .lbl{ font-size:16px; }
-  .dash{ gap:20px; margin-bottom:20px; }
-  @media (max-width:480px){ .metric .val{ font-size:36px; } .metric .lbl{ font-size:13px; } .dash{ gap:12px; margin-bottom:14px; } }
+  .metric .val{ font-family:var(--mono); font-size:clamp(28px, 7vw, 58px); font-weight:600; }
+  .metric .lbl{ font-size:clamp(11px, 2.6vw, 16px); }
+  .dash{ gap:clamp(8px, 2vw, 20px); margin-bottom:16px; }
   .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
   .metric.power .val{ color:var(--accent); }
   .metric.target .val{ color:var(--text-dim); }
@@ -119,6 +128,10 @@
     padding:12px 0 6px; z-index:10; border-top:1px solid var(--line);
   }
   .controls button{ width:auto; flex:1; margin-bottom:0; padding:16px 14px; font-size:16px; font-weight:600; }
+  @media (max-width:480px){
+    .controls{ flex-wrap:wrap; }
+    .controls button{ flex:1 1 30%; min-width:0; padding:12px 4px; font-size:12.5px; }
+  }
 
   .chart-panel{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
   .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
@@ -200,6 +213,10 @@
 
       <div class="live-main">
         <div id="unsupportedNote"></div>
+        <div class="rotate-hint" id="rotateHint">
+          <span>↻ Rotate your phone to landscape for the best view — that's how this is meant to be mounted on the bike.</span>
+          <button id="rotateHintClose" aria-label="Dismiss">✕</button>
+        </div>
 
         <div class="dash">
           <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
@@ -318,6 +335,9 @@ const supabase = createSupabaseClient();
   const AUTO_PAUSE_THRESHOLD = 4; // consecutive ~1s samples with no pedaling
   let log = []; // {t,power,cadence,hr,target}
   let sessionStart = null;
+  document.getElementById('rotateHintClose').addEventListener('click', ()=>{
+    document.getElementById('rotateHint').classList.add('dismissed');
+  });
 
   let trainerDevice=null, trainerControl=null, trainerControlReady=false;
   let lastTargetWatts = null;

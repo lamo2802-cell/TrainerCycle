@@ -86,7 +86,7 @@
 
   .dash{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:40px; font-weight:600; }
+  .metric .val{ font-family:var(--mono); font-size:clamp(26px, 6.5vw, 40px); font-weight:600; }
   .metric .lbl{ font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
 
   .stage{
@@ -98,8 +98,8 @@
   .position-box{ flex:1; max-width:170px; }
   .position-box svg{ width:100%; display:block; }
   .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
-  .stage-name{ font-size:32px; font-weight:600; margin-bottom:6px; }
-  .stage-target{ font-family:var(--mono); font-size:22px; color:var(--accent); margin-bottom:6px; }
+  .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
+  .stage-target{ font-family:var(--mono); font-size:clamp(15px, 4vw, 22px); color:var(--accent); margin-bottom:6px; }
   .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
   .stage-rest-count{ font-family:var(--mono); font-size:64px; font-weight:600; color:var(--accent); margin-bottom:8px; }
   .stage-action button{ width:auto; padding:16px 32px; font-size:17px; margin:0 6px; }
@@ -113,6 +113,9 @@
     padding:12px 0 4px; z-index:10; border-top:1px solid var(--line);
   }
   .controls button{ width:auto; flex:1; margin-bottom:0; padding:16px 14px; font-size:16px; font-weight:600; }
+  @media (max-width:360px){
+    .controls button{ padding:14px 6px; font-size:13.5px; }
+  }
 
   .celebrate-overlay{ position:fixed; inset:0; background:rgba(16,20,26,0.94); z-index:200; display:flex; align-items:center; justify-content:center; }
   .celebrate-overlay canvas{ position:absolute; inset:0; width:100%; height:100%; }
