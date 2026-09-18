@@ -63,17 +63,21 @@
   html, body{ height:100%; }
   .main{ height:calc(100vh - 80px); overflow:hidden; display:flex; flex-direction:column; }
   .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
-  .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; transition:width .2s ease, opacity .2s ease; }
   .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
   .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; }
   .chart-panel.flex-chart{ flex:1; min-height:0; display:flex; flex-direction:column; margin-bottom:10px; }
   .chart-panel.flex-chart canvas{ flex:1; min-height:0; width:100%; }
+
+  /* Once a ride is underway, everything's already connected and chosen — collapse the setup
+     panel so the dashboard (stats + chart) can genuinely fill the screen, no scrolling needed
+     while actually riding. */
+  .live-layout.riding-active .side-panel{ display:none; }
+
   @media (max-width:800px){
-    .main{ height:auto; overflow:visible; }
     .live-layout{ flex-direction:column; }
     .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
     .side-panel .block{ flex:1; min-width:150px; }
-    .chart-panel.flex-chart canvas{ height:180px; }
   }
 
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
@@ -973,6 +977,13 @@ const supabase = createSupabaseClient();
     });
   }
 
+  // Collapses/restores the setup side panel so the dashboard fills the screen while riding.
+  function setRidingActive(active){
+    document.querySelector('.live-layout').classList.toggle('riding-active', active);
+    // let the layout reflow before resizing charts into the newly available space
+    setTimeout(()=>{ drawOverviewChart(); drawStepChart(); }, 50);
+  }
+
   // ---- audio beep (Web Audio, no external file needed) ----
   let audioCtx = null;
   function beep(freq=880, duration=150){
@@ -1064,6 +1075,7 @@ const supabase = createSupabaseClient();
     zeroActivityStreak = 0;
     document.getElementById('stageAutoPause').style.display = 'none';
     sessionStart = sessionStart || Date.now();
+    setRidingActive(true);
     if (freshStart){
       log = []; activeElapsedSec = 0;
       drawOverviewChart(); drawStepChart();
@@ -1161,6 +1173,7 @@ const supabase = createSupabaseClient();
     clearInterval(tickHandle);
     tickHandle = null;
     releaseWakeLock();
+    setRidingActive(false);
     autoPaused = false;
     zeroActivityStreak = 0;
     document.getElementById('stageAutoPause').style.display = 'none';
