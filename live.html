@@ -76,16 +76,6 @@
      while actually riding. */
   .live-layout.riding-active .side-panel{ display:none; }
 
-  .rotate-hint{
-    display:none; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--panel-2); border:1px solid var(--accent); border-radius:8px;
-    padding:7px 12px; margin-bottom:8px; font-size:12px; line-height:1.3;
-  }
-  .rotate-hint button{ width:auto; margin:0; padding:4px 10px; font-size:14px; flex-shrink:0; }
-  @media (orientation:portrait) and (max-width:700px){
-    .rotate-hint:not(.dismissed){ display:flex; }
-  }
-
   @media (max-width:800px){
     .live-layout{ flex-direction:column; }
     .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
@@ -216,10 +206,6 @@
 
       <div class="live-main">
         <div id="unsupportedNote"></div>
-        <div class="rotate-hint" id="rotateHint">
-          <span>↻ Rotate to landscape for the best view</span>
-          <button id="rotateHintClose" aria-label="Dismiss">✕</button>
-        </div>
 
         <div class="dash">
           <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts</div></div>
@@ -354,9 +340,6 @@ const supabase = createSupabaseClient();
   const AUTO_PAUSE_THRESHOLD = 4; // consecutive ~1s samples with no pedaling
   let log = []; // {t,power,cadence,hr,target}
   let sessionStart = null;
-  document.getElementById('rotateHintClose').addEventListener('click', ()=>{
-    document.getElementById('rotateHint').classList.add('dismissed');
-  });
 
   let trainerDevice=null, trainerControl=null, trainerControlReady=false;
   let lastTargetWatts = null;
