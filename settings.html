@@ -135,7 +135,9 @@
       <div class="panel-title">Strava</div>
       <div class="panel-desc">Connect your Strava account to enable one-tap uploads from the Rides page.</div>
       <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
-      <button id="stravaConnectBtn">Connect Strava</button>
+      <button id="stravaConnectBtn" style="background:none; border:none; padding:0; width:auto; cursor:pointer;">
+        <img src="strava-connect-button.svg" alt="Connect with Strava" style="height:48px; width:auto; display:block;">
+      </button>
       <div class="msg" id="stravaMsg"></div>
     </div>
 
@@ -217,17 +219,14 @@ const supabase = createSupabaseClient();
   async function refreshStravaStatus(){
     const dot = document.getElementById('stravaDot');
     const statusEl = document.getElementById('stravaStatus');
-    const btn = document.getElementById('stravaConnectBtn');
     try {
       const { data } = await supabase.from('strava_connections').select('connected_at, athlete_firstname, athlete_lastname').eq('user_id', user.id).maybeSingle();
       if (data){
         dot.classList.add('on');
         const name = [data.athlete_firstname, data.athlete_lastname].filter(Boolean).join(' ');
         statusEl.textContent = name ? ('Connected as ' + name) : 'Connected';
-        btn.textContent = 'Reconnect Strava';
       } else {
         statusEl.textContent = 'Not connected';
-        btn.textContent = 'Connect Strava';
       }
     } catch(e){
       statusEl.textContent = 'Not connected';
