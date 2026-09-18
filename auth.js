@@ -122,25 +122,35 @@ export async function requireSubscription(supabase, user){
     gate.id = 'subGate';
     gate.innerHTML =
       '<style>' +
-      '#subGate{ position:fixed; inset:0; background:#10141A; z-index:999; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }' +
-      '#subGate .box{ background:#171D25; border:1px solid #2A323D; border-radius:12px; padding:32px; max-width:360px; width:90%; text-align:center; }' +
+      '#subGate{ position:fixed; inset:0; background:#10141A; z-index:999; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-y:auto; padding:24px 0; }' +
+      '#subGate .box{ background:#171D25; border:1px solid #2A323D; border-radius:12px; padding:32px; max-width:400px; width:90%; text-align:center; }' +
       '#subGate img{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
-      '#subGate h2{ color:#E7ECF2; font-size:18px; margin:0 0 6px; }' +
+      '#subGate h2{ color:#E7ECF2; font-size:19px; margin:0 0 6px; }' +
       '#subGate p{ color:#8C97A6; font-size:13px; margin:0 0 18px; line-height:1.5; }' +
-      '#subGate .price{ color:#45D6C4; font-size:28px; font-weight:700; margin-bottom:4px; }' +
-      '#subGate .price span{ font-size:13px; color:#8C97A6; font-weight:400; }' +
-      '#subGate button{ width:100%; padding:11px; border-radius:6px; border:1px solid #45D6C4; background:#45D6C4; color:#08211E; font-weight:600; font-size:14px; cursor:pointer; margin-top:14px; }' +
+      '#subGate .price{ color:#45D6C4; font-size:26px; font-weight:700; margin-bottom:2px; }' +
+      '#subGate .price span{ font-size:12.5px; color:#8C97A6; font-weight:400; }' +
+      '#subGate .trial-badge{ display:inline-block; background:#1D242D; border:1px solid #45D6C4; color:#45D6C4; font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:12px; margin-bottom:16px; }' +
+      '#subGate .benefits{ text-align:left; list-style:none; padding:0; margin:0 0 20px; }' +
+      '#subGate .benefits li{ display:flex; gap:8px; color:#E7ECF2; font-size:13px; margin-bottom:10px; line-height:1.4; }' +
+      '#subGate .benefits li:before{ content:"✓"; color:#45D6C4; font-weight:700; flex-shrink:0; }' +
+      '#subGate button{ width:100%; padding:12px; border-radius:6px; border:1px solid #45D6C4; background:#45D6C4; color:#08211E; font-weight:600; font-size:14.5px; cursor:pointer; margin-top:4px; }' +
       '#subGate button:disabled{ opacity:.5; cursor:not-allowed; }' +
       '#subGate .msg{ color:#8C97A6; font-size:12px; margin-top:12px; min-height:16px; }' +
       '</style>' +
       '<div class="box">' +
       '<img src="logo.svg" alt="TrainerCycle">' +
-      '<h2>Subscribe to TrainerCycle</h2>' +
-      '<div class="price">£3<span>–5 / month</span></div>' +
-      '<p>Structured cycling and strength training, built around your FTP — live trainer control, training plans, and full ride history.</p>' +
-      '<button id="subBtn">Subscribe</button>' +
+      '<h2>Start your free 7-day trial</h2>' +
+      '<div class="trial-badge">7 days free, then £4.99/month</div>' +
+      '<ul class="benefits">' +
+      '<li>Live Bluetooth trainer control with real ERG resistance — the trainer actually holds your target power</li>' +
+      '<li>A full workout library plus multi-week structured training plans</li>' +
+      '<li>Cycling and strength training together, built around your FTP</li>' +
+      '<li>Full ride history, TCX export, and automatic Strava upload</li>' +
+      '<li>Cancel anytime — no charge at all if you cancel within your first 7 days</li>' +
+      '</ul>' +
+      '<button id="subBtn">Start Free Trial</button>' +
       '<div class="msg" id="subMsg"></div>' +
-      '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By subscribing you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>, including immediate access and the loss of the 14-day cancellation right described there.</div>' +
+      '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By starting your trial you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>. Your card is charged £4.99/month automatically starting 7 days from today unless you cancel before then.</div>' +
       '</div>';
     document.body.appendChild(gate);
 
