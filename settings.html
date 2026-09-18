@@ -138,6 +138,13 @@
       <button id="stravaConnectBtn">Connect Strava</button>
       <div class="msg" id="stravaMsg"></div>
     </div>
+
+    <div class="panel">
+      <div class="panel-title">Subscription</div>
+      <div class="panel-desc">Manage your billing directly with Stripe — update your card, view invoices, or cancel your subscription any time.</div>
+      <button id="manageSubBtn">Manage Subscription</button>
+      <div class="msg" id="subMsg"></div>
+    </div>
   </div>
 </div>
 
@@ -258,6 +265,28 @@ const supabase = createSupabaseClient();
 
   await loadFtp();
   refreshStravaStatus();
+
+  // ---- Subscription management (Stripe Customer Portal) ----
+  document.getElementById('manageSubBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('manageSubBtn');
+    const msg = document.getElementById('subMsg');
+    btn.disabled = true;
+    msg.textContent = 'Opening billing portal…';
+    try {
+      const { data, error } = await supabase.functions.invoke('create-portal-session', {
+        body: { returnUrl: window.location.href }
+      });
+      if (error || !data || !data.url){
+        msg.textContent = (data && data.error) ? data.error : 'Could not open billing portal — try again shortly.';
+        btn.disabled = false;
+        return;
+      }
+      window.location.href = data.url;
+    } catch(e){
+      msg.textContent = 'Could not open billing portal: ' + e.message;
+      btn.disabled = false;
+    }
+  });
 
   // ---- sidebar collapse ----
   const appRoot = document.querySelector('.app');
