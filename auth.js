@@ -189,6 +189,7 @@ export async function requireSubscription(supabase, user){
       '<li>Full ride history, TCX export, and automatic Strava upload</li>' +
       '<li>Cancel anytime — no charge at all if you cancel within your first 7 days</li>' +
       '</ul>' +
+      '<div style="font-size:11px; color:#8C97A6; margin-bottom:14px; line-height:1.4; text-align:left; background:#1D242D; border-radius:6px; padding:10px 12px;">Requires a Bluetooth ERG-capable smart trainer, used in Chrome or Edge — <b>not supported in Safari or any browser on iOS.</b></div>' +
       '<button id="subBtn">Start Free Trial</button>' +
       '<div class="msg" id="subMsg"></div>' +
       '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By starting your trial you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>. Your card is charged £4.99/month automatically starting 7 days from today unless you cancel before then.</div>' +
