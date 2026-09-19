@@ -159,6 +159,11 @@
       <div class="side-panel">
         <div class="block">
           <div class="block-title">Workout</div>
+          <select id="equipmentFilter" style="margin-bottom:8px;">
+            <option value="">All workouts</option>
+            <option value="none">Bodyweight only</option>
+            <option value="equipment">Needs equipment</option>
+          </select>
           <select id="workoutSelect"><option value="">Choose a workout…</option></select>
         </div>
 
@@ -415,6 +420,28 @@ const supabase = createSupabaseClient();
   let restRemaining = 0;
   let totalSets = 0;
 
+  // A workout "needs equipment" if any exercise is marked 'required' - 'optional' ones
+  // (can be done bodyweight or loaded) don't push a workout into that bucket on their own.
+  function workoutNeedsEquipment(w){
+    return (w.exercises||[]).some(ex => EQUIPMENT_MAP[ex.key] === 'required');
+  }
+
+  function populateWorkoutSelect(){
+    const sel = document.getElementById('workoutSelect');
+    const filterVal = document.getElementById('equipmentFilter').value;
+    const prevValue = sel.value;
+    sel.innerHTML = '<option value="">Choose a workout…</option>';
+    library.forEach(w=>{
+      const needsEq = workoutNeedsEquipment(w);
+      if (filterVal === 'none' && needsEq) return;
+      if (filterVal === 'equipment' && !needsEq) return;
+      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name + (needsEq ? ' 🏋️' : ''); sel.appendChild(o);
+    });
+    // Keep the current selection if it still matches the filter, otherwise reset to empty
+    if ([...sel.options].some(o=>o.value===prevValue)) sel.value = prevValue;
+  }
+  document.getElementById('equipmentFilter').addEventListener('change', populateWorkoutSelect);
+
   async function loadData(){
     try {
       const { data, error } = await supabase.from('strength_workouts').select('id,name,exercises').order('created_at',{ascending:false});
@@ -429,10 +456,7 @@ const supabase = createSupabaseClient();
       document.getElementById('stageName').textContent = 'Could not load workouts';
       document.getElementById('stageNotes').textContent = 'Error: ' + (e && e.message ? e.message : String(e));
     }
-    const sel = document.getElementById('workoutSelect');
-    library.forEach(w=>{
-      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name; sel.appendChild(o);
-    });
+    populateWorkoutSelect();
   }
 
   function flatten(exercises){
