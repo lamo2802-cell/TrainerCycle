@@ -123,10 +123,11 @@
     <h2 id="ftp">Setting your FTP</h2>
     <p>Everything in TrainerCycle is built around your FTP (Functional Threshold Power) — it's what every %FTP target in every workout is calculated from.</p>
     <ol>
-      <li>Open <a href="settings.html">Settings</a> and find the <b>Current FTP</b> box.</li>
+      <li>Open <a href="settings.html">Settings</a> and find the <b>FTP</b> box.</li>
       <li>Enter your number and hit Save. It's saved to your account, so it applies everywhere — Live Ride, Plans, the library's Intensity Factor numbers, all of it.</li>
     </ol>
-    <div class="callout">Don't know your FTP? Run the <b>Ramp Test</b> from the library (see <a href="#live">Riding Live</a> below) — it suggests a new FTP automatically based on your best minute of power.</div>
+    <p>There's also a <b>Weight</b> box just below it — enter your weight in kg to see your power-to-weight ratio (W/kg), a common fitness benchmark. It's shown as a static reference in Settings, and live next to your watts number while riding.</p>
+    <div class="callout">Don't know your FTP? Run the <b>Ramp Test</b> from the library (see <a href="#live">Riding Live</a> below) — it suggests a new FTP automatically based on your best minute of power, and shows whether it's an increase or decrease (with the percentage) before you accept it.</div>
 
     <h2 id="builder">Building a workout</h2>
     <p>The Workouts page is where you create your own structured workouts from scratch.</p>
@@ -151,8 +152,9 @@
     </ul>
 
     <h2 id="plans">Following a plan</h2>
-    <p>The <a href="plans.html">Plans</a> page has multi-week structured plans — Sweet Spot Build, Threshold Build, Base Endurance, and a short VO2/Anaerobic sharpening block that ends with a ramp test.</p>
-    <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into Workouts with that session loaded, ready to review or take into Live Ride.</p>
+    <p>The <a href="plans.html">Plans</a> page has multi-week structured plans — some pure cycling, others combining cycling with strength sessions built around your FTP. Use the <b>rides/week</b> filter to find one that fits how much time you've actually got, from 2 rides a week up to 5.</p>
+    <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into Live Ride or TrainerStrength (whichever fits that day) with the session loaded and ready to go.</p>
+    <p>Hit <b>Follow Plan</b> on one you want to commit to — it aligns to the coming Monday and shows a banner at the top of the page with your current week and next scheduled session, one tap away. Not feeling that particular session? <b>Skip</b> moves you on to the next one without losing your place in the plan.</p>
 
     <h2 id="live">Riding live</h2>
     <h3>Connect your gear</h3>
@@ -163,7 +165,7 @@
     </ol>
     <div class="callout">A trainer connection is required before you can start a ride — this stops you from starting a session that won't actually control resistance.</div>
     <h3>Pick a workout and start</h3>
-    <p>Choose a workout from the menu (or "Free ride" if you just want to monitor without a script), then hit <b>Start</b>. The overview chart shows your whole ride's planned intensity with your live power/HR traced on top; the zoomed chart below it shows just the current step in detail.</p>
+    <p>Choose a workout from the menu (or "Free ride" if you just want to monitor without a script), then hit <b>Start</b>. The overview chart shows your whole ride's planned intensity with your live power/HR traced on top; the zoomed chart below it shows just the current step in detail. Your watts number changes color live based on which intensity zone you're in relative to your FTP, and if you've entered a weight in Settings, your live W/kg shows right alongside it.</p>
     <h3>While riding</h3>
     <ul>
       <li><b>Bail to recovery</b> — drops the current interval's target to an easy recovery pace, holding it until the workout naturally moves to the next step.</li>
@@ -172,18 +174,22 @@
       <li><b>Stop</b> — asks for confirmation first, then ends and saves the ride.</li>
     </ul>
     <h3>The Ramp Test</h3>
-    <p>A structured warm-up followed by 1-minute steps rising in intensity until you can't hold on any more — stop it whenever you need to. It works out your best minute of power from the actual data and suggests a new FTP, with a popup to accept or keep your current number.</p>
+    <p>A structured warm-up followed by 1-minute steps rising in intensity until you can't hold on any more — stop it whenever you need to. It works out your best minute of power from the actual data and suggests a new FTP, clearly marked as an increase or decrease (with the percentage change) versus your current number, with a popup to accept or keep what you've got.</p>
 
     <h2 id="strength">Strength sessions</h2>
     <p>Open <a href="trainerstrength.html">TrainerStrength</a>, pick a session (Full Body, Upper Body, Legs, Core, Push/Pull Day, or the hip/glute-focused Knee &amp; Hip Support routine), and hit Start.</p>
-    <p>Each exercise shows an animated illustration plus static Start/Finish position frames so you can see exactly what the move looks like. Tap <b>Set complete</b> when you're done with a set — a rest timer counts down automatically before the next one.</p>
+    <p>Each exercise shows an animated illustration plus static Start/Finish position frames so you can see exactly what the move looks like. A 🏋️ icon marks exercises that need dumbbells or a kettlebell — pick whatever's genuinely challenging for you and aim to increase it gradually week on week; there's no suggested weight, since that varies a lot person to person. Tap <b>Set complete</b> when you're done with a set — a rest timer counts down automatically before the next one.</p>
 
     <h2 id="rides">Reviewing rides</h2>
     <p>Every completed (or manually stopped) ride from Live Ride is saved automatically to <a href="rides.html">Rides</a> — no extra step needed. Each entry shows duration, average power, Normalized Power, Intensity Factor, and heart rate stats.</p>
     <ul>
-      <li>Click <b>View chart</b> on any ride to see power and heart rate plotted over the whole session.</li>
+      <li>Click <b>View chart</b> on any ride to see power and heart rate plotted over the whole session, with the planned intensity zones colored in behind them.</li>
       <li>Click <b>Export TCX</b> to download a file you can manually upload to Garmin Connect or Strava.</li>
+      <li>If you've connected Strava (in <a href="settings.html">Settings</a>), rides upload there automatically — no need to export and upload by hand.</li>
     </ul>
+
+    <h2 id="account">Your account</h2>
+    <p><a href="settings.html">Settings</a> is also where you manage your subscription — update your card, view invoices, or cancel, all through the Manage Subscription button. Something not working, or got a question? Use the Contact Support button right there too.</p>
 
     <h2 id="tips">Tips &amp; troubleshooting</h2>
     <ul>

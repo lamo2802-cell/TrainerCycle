@@ -219,30 +219,53 @@ const supabase = createSupabaseClient();
   await requireSubscription(supabase, user);
   // ---- original stick-figure illustrations (no third-party images) ----
   // ---- realistic pose illustrations: shared renderer draws a smooth-limbed figure from joint coordinates ----
-  const LIMB_COLOR = '#9AA5B1';
-  const TORSO_COLOR = '#45D6C4';
+  const LIMB_COLOR = '#8892A0';
+  const TORSO_COLOR_TOP = '#5AEBDB';
+  const TORSO_COLOR_BOTTOM = '#33A597';
   const HEAD_COLOR = '#E7ECF2';
   const GROUND_COLOR = '#2A323D';
-  const JOINT_COLOR = '#E7ECF2';
+  const JOINT_COLOR = '#6B7684';
 
   function pathFor(pts, color, width){
     let d = 'M '+pts[0].x+' '+pts[0].y;
     for (let i=1;i<pts.length;i++) d += ' L '+pts[i].x+' '+pts[i].y;
-    let svg = '<path d="'+d+'" stroke="'+color+'" stroke-width="'+width+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-    // Joint dots at each point along the limb - makes the figure read as an articulated
-    // body rather than a vague scribble, especially at small sizes.
-    pts.forEach(pt=>{ svg += '<circle cx="'+pt.x+'" cy="'+pt.y+'" r="'+(width*0.45)+'" fill="'+JOINT_COLOR+'"/>'; });
-    return svg;
+    return '<path d="'+d+'" stroke="'+color+'" stroke-width="'+width+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
   }
+  // Builds a tapered filled torso shape (wider at shoulders, narrower at hips) from the
+  // two-point torso line already defined per pose, rather than just a thick stroked bar.
+  function torsoShape(pts, gradId){
+    const top = pts[0], bottom = pts[pts.length-1];
+    const dx = bottom.x - top.x, dy = bottom.y - top.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const nx = -dy/len, ny = dx/len; // perpendicular unit vector
+    const topW = 15, botW = 11;
+    const p1 = {x: top.x + nx*topW, y: top.y + ny*topW};
+    const p2 = {x: top.x - nx*topW, y: top.y - ny*topW};
+    const p3 = {x: bottom.x - nx*botW, y: bottom.y - ny*botW};
+    const p4 = {x: bottom.x + nx*botW, y: bottom.y + ny*botW};
+    return '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" stop-color="'+TORSO_COLOR_TOP+'"/><stop offset="100%" stop-color="'+TORSO_COLOR_BOTTOM+'"/>' +
+      '</linearGradient></defs>' +
+      '<path d="M '+p1.x+' '+p1.y+' L '+p2.x+' '+p2.y+' L '+p3.x+' '+p3.y+' L '+p4.x+' '+p4.y+' Z" fill="url(#'+gradId+')"/>';
+  }
+  let poseIdCounter = 0;
   function poseSVG(p){
+    poseIdCounter++;
+    const gradId = 'torsoGrad'+poseIdCounter;
     let svg = '<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">';
     if (p.ground!=null) svg += '<line x1="8" y1="'+p.ground+'" x2="152" y2="'+p.ground+'" stroke="'+GROUND_COLOR+'" stroke-width="3" stroke-linecap="round"/>';
-    if (p.legL) svg += pathFor(p.legL, LIMB_COLOR, 11);
-    if (p.legR) svg += pathFor(p.legR, LIMB_COLOR, 11);
-    if (p.torso) svg += pathFor(p.torso, TORSO_COLOR, 15);
-    if (p.armL) svg += pathFor(p.armL, LIMB_COLOR, 8);
-    if (p.armR) svg += pathFor(p.armR, LIMB_COLOR, 8);
-    if (p.head) svg += '<circle cx="'+p.head.x+'" cy="'+p.head.y+'" r="'+p.head.r+'" fill="none" stroke="'+HEAD_COLOR+'" stroke-width="4"/>';
+    if (p.legL) svg += pathFor(p.legL, LIMB_COLOR, 14);
+    if (p.legR) svg += pathFor(p.legR, LIMB_COLOR, 14);
+    if (p.torso) svg += torsoShape(p.torso, gradId);
+    if (p.armL) svg += pathFor(p.armL, LIMB_COLOR, 10);
+    if (p.armR) svg += pathFor(p.armR, LIMB_COLOR, 10);
+    // Joint markers only at the shoulder and hip (where torso meets limbs) - enough to read
+    // as an articulated body without the visual clutter of a dot at every single point.
+    if (p.torso){
+      svg += '<circle cx="'+p.torso[0].x+'" cy="'+p.torso[0].y+'" r="5" fill="'+JOINT_COLOR+'"/>';
+      svg += '<circle cx="'+p.torso[p.torso.length-1].x+'" cy="'+p.torso[p.torso.length-1].y+'" r="5" fill="'+JOINT_COLOR+'"/>';
+    }
+    if (p.head) svg += '<circle cx="'+p.head.x+'" cy="'+p.head.y+'" r="'+p.head.r+'" fill="'+HEAD_COLOR+'"/><circle cx="'+(p.head.x+5)+'" cy="'+(p.head.y-4)+'" r="3" fill="#171D25" opacity="0.15"/>';
     svg += '</svg>';
     return svg;
   }
