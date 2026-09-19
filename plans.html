@@ -183,10 +183,15 @@ const supabase = createSupabaseClient();
   let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
   let sessionsFilter = '';
 
-  function sessionsPerWeek(plan){
+  function ridesPerWeek(plan){
     const week = (plan.weeks||[])[0];
     if (!week) return 0;
-    return (week.days||[]).filter(d=>d.type==='workout').length;
+    return (week.days||[]).filter(d=>d.type==='workout' && d.workoutType!=='strength').length;
+  }
+  function strengthPerWeek(plan){
+    const week = (plan.weeks||[])[0];
+    if (!week) return 0;
+    return (week.days||[]).filter(d=>d.type==='workout' && d.workoutType==='strength').length;
   }
 
   function getMondayOnOrAfter(date){
@@ -284,10 +289,10 @@ const supabase = createSupabaseClient();
   }
 
   function populateFilter(){
-    const counts = [...new Set(plans.map(sessionsPerWeek))].sort((a,b)=>a-b);
+    const counts = [...new Set(plans.map(ridesPerWeek))].sort((a,b)=>a-b);
     const sel = document.getElementById('filterSessions');
     sel.innerHTML = '<option value="">All plans</option>' +
-      counts.map(c=>'<option value="'+c+'">'+c+' session'+(c===1?'':'s')+'/week</option>').join('');
+      counts.map(c=>'<option value="'+c+'">'+c+' ride'+(c===1?'':'s')+'/week</option>').join('');
   }
 
   function renderFollowingBanner(){
@@ -339,12 +344,13 @@ const supabase = createSupabaseClient();
   function render(){
     renderFollowingBanner();
     const el = document.getElementById('plansList');
-    const visible = plans.filter(p => !sessionsFilter || String(sessionsPerWeek(p)) === sessionsFilter);
+    const visible = plans.filter(p => !sessionsFilter || String(ridesPerWeek(p)) === sessionsFilter);
     if (!visible.length){ el.innerHTML = '<div class="empty-note">No plans match that filter.</div>'; return; }
 
     el.innerHTML = visible.map(p=>{
       const weekCount = (p.weeks||[]).length;
-      const spw = sessionsPerWeek(p);
+      const rpw = ridesPerWeek(p);
+      const spw = strengthPerWeek(p);
       const isFollowing = p.id === activePlanId;
       return '<div class="plan-card" data-plan="'+p.id+'">'
         + '<div class="plan-top"><div>'
@@ -355,7 +361,7 @@ const supabase = createSupabaseClient();
         + '<button class="follow-btn'+(isFollowing?' following':'')+'" data-follow="'+p.id+'">'+(isFollowing?'Following ✓':'Follow Plan')+'</button>'
         + '</div>'
         + '<div class="plan-desc">'+escapeHtml(p.description||'')+'</div>'
-        + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+spw+' session'+(spw===1?'':'s')+'/week</div>'
+        + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+rpw+' ride'+(rpw===1?'':'s')+'/week'+(spw>0?' + '+spw+' strength':'')+'</div>'
         + '<div class="plan-weeks" id="weeks-'+p.id+'" style="display:none;"></div>'
         + '</div>';
     }).join('');

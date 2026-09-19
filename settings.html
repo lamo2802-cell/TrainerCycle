@@ -138,6 +138,7 @@
       <button id="stravaConnectBtn" style="background:none; border:none; padding:0; width:auto; cursor:pointer;">
         <img src="strava-connect-button.svg" alt="Connect with Strava" style="height:48px; width:auto; display:block;">
       </button>
+      <button id="stravaDisconnectBtn" style="display:none; margin-top:10px;">Disconnect Strava</button>
       <div class="msg" id="stravaMsg"></div>
     </div>
 
@@ -225,19 +226,43 @@ const supabase = createSupabaseClient();
   async function refreshStravaStatus(){
     const dot = document.getElementById('stravaDot');
     const statusEl = document.getElementById('stravaStatus');
+    const connectBtn = document.getElementById('stravaConnectBtn');
+    const disconnectBtn = document.getElementById('stravaDisconnectBtn');
     try {
       const { data } = await supabase.from('strava_connections').select('connected_at, athlete_firstname, athlete_lastname').eq('user_id', user.id).maybeSingle();
       if (data){
         dot.classList.add('on');
         const name = [data.athlete_firstname, data.athlete_lastname].filter(Boolean).join(' ');
         statusEl.textContent = name ? ('Connected as ' + name) : 'Connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'block';
       } else {
         statusEl.textContent = 'Not connected';
+        connectBtn.style.display = '';
+        disconnectBtn.style.display = 'none';
       }
     } catch(e){
       statusEl.textContent = 'Not connected';
     }
   }
+  document.getElementById('stravaDisconnectBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('stravaDisconnectBtn');
+    const msg = document.getElementById('stravaMsg');
+    btn.disabled = true;
+    btn.textContent = 'Disconnecting…';
+    try {
+      const { error } = await supabase.from('strava_connections').delete().eq('user_id', user.id);
+      if (error) throw error;
+      msg.textContent = 'Disconnected from Strava.';
+      msg.classList.remove('error');
+    } catch(e){
+      msg.textContent = 'Could not disconnect — try again.';
+      msg.classList.add('error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Disconnect Strava';
+    refreshStravaStatus();
+  });
   document.getElementById('stravaConnectBtn').addEventListener('click', ()=>{
     const msg = document.getElementById('stravaMsg');
     if (!STRAVA_CLIENT_ID){
