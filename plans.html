@@ -305,11 +305,18 @@ const supabase = createSupabaseClient();
     let nextHtml;
     if (!next){
       const nextPlan = plan.next_plan_id ? plans.find(p=>p.id===plan.next_plan_id) : null;
+      const endedWithTest = (plan.weeks||[])[plan.weeks.length-1] &&
+        ((plan.weeks[plan.weeks.length-1].days)||[]).some(d => d.type==='workout' && /ramp-test|ftptest|8min-test/.test(d.workoutId||''));
+      let retestHtml = '';
+      if (!endedWithTest){
+        retestHtml = '<div class="fb-next-text" style="margin-bottom:8px;">Worth a <b>Ramp Test</b> before you start your next block — your FTP may well have shifted over the last '+plan.weeks.length+' weeks, and the %FTP targets in whatever you do next are only as accurate as that number.</div>'
+          + '<a href="live.html?load=prebuilt-ramp-test-25"><button class="ghost" style="margin-bottom:12px;">Start Ramp Test</button></a>';
+      }
       if (nextPlan){
-        nextHtml = '<div class="fb-next-text">Plan complete — nice work! Ready to keep building? Up next: <b>'+escapeHtml(nextPlan.name)+'</b></div>'
+        nextHtml = retestHtml + '<div class="fb-next-text">Plan complete — nice work! Ready to keep building? Up next: <b>'+escapeHtml(nextPlan.name)+'</b></div>'
           + '<button class="primary" style="width:auto; padding:9px 18px;" data-follow="'+nextPlan.id+'" id="followNextPlanBtn">Follow This Plan</button>';
       } else {
-        nextHtml = '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
+        nextHtml = retestHtml + '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
       }
     } else {
       const wk = workoutNames[next.dayObj.workoutId];
