@@ -84,7 +84,7 @@
   .following-banner .fb-next{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:var(--panel-2); border-radius:8px; padding:12px 16px; }
   .following-banner .fb-next-text{ font-size:13.5px; }
   .following-banner .fb-next-text b{ color:var(--accent); }
-  .following-banner button.ghost{ background:none; border:1px solid var(--line); font-size:11.5px; padding:5px 10px; width:auto; }
+  .following-banner button.ghost{ background:none; border:1px solid var(--line); font-size:12.5px; padding:9px 14px; width:auto; min-height:38px; }
 
   .follow-btn{ font-size:11.5px; padding:5px 12px; width:auto; }
   .follow-btn.following{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
@@ -322,7 +322,10 @@ const supabase = createSupabaseClient();
     el.style.display = 'block';
     document.getElementById('unfollowBtn').addEventListener('click', async (e)=>{
       e.stopPropagation();
-      if (confirm('Stop following '+plan.name+'? Your progress isn\'t tracked separately, so you can always follow it again later.')) await unfollowPlan();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = 'Unfollowing…';
+      await unfollowPlan();
     });
     const skipBtn = document.getElementById('skipSessionBtn');
     if (skipBtn){
