@@ -180,6 +180,7 @@ const supabase = createSupabaseClient();
   let workoutNames = {}; // id -> {name, category}
   let activePlanId = null;
   let activePlanStartedAt = null; // ISO date string, Monday of week 1
+  let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
   let sessionsFilter = '';
 
   function sessionsPerWeek(plan){
@@ -196,32 +197,35 @@ const supabase = createSupabaseClient();
     return d;
   }
 
-  // Finds the next scheduled (non-rest) session on or after today for a followed plan.
+  // Finds the next scheduled (non-rest) session for a followed plan, starting from whichever is later:
+  // today's calendar position, or the persisted skip cursor (so a skipped session never reappears).
   // Day index within each week's 7-entry array is assumed Mon=0..Sun=6, matching started_at (always a Monday).
-  function getNextSession(plan, startedAtIso){
+  function getNextSession(plan, startedAtIso, cursorDay){
     const start = new Date(startedAtIso); start.setHours(0,0,0,0);
     const today = new Date(); today.setHours(0,0,0,0);
     const totalWeeks = (plan.weeks||[]).length;
     let daysSinceStart = Math.round((today - start) / 86400000);
     if (daysSinceStart < 0) daysSinceStart = 0; // plan starts in the future (this coming Monday)
-    for (let d = daysSinceStart; d < totalWeeks*7; d++){
+    const searchFrom = Math.max(daysSinceStart, cursorDay||0);
+    for (let d = searchFrom; d < totalWeeks*7; d++){
       const weekIdx = Math.floor(d/7);
       const dayIdx = d % 7;
       const week = plan.weeks[weekIdx];
       const dayObj = week && (week.days||[])[dayIdx];
       if (dayObj && dayObj.type === 'workout'){
-        const isToday = d === daysSinceStart && d === Math.round((today-start)/86400000);
-        return { weekNum: week.week || (weekIdx+1), dayObj, isToday };
+        const isToday = d === daysSinceStart;
+        return { weekNum: week.week || (weekIdx+1), dayObj, isToday, dayIndex: d };
       }
     }
     return null; // plan complete
   }
 
   async function loadActivePlan(){
-    const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at']);
+    const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
     (data||[]).forEach(row=>{
       if (row.key === 'active_plan_id') activePlanId = row.value && row.value.v;
       if (row.key === 'active_plan_started_at') activePlanStartedAt = row.value && row.value.v;
+      if (row.key === 'active_plan_cursor_day') activePlanCursorDay = (row.value && row.value.v) || 0;
     });
   }
 
@@ -230,9 +234,11 @@ const supabase = createSupabaseClient();
     const startedAtIso = monday.toISOString().slice(0,10);
     activePlanId = planId;
     activePlanStartedAt = startedAtIso;
+    activePlanCursorDay = 0;
     await supabase.from('settings').upsert([
       { user_id:user.id, key:'active_plan_id', value:{v:planId}, updated_at:new Date().toISOString() },
-      { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() }
+      { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() },
+      { user_id:user.id, key:'active_plan_cursor_day', value:{v:0}, updated_at:new Date().toISOString() }
     ], { onConflict:'user_id,key' });
     render();
   }
@@ -240,7 +246,17 @@ const supabase = createSupabaseClient();
   async function unfollowPlan(){
     activePlanId = null;
     activePlanStartedAt = null;
-    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at']);
+    activePlanCursorDay = 0;
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
+    render();
+  }
+
+  async function skipSession(dayIndex){
+    activePlanCursorDay = dayIndex + 1;
+    await supabase.from('settings').upsert(
+      { user_id:user.id, key:'active_plan_cursor_day', value:{v:activePlanCursorDay}, updated_at:new Date().toISOString() },
+      { onConflict:'user_id,key' }
+    );
     render();
   }
 
@@ -280,7 +296,7 @@ const supabase = createSupabaseClient();
     const plan = plans.find(p=>p.id===activePlanId);
     if (!plan){ el.style.display = 'none'; return; }
     const totalWeeks = (plan.weeks||[]).length;
-    const next = getNextSession(plan, activePlanStartedAt);
+    const next = getNextSession(plan, activePlanStartedAt, activePlanCursorDay);
     let nextHtml;
     if (!next){
       nextHtml = '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
@@ -291,7 +307,10 @@ const supabase = createSupabaseClient();
       const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
       const whenLabel = next.isToday ? 'Today' : next.dayObj.day;
       nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + '): <b>' + escapeHtml(label) + '</b></div>'
-        + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>';
+        + '<div style="display:flex; gap:8px;">'
+        + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
+        + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>'
+        + '</div>';
     }
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
@@ -305,6 +324,13 @@ const supabase = createSupabaseClient();
       e.stopPropagation();
       if (confirm('Stop following '+plan.name+'? Your progress isn\'t tracked separately, so you can always follow it again later.')) await unfollowPlan();
     });
+    const skipBtn = document.getElementById('skipSessionBtn');
+    if (skipBtn){
+      skipBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        skipSession(parseInt(skipBtn.dataset.dayIndex, 10));
+      });
+    }
   }
 
   function render(){
