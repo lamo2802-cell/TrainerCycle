@@ -348,7 +348,7 @@ const supabase = createSupabaseClient();
   function uid(){ return 'w_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
   // ---- state ----
-  let ftp = 250;
+  let ftp = 100;
   let library = [];
   let buildSteps = []; // array of {type:'step',...} or {type:'repeat', repetitions, steps:[...]}
 
@@ -365,11 +365,11 @@ const supabase = createSupabaseClient();
         localStorage.setItem(ftpCacheKey, String(ftp));
       } else {
         const cached = localStorage.getItem(ftpCacheKey);
-        if (cached) ftp = parseFloat(cached) || 250;
+        if (cached) ftp = parseFloat(cached) || 100;
       }
     } catch(e){
       const cached = localStorage.getItem(ftpCacheKey);
-      if (cached) ftp = parseFloat(cached) || 250;
+      if (cached) ftp = parseFloat(cached) || 100;
       showMsg('ftpMsg','Offline — showing last saved FTP.', true);
     }
     // Library (RLS returns shared prebuilt rows plus this user's own rows)

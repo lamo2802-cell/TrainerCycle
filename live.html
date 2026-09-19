@@ -327,7 +327,7 @@ const supabase = createSupabaseClient();
   function zoneColor(pct){ if(pct==null) return 'var(--text-dim)'; for(const z of ZONES) if(pct<z.max) return z.color; return ZONES[ZONES.length-1].color; }
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
 
-  let ftp = 250;
+  let ftp = 100;
   let library = [];
   let flatSteps = []; // flattened selected workout
   let stepIndex = -1;
@@ -353,8 +353,8 @@ const supabase = createSupabaseClient();
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
       if (data && data.value && typeof data.value.v === 'number') ftp = data.value.v;
-      else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
-    } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
+      else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
+    } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
     document.getElementById('ftpDisplay').textContent = Math.round(ftp);
 
     try {
@@ -1203,9 +1203,16 @@ const supabase = createSupabaseClient();
 
   function showFtpSuggestion(bestMinPower, onDone){
     const suggested = Math.round(bestMinPower*0.75);
+    const currentFtp = Math.round(ftp);
+    const diff = suggested - currentFtp;
+    const pct = currentFtp > 0 ? Math.abs((diff / currentFtp) * 100) : 0;
+    let changeLine = 'No change from your current FTP.';
+    if (diff > 0) changeLine = '<span style="color:var(--accent);">▲ ' + pct.toFixed(1) + '% increase</span> from your current FTP.';
+    else if (diff < 0) changeLine = '<span style="color:var(--danger);">▼ ' + pct.toFixed(1) + '% decrease</span> from your current FTP.';
     document.getElementById('ftpSuggestText').innerHTML =
       'Best 1-minute power: <b>'+Math.round(bestMinPower)+'W</b><br>' +
-      'Suggested new FTP: <b>'+suggested+'W</b> (current: '+Math.round(ftp)+'W)';
+      'Suggested new FTP: <b>'+suggested+'W</b> (current: '+currentFtp+'W)<br>' +
+      changeLine;
     document.getElementById('ftpSuggestOverlay').style.display = 'flex';
     document.getElementById('ftpAcceptBtn').onclick = async ()=>{
       await saveFtp(suggested);

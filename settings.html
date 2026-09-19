@@ -166,14 +166,14 @@ const supabase = createSupabaseClient();
   await requireSubscription(supabase, user);
 
   // ---- FTP ----
-  let ftp = 250;
+  let ftp = 100;
   const ftpCacheKey = 'tc_ftp_' + user.id;
   async function loadFtp(){
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
       if (data && data.value && typeof data.value.v === 'number') ftp = data.value.v;
-      else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
-    } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||250; }
+      else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
+    } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
     document.getElementById('ftpDisplay').textContent = Math.round(ftp);
     document.getElementById('ftpInput').value = Math.round(ftp);
   }
