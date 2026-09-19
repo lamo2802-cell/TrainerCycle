@@ -219,7 +219,7 @@ const supabase = createSupabaseClient();
       const dayObj = week && (week.days||[])[dayIdx];
       if (dayObj && dayObj.type === 'workout'){
         const isToday = d === daysSinceStart;
-        return { weekNum: week.week || (weekIdx+1), dayObj, isToday, dayIndex: d };
+        return { weekNum: week.week || (weekIdx+1), deload: !!week.deload, dayObj, isToday, dayIndex: d };
       }
     }
     return null; // plan complete
@@ -304,14 +304,20 @@ const supabase = createSupabaseClient();
     const next = getNextSession(plan, activePlanStartedAt, activePlanCursorDay);
     let nextHtml;
     if (!next){
-      nextHtml = '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
+      const nextPlan = plan.next_plan_id ? plans.find(p=>p.id===plan.next_plan_id) : null;
+      if (nextPlan){
+        nextHtml = '<div class="fb-next-text">Plan complete — nice work! Ready to keep building? Up next: <b>'+escapeHtml(nextPlan.name)+'</b></div>'
+          + '<button class="primary" style="width:auto; padding:9px 18px;" data-follow="'+nextPlan.id+'" id="followNextPlanBtn">Follow This Plan</button>';
+      } else {
+        nextHtml = '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
+      }
     } else {
       const wk = workoutNames[next.dayObj.workoutId];
       const label = wk ? wk.name : next.dayObj.workoutId;
       const isStrength = next.dayObj.workoutType === 'strength';
       const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
       const whenLabel = next.isToday ? 'Today' : next.dayObj.day;
-      nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + '): <b>' + escapeHtml(label) + '</b></div>'
+      nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + (next.deload ? ' · Deload' : '') + '): <b>' + escapeHtml(label) + '</b></div>'
         + '<div style="display:flex; gap:8px;">'
         + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
         + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>'
@@ -337,6 +343,13 @@ const supabase = createSupabaseClient();
       skipBtn.addEventListener('click', (e)=>{
         e.stopPropagation();
         skipSession(parseInt(skipBtn.dataset.dayIndex, 10));
+      });
+    }
+    const followNextBtn = document.getElementById('followNextPlanBtn');
+    if (followNextBtn){
+      followNextBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        followPlan(followNextBtn.dataset.follow);
       });
     }
   }
@@ -384,7 +397,7 @@ const supabase = createSupabaseClient();
           + '<div class="day-workout"><a href="'+targetPage+'?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div></div>';
       }).join('');
-      return '<div class="week-block"><div class="week-title">Week '+w.week+'</div>'+days+'</div>';
+      return '<div class="week-block"><div class="week-title">Week '+w.week+(w.deload ? ' <span class="tag" style="background:var(--accent); color:#08211E;">Deload</span>' : '')+'</div>'+days+'</div>';
     }).join('');
     container.dataset.rendered = '1';
     container.style.display = 'block';
