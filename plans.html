@@ -89,6 +89,25 @@
   .follow-btn{ font-size:12.5px; padding:9px 16px; width:auto; min-height:38px; }
   .follow-btn.following{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
 
+  .phase-roadmap{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px; margin-bottom:20px;
+  }
+  .phase-roadmap-title{ font-size:13px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:14px; }
+  .phase-roadmap-track{ display:flex; align-items:stretch; gap:8px; flex-wrap:wrap; }
+  .phase-stop{ flex:1; min-width:140px; background:var(--panel-2); border-radius:8px; padding:12px 14px; }
+  .phase-stop-name{ font-size:14px; font-weight:700; color:var(--accent); margin-bottom:4px; }
+  .phase-stop-desc{ font-size:11.5px; color:var(--text-dim); line-height:1.4; }
+  .phase-arrow{ display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:18px; flex-shrink:0; padding:0 2px; }
+  .phase-roadmap-note{ font-size:11.5px; color:var(--text-dim); margin-top:14px; line-height:1.4; }
+  @media (max-width:700px){
+    .phase-roadmap-track{ flex-direction:column; }
+    .phase-arrow{ transform:rotate(90deg); padding:2px 0; }
+  }
+
+  .phase-group-title{ font-size:13px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin:24px 0 10px; }
+  .phase-group-title:first-child{ margin-top:0; }
+
   .week-block{ margin-top:16px; border-top:1px solid var(--line); padding-top:12px; }
   .week-title{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
   .day-row{ display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:6px; }
@@ -148,6 +167,32 @@
     </div>
 
     <div id="followingBanner" style="display:none;"></div>
+
+    <div class="phase-roadmap">
+      <div class="phase-roadmap-title">How the plans fit together</div>
+      <div class="phase-roadmap-track">
+        <div class="phase-stop">
+          <div class="phase-stop-name">Foundation</div>
+          <div class="phase-stop-desc">New to training, limited time, or coming back from injury — start here</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-stop">
+          <div class="phase-stop-name">Base</div>
+          <div class="phase-stop-desc">Building aerobic engine and consistent volume</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-stop">
+          <div class="phase-stop-name">Build</div>
+          <div class="phase-stop-desc">Sweet spot work — raising your sustainable power</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-stop">
+          <div class="phase-stop-name">Specialty</div>
+          <div class="phase-stop-desc">Threshold and VO2 — peak-form sharpening</div>
+        </div>
+      </div>
+      <div class="phase-roadmap-note">Finish a plan and, where there's a natural next step, we'll suggest it directly. Or use the filter below to jump in wherever fits.</div>
+    </div>
 
     <div class="plan-filters">
       <select id="filterSessions">
@@ -361,13 +406,16 @@ const supabase = createSupabaseClient();
     }
   }
 
+  const PHASE_LABELS = { foundation:'Foundation', base:'Base', build:'Build', specialty:'Specialty' };
+  const PHASE_ORDER = ['foundation','base','build','specialty'];
+
   function render(){
     renderFollowingBanner();
     const el = document.getElementById('plansList');
     const visible = plans.filter(p => !sessionsFilter || String(ridesPerWeek(p)) === sessionsFilter);
     if (!visible.length){ el.innerHTML = '<div class="empty-note">No plans match that filter.</div>'; return; }
 
-    el.innerHTML = visible.map(p=>{
+    function cardHtml(p){
       const weekCount = (p.weeks||[]).length;
       const rpw = ridesPerWeek(p);
       const spw = strengthPerWeek(p);
@@ -384,7 +432,25 @@ const supabase = createSupabaseClient();
         + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+rpw+' ride'+(rpw===1?'':'s')+'/week'+(spw>0?' + '+spw+' strength':'')+'</div>'
         + '<div class="plan-weeks" id="weeks-'+p.id+'" style="display:none;"></div>'
         + '</div>';
-    }).join('');
+    }
+
+    // Group by phase (Foundation -> Base -> Build -> Specialty) so the progression is visible
+    // in the list itself, not just the roadmap banner. Plans with no phase set fall in an
+    // unlabeled group at the end, so nothing silently disappears if data is incomplete.
+    const byPhase = {};
+    const noPhase = [];
+    visible.forEach(p=>{
+      if (p.phase && PHASE_ORDER.includes(p.phase)){ (byPhase[p.phase] = byPhase[p.phase]||[]).push(p); }
+      else noPhase.push(p);
+    });
+    let html = '';
+    PHASE_ORDER.forEach(phase=>{
+      if (byPhase[phase] && byPhase[phase].length){
+        html += '<div class="phase-group-title">'+PHASE_LABELS[phase]+'</div>' + byPhase[phase].map(cardHtml).join('');
+      }
+    });
+    if (noPhase.length) html += noPhase.map(cardHtml).join('');
+    el.innerHTML = html;
   }
 
   function renderWeeks(plan){
