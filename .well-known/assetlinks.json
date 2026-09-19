@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.trainercycle.app",
+    "sha256_cert_fingerprints": [
+      "59:E1:6A:20:50:F4:69:EA:3E:1F:24:D9:AA:76:60:54:6A:3B:92:FD:52:D6:AF:40:78:79:11:3E:2C:FE:6F:E2"
+    ]
+  }
+}]
