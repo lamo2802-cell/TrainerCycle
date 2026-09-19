@@ -209,6 +209,7 @@
         <option value="">All plans</option>
       </select>
     </div>
+    <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:16px; margin-top:-8px;">Click a plan to see its week-by-week breakdown, then click any day's ride or strength session to load it straight in.</div>
 
     <div id="plansList"><div class="empty-note">Loading…</div></div>
   </div>
@@ -327,7 +328,7 @@ const supabase = createSupabaseClient();
       if (planErr) throw planErr;
       plans = planData || [];
 
-      const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category');
+      const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category,duration_sec');
       if (wErr) throw wErr;
       (workoutData||[]).forEach(w=>{ workoutNames[w.id] = w; });
 
@@ -476,8 +477,14 @@ const supabase = createSupabaseClient();
         const isStrength = d.workoutType === 'strength';
         const tag = isStrength ? 'Strength' : (wk && wk.category ? focusLabel(wk.category) : '');
         const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
+        let durLabel = '';
+        if (!isStrength && wk && wk.duration_sec){
+          const mins = Math.round(wk.duration_sec/60);
+          durLabel = mins >= 60 ? (Math.floor(mins/60)+'h '+(mins%60 ? (mins%60)+'m' : '')) : mins+'min';
+        }
         return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+targetPage+'?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+          + (durLabel ? '<span class="tag">'+durLabel+'</span>' : '')
           + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div></div>';
       }).join('');
       return '<div class="week-block"><div class="week-title">Week '+w.week+(w.deload ? ' <span class="tag" style="background:var(--accent); color:#08211E;">Deload</span>' : '')+'</div>'+days+'</div>';
