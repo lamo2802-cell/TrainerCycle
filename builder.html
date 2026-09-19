@@ -74,6 +74,8 @@
 
   .block{ margin-bottom:26px; }
   .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .block-top-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+  .block-top-row .block-title{ margin-bottom:0; }
   .page-nav{ display:flex; flex-direction:column; gap:2px; }
   .page-nav a{ padding:10px 10px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:16px; }
   .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
@@ -212,7 +214,10 @@
 
   <div class="main">
     <div class="block">
-      <div class="block-title">Workout Library</div>
+      <div class="block-top-row">
+        <div class="block-title">Workout Library</div>
+        <a href="create-workout.html"><button class="primary" style="width:auto; padding:9px 18px;">Create Workout</button></a>
+      </div>
       <input type="text" id="librarySearch" placeholder="Search workouts…" style="margin-bottom:10px;">
       <div class="lib-filters">
         <select id="filterCategory">
@@ -237,61 +242,6 @@
         </select>
       </div>
       <div id="libraryList"><div class="empty-note">Loading…</div></div>
-    </div>
-
-    <div id="tab-builder">
-      <div class="panel">
-        <div class="hint">Add a steady step, or a work/recovery interval set. Targets are stored as %FTP so they stay correct if your FTP changes.</div>
-
-        <div class="interval-form">
-          <div class="interval-col">
-            <h4>Add single step</h4>
-            <div class="row">
-              <div class="field"><label>Duration (mm:ss)</label><input type="text" id="stepDur" placeholder="10:00"></div>
-              <div class="field"><label>Type</label>
-                <select id="stepType">
-                  <option value="ftp_pct">% FTP</option>
-                  <option value="watts">Watts</option>
-                  <option value="hr_pct">% HRmax</option>
-                </select>
-              </div>
-            </div>
-            <div class="row">
-              <div class="field"><label>Low</label><input type="number" id="stepLow" placeholder="60"></div>
-              <div class="field"><label>High</label><input type="number" id="stepHigh" placeholder="65"></div>
-            </div>
-            <div class="field"><label>Note (optional)</label><input type="text" id="stepNote" placeholder="Warm up"></div>
-            <button id="addStepBtn">Add step</button>
-          </div>
-
-          <div class="interval-col">
-            <h4>Add interval set</h4>
-            <div class="row">
-              <div class="field"><label>Work (mm:ss)</label><input type="text" id="ivWorkDur" placeholder="3:00"></div>
-              <div class="field"><label>Work %FTP</label><input type="number" id="ivWorkPct" placeholder="110"></div>
-            </div>
-            <div class="row">
-              <div class="field"><label>Recover (mm:ss)</label><input type="text" id="ivRecDur" placeholder="3:00"></div>
-              <div class="field"><label>Recover %FTP</label><input type="number" id="ivRecPct" placeholder="50"></div>
-            </div>
-            <div class="field"><label>Repetitions</label><input type="number" id="ivReps" placeholder="5"></div>
-            <button id="addIntervalBtn">Add interval set</button>
-          </div>
-        </div>
-        <div id="builderMsg"></div>
-      </div>
-
-      <div id="buildSummary"></div>
-      <div class="chart"><div class="chart-bars" id="buildChart"></div></div>
-      <div class="legend" id="legend"></div>
-      <div class="steplist" id="buildStepList"></div>
-
-      <div class="save-row">
-        <div class="field"><label>Workout name</label><input type="text" id="workoutName" placeholder="e.g. Sweet Spot 3x12"></div>
-        <button class="primary" id="saveWorkoutBtn">Save to library</button>
-        <button id="clearBuilderBtn">Clear</button>
-      </div>
-      <div id="saveMsg"></div>
     </div>
   </div>
 </div>
@@ -338,19 +288,10 @@ const supabase = createSupabaseClient();
     const m = Math.floor(sec/60), s = sec%60;
     return m + ':' + String(s).padStart(2,'0');
   }
-  function parseDur(str){
-    if (!str) return 0;
-    const parts = str.split(':').map(x=>parseInt(x,10));
-    if (parts.some(isNaN)) return 0;
-    if (parts.length === 1) return parts[0];
-    return parts[0]*60 + parts[1];
-  }
-  function uid(){ return 'w_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
   // ---- state ----
   let ftp = 100;
   let library = [];
-  let buildSteps = []; // array of {type:'step',...} or {type:'repeat', repetitions, steps:[...]}
 
   // ---- storage (Supabase, with localStorage as an offline cache/fallback) ----
   const ftpCacheKey = 'tc_ftp_' + user.id;
@@ -376,7 +317,7 @@ const supabase = createSupabaseClient();
     try {
       const { data, error } = await supabase.from('workouts').select('id,name,steps,category,user_id').order('created_at', {ascending:false});
       if (error) throw error;
-      library = (data||[]).map(r=>({ id:r.id, name:r.name, steps:r.steps, category:r.category||null }));
+      library = (data||[]).map(r=>({ id:r.id, name:r.name, steps:r.steps, category:r.category||null, user_id:r.user_id }));
       localStorage.setItem(libCacheKey, JSON.stringify(library));
     } catch(e){
       const cached = localStorage.getItem(libCacheKey);
@@ -396,14 +337,6 @@ const supabase = createSupabaseClient();
       );
       if (error) throw error;
     } catch(e){ showMsg('ftpMsg','Saved locally, but sync failed — check connection.', true); }
-  }
-  async function addWorkoutToLibrary(w){
-    library.unshift(w);
-    localStorage.setItem(libCacheKey, JSON.stringify(library));
-    try {
-      const { error } = await supabase.from('workouts').insert({ id:w.id, name:w.name, steps:w.steps, source:'builder', user_id:user.id });
-      if (error) throw error;
-    } catch(e){ showMsg('saveMsg','Saved locally, but sync failed — check connection.', true); }
   }
   async function deleteWorkoutFromLibrary(id){
     library = library.filter(x=>x.id!==id);
@@ -548,138 +481,6 @@ const supabase = createSupabaseClient();
 
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-  function renderBuilder(){
-    const flat = flatten(buildSteps);
-    const totalSec = flat.reduce((a,s)=>a+(s.duration||0),0);
-    const pcts = flat.map(effectivePct).filter(p=>p!=null);
-    const avg = pcts.length ? Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length) : null;
-
-    document.getElementById('buildSummary').innerHTML = buildSteps.length ?
-      ('<div class="summary-bar">'
-        + '<div class="summary-item"><div class="val">'+fmtDur(totalSec)+'</div><div class="lbl">Duration</div></div>'
-        + '<div class="summary-item"><div class="val">'+(avg!=null?avg+'%':'—')+'</div><div class="lbl">Avg FTP</div></div>'
-        + '<div class="summary-item"><div class="val">'+flat.length+'</div><div class="lbl">Steps</div></div>'
-        + '</div>') : '';
-
-    // chart
-    const chart = document.getElementById('buildChart');
-    if (!flat.length){ chart.innerHTML = '<div class="empty-note" style="padding:0 4px;">No steps yet — add one on the left.</div>'; }
-    else {
-      const maxDur = Math.max(...flat.map(s=>s.duration||1));
-      chart.innerHTML = flat.map(s=>{
-        const pct = effectivePct(s);
-        const z = zoneFor(pct);
-        const h = pct!=null ? Math.max(6, Math.min(100, (pct/160)*100)) : 20;
-        const w = Math.max(3, ((s.duration||1)/ (flat.reduce((a,x)=>a+(x.duration||1),0)||1)) * 700);
-        return '<div class="bar" style="height:'+h+'%; width:'+w+'px; background:'+z.color+';" title="'+fmtDur(s.duration)+' · '+displayTarget(s)+'"></div>';
-      }).join('');
-    }
-
-    // legend
-    document.getElementById('legend').innerHTML = ZONES.map(z=>
-      '<div class="legend-item"><span class="legend-dot" style="background:'+z.color+'"></span>'+z.name+'</div>'
-    ).join('');
-
-    // step list (top-level, with repeat grouping visible)
-    const listEl = document.getElementById('buildStepList');
-    if (!buildSteps.length){ listEl.innerHTML = ''; }
-    else {
-      listEl.innerHTML = buildSteps.map((s, i)=>{
-        if (s.type === 'repeat'){
-          const inner = s.steps.map(st=>stepRowHtml(st)).join('');
-          return '<div class="repeat-wrap"><div class="repeat-label">× '+s.repetitions+' repetitions</div>'+inner+'</div>'
-            + rowControls(i, buildSteps.length);
-        }
-        return '<div>' + stepRowHtml(s) + rowControls(i, buildSteps.length) + '</div>';
-      }).join('');
-    }
-  }
-
-  function stepRowHtml(s){
-    const pct = effectivePct(s);
-    const z = zoneFor(pct);
-    return '<div class="step-row">'
-      + '<div class="step-swatch" style="background:'+z.color+'"></div>'
-      + '<div class="step-info">'
-      + '<div class="step-dur">'+fmtDur(s.duration)+'</div>'
-      + '<div class="step-target">'+displayTarget(s)+ (s.note ? ' · '+escapeHtml(s.note) : '') +'</div>'
-      + '</div></div>';
-  }
-  function rowControls(i, len){
-    return '<div class="step-btns" style="justify-content:flex-end; margin:-4px 0 6px;">'
-      + (i>0 ? '<button class="ghost" data-up="'+i+'">↑</button>' : '')
-      + (i<len-1 ? '<button class="ghost" data-down="'+i+'">↓</button>' : '')
-      + '<button class="ghost danger" data-remove="'+i+'">✕</button>'
-      + '</div>';
-  }
-
-  // ---- events: add single step ----
-  document.getElementById('addStepBtn').addEventListener('click', ()=>{
-    const dur = parseDur(document.getElementById('stepDur').value);
-    const type = document.getElementById('stepType').value;
-    const low = parseFloat(document.getElementById('stepLow').value);
-    const highRaw = document.getElementById('stepHigh').value;
-    const high = highRaw === '' ? low : parseFloat(highRaw);
-    const note = document.getElementById('stepNote').value.trim();
-    if (!dur || isNaN(low)){ showMsg('builderMsg','Enter a duration and target value.', true); return; }
-    buildSteps.push({type:'step', duration:dur, targetType:type, low, high, note});
-    ['stepDur','stepLow','stepHigh','stepNote'].forEach(id=>document.getElementById(id).value='');
-    renderBuilder();
-  });
-
-  // ---- events: add interval set ----
-  document.getElementById('addIntervalBtn').addEventListener('click', ()=>{
-    const workDur = parseDur(document.getElementById('ivWorkDur').value);
-    const workPct = parseFloat(document.getElementById('ivWorkPct').value);
-    const recDur = parseDur(document.getElementById('ivRecDur').value);
-    const recPct = parseFloat(document.getElementById('ivRecPct').value);
-    const reps = parseInt(document.getElementById('ivReps').value, 10);
-    if (!workDur || isNaN(workPct) || !recDur || isNaN(recPct) || !reps){
-      showMsg('builderMsg','Fill in work, recovery and repetitions.', true); return;
-    }
-    buildSteps.push({
-      type:'repeat', repetitions: reps,
-      steps:[
-        {type:'step', duration:workDur, targetType:'ftp_pct', low:workPct, high:workPct, note:'Work'},
-        {type:'step', duration:recDur, targetType:'ftp_pct', low:recPct, high:recPct, note:'Recover'}
-      ]
-    });
-    ['ivWorkDur','ivWorkPct','ivRecDur','ivRecPct','ivReps'].forEach(id=>document.getElementById(id).value='');
-    renderBuilder();
-  });
-
-  // ---- events: step list row actions (delegated) ----
-  document.getElementById('buildStepList').addEventListener('click', (e)=>{
-    const t = e.target;
-    if (t.dataset.remove !== undefined){ buildSteps.splice(+t.dataset.remove,1); renderBuilder(); }
-    else if (t.dataset.up !== undefined){
-      const i = +t.dataset.up;
-      [buildSteps[i-1], buildSteps[i]] = [buildSteps[i], buildSteps[i-1]];
-      renderBuilder();
-    } else if (t.dataset.down !== undefined){
-      const i = +t.dataset.down;
-      [buildSteps[i+1], buildSteps[i]] = [buildSteps[i], buildSteps[i+1]];
-      renderBuilder();
-    }
-  });
-
-  document.getElementById('clearBuilderBtn').addEventListener('click', ()=>{
-    buildSteps = [];
-    document.getElementById('workoutName').value = '';
-    renderBuilder();
-  });
-
-  // ---- save to library ----
-  document.getElementById('saveWorkoutBtn').addEventListener('click', async ()=>{
-    const name = document.getElementById('workoutName').value.trim();
-    if (!name){ showMsg('saveMsg','Give the workout a name.', true); return; }
-    if (!buildSteps.length){ showMsg('saveMsg','Add at least one step first.', true); return; }
-    const w = { id: uid(), name, steps: JSON.parse(JSON.stringify(buildSteps)), createdAt: Date.now() };
-    await addWorkoutToLibrary(w);
-    renderLibrary();
-    showMsg('saveMsg','Saved to library.', false);
-  });
-
   // ---- library row actions (delegated) ----
   function targetLabel(step){
     if (step.targetType==='ftp_pct') return step.low+'–'+step.high+'% FTP';
@@ -770,16 +571,6 @@ const supabase = createSupabaseClient();
   }
 
   await loadState();
-
-  const loadParam = new URLSearchParams(window.location.search).get('load');
-  if (loadParam){
-    const w = library.find(x=>x.id===loadParam);
-    if (w){
-      buildSteps = JSON.parse(JSON.stringify(w.steps));
-      document.getElementById('workoutName').value = w.name;
-      renderBuilder();
-    }
-  }
 })();
 </script>
 </body>
