@@ -384,6 +384,13 @@ const supabase = createSupabaseClient();
 
   let library = [];
   let flat = []; // flattened {type:'work'|'rest', ...}
+  // Which exercises need external weights (dumbbells/kettlebell/band) vs pure bodyweight.
+  // 'required' = no bodyweight alternative noted; 'optional' = can be done bodyweight or loaded.
+  // Deliberately does NOT suggest a specific weight - that varies far too much person to person.
+  const EQUIPMENT_MAP = {
+    bicep_curl: 'required', shoulder_press: 'required', row: 'required',
+    squat: 'optional', deadlift: 'optional'
+  };
   let idx = -1;
   let running = false;
   let tickHandle = null;
@@ -440,7 +447,9 @@ const supabase = createSupabaseClient();
     if (!w){ el.innerHTML = ''; return; }
     el.innerHTML = w.exercises.map((ex,i)=>{
       const cur = flat[idx] && flat[idx].exIdx===i;
-      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+ex.name+' · '+ex.sets+'x'+ex.reps+'</div>';
+      const eq = EQUIPMENT_MAP[ex.key];
+      const icon = eq ? ' <span title="'+(eq==='required'?'Requires weights':'Optional: weights add load')+'" style="opacity:.7;">🏋️</span>' : '';
+      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+ex.name+icon+' · '+ex.sets+'x'+ex.reps+'</div>';
     }).join('');
   }
 
@@ -476,7 +485,10 @@ const supabase = createSupabaseClient();
       renderPositions(entry.ex.key, document.getElementById('positionsRow'));
       document.getElementById('stageName').textContent = entry.ex.name;
       document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + entry.ex.reps + ' reps';
-      document.getElementById('stageNotes').textContent = entry.ex.notes || '';
+      const eq = EQUIPMENT_MAP[entry.ex.key];
+      const eqNote = eq==='required' ? '🏋️ Requires weights (dumbbells/kettlebell) — pick a weight that\'s challenging for you' :
+                     eq==='optional' ? '🏋️ Optional: hold dumbbells for more load' : '';
+      document.getElementById('stageNotes').innerHTML = (eqNote ? '<b>'+eqNote+'</b><br>' : '') + (entry.ex.notes || '');
       restEl.style.display = 'none';
       stageAction.innerHTML = '<button class="primary" id="setCompleteBtn">Set complete ✓</button>';
       document.getElementById('setCompleteBtn').addEventListener('click', advance);

@@ -95,6 +95,7 @@
   .quickstart-title{ font-size:11.5px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; font-weight:600; }
   .quickstart-steps{ display:flex; flex-direction:column; gap:10px; }
   .qs-step{ display:flex; align-items:baseline; gap:10px; font-size:13.5px; color:var(--text-dim); line-height:1.4; }
+  .qs-text{ flex:1; min-width:0; }
   .qs-step a{ color:var(--text); }
   .qs-num{
     flex-shrink:0; width:20px; height:20px; border-radius:50%; background:var(--panel-2);
@@ -198,15 +199,16 @@
           Sign in with Google
         </button>
         <div class="msg" id="heroSignInMsg"></div>
+        <div style="font-size:11.5px; color:var(--text-dim); margin-top:14px; line-height:1.4;">Requires a Bluetooth ERG-capable smart trainer for live resistance control (most trainers from the last ~8 years qualify — Wahoo KICKR, Elite, Tacx, Saris, and similar).</div>
       </div>
     </div>
 
     <div class="quickstart" id="quickstart" style="display:none;">
       <div class="quickstart-title">Quick start</div>
       <div class="quickstart-steps">
-        <div class="qs-step"><span class="qs-num">1</span>Connect your trainer in <a href="live.html">Live Ride</a> (or pair it once in <a href="settings.html">Settings</a>)</div>
-        <div class="qs-step"><span class="qs-num">2</span>Pick a workout from <a href="builder.html">Workouts</a> or a <a href="plans.html">Training Plan</a></div>
-        <div class="qs-step"><span class="qs-num">3</span>Hit Start and ride</div>
+        <div class="qs-step"><span class="qs-num">1</span><span class="qs-text">Connect your trainer in <a href="live.html">Live Ride</a> (or pair it once in <a href="settings.html">Settings</a>)</span></div>
+        <div class="qs-step"><span class="qs-num">2</span><span class="qs-text">Pick a workout from <a href="builder.html">Workouts</a> or a <a href="plans.html">Training Plan</a></span></div>
+        <div class="qs-step"><span class="qs-num">3</span><span class="qs-text">Hit Start and ride</span></div>
       </div>
     </div>
 
@@ -238,7 +240,7 @@
       </a>
       <a class="card" href="settings.html">
         <div class="card-title">Settings</div>
-        <div class="card-desc">Set your FTP, pair a trainer, and connect Strava — all in one place.</div>
+        <div class="card-desc">Set your FTP and weight, pair a trainer, connect Strava, and manage your subscription — all in one place.</div>
         <span class="card-accent">Open settings →</span>
       </a>
       <a class="card" href="help.html">
@@ -251,6 +253,7 @@
     <div class="footer-links">
       <a href="privacy.html">Privacy Policy</a>
       <a href="terms.html">Terms of Service</a>
+      <a href="mailto:support@trainercycle.com">Contact Support</a>
     </div>
   </div>
 </div>

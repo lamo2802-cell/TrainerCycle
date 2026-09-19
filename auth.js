@@ -111,11 +111,52 @@ export function addUserBadge(supabase, user){
   document.body.appendChild(badge);
 }
 
+function showWelcomeMessage(){
+  const el = document.createElement('div');
+  el.id = 'welcomeToast';
+  el.innerHTML =
+    '<style>' +
+    '#welcomeToast{ position:fixed; inset:0; background:rgba(16,20,26,0.75); z-index:1001; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; padding:20px; }' +
+    '#welcomeToast .box{ background:#171D25; border:1px solid #45D6C4; border-radius:12px; padding:32px; max-width:360px; width:100%; text-align:center; }' +
+    '#welcomeToast img{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
+    '#welcomeToast h2{ color:#E7ECF2; font-size:19px; margin:0 0 8px; }' +
+    '#welcomeToast p{ color:#8C97A6; font-size:13.5px; margin:0 0 20px; line-height:1.5; }' +
+    '#welcomeToast button{ width:100%; padding:11px; border-radius:6px; border:1px solid #45D6C4; background:#45D6C4; color:#08211E; font-weight:600; font-size:14px; cursor:pointer; }' +
+    '</style>' +
+    '<div class="box">' +
+    '<img src="logo.svg" alt="TrainerCycle">' +
+    '<h2>Welcome to TrainerCycle 🎉</h2>' +
+    '<p>Your free trial has started — nothing is charged for 7 days. Connect your trainer in Live Ride, or start with a Ramp Test to set your FTP.</p>' +
+    '<button id="welcomeCloseBtn">Let\'s go</button>' +
+    '</div>';
+  document.body.appendChild(el);
+  document.getElementById('welcomeCloseBtn').addEventListener('click', ()=> el.remove());
+}
+
 // Checks the user's subscription status; shows a paywall gate and blocks until active.
 export async function requireSubscription(supabase, user){
-  const { data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+  const urlParams = new URLSearchParams(window.location.search);
+  const justSubscribed = urlParams.get('subscribed') === '1';
   const activeStatuses = ['active', 'owner', 'trialing'];
-  if (data && activeStatuses.includes(data.status)) return true;
+
+  let { data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+
+  // Just returned from Stripe checkout, but the webhook that actually activates the subscription
+  // may not have processed yet - briefly retry rather than immediately showing the paywall again.
+  if (justSubscribed && !(data && activeStatuses.includes(data.status))){
+    for (let i=0; i<5 && !(data && activeStatuses.includes(data.status)); i++){
+      await new Promise(r=>setTimeout(r, 1500));
+      ({ data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle());
+    }
+  }
+
+  if (data && activeStatuses.includes(data.status)){
+    if (justSubscribed){
+      window.history.replaceState({}, '', window.location.pathname);
+      showWelcomeMessage();
+    }
+    return true;
+  }
 
   return new Promise((resolve)=>{
     const gate = document.createElement('div');

@@ -116,11 +116,26 @@
         <span class="ftp-value" id="ftpDisplay">—</span>
         <span class="ftp-unit">watts</span>
       </div>
+      <div class="ftp-unit" id="wattsPerKgDisplay" style="margin-top:-8px; margin-bottom:10px;"></div>
       <div style="display:flex; gap:8px;">
         <input type="number" id="ftpInput" placeholder="e.g. 254" min="1" max="2000">
         <button class="primary" id="ftpSaveBtn">Save</button>
       </div>
       <div class="msg" id="ftpMsg"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Weight</div>
+      <div class="panel-desc">Used to show your power-to-weight ratio (W/kg) — a useful fitness benchmark alongside raw watts.</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="weightDisplay">—</span>
+        <span class="ftp-unit">kg</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="number" id="weightInput" placeholder="e.g. 75" min="1" max="300" step="0.1">
+        <button class="primary" id="weightSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="weightMsg"></div>
     </div>
 
     <div class="panel">
@@ -168,7 +183,13 @@ const supabase = createSupabaseClient();
 
   // ---- FTP ----
   let ftp = 100;
+  let weightKg = null;
   const ftpCacheKey = 'tc_ftp_' + user.id;
+  function updateWattsPerKg(){
+    const el = document.getElementById('wattsPerKgDisplay');
+    if (weightKg && weightKg > 0) el.textContent = (ftp/weightKg).toFixed(2) + ' W/kg';
+    else el.textContent = '';
+  }
   async function loadFtp(){
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
@@ -177,6 +198,7 @@ const supabase = createSupabaseClient();
     } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
     document.getElementById('ftpDisplay').textContent = Math.round(ftp);
     document.getElementById('ftpInput').value = Math.round(ftp);
+    updateWattsPerKg();
   }
   document.getElementById('ftpSaveBtn').addEventListener('click', async ()=>{
     const v = parseFloat(document.getElementById('ftpInput').value);
@@ -185,9 +207,41 @@ const supabase = createSupabaseClient();
     ftp = v;
     localStorage.setItem(ftpCacheKey, String(v));
     document.getElementById('ftpDisplay').textContent = Math.round(v);
+    updateWattsPerKg();
     try {
       const { error } = await supabase.from('settings').upsert(
         { user_id:user.id, key:'ftp', value:{v}, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,key' }
+      );
+      if (error) throw error;
+      msg.textContent = 'Saved.';
+    } catch(e){ msg.textContent = 'Saved locally, but sync failed — check connection.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  });
+
+  // ---- Weight ----
+  const weightCacheKey = 'tc_weight_' + user.id;
+  async function loadWeight(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle();
+      if (data && data.value && typeof data.value.v === 'number') weightKg = data.value.v;
+      else { const c = localStorage.getItem(weightCacheKey); if (c) weightKg = parseFloat(c)||null; }
+    } catch(e){ const c = localStorage.getItem(weightCacheKey); if (c) weightKg = parseFloat(c)||null; }
+    document.getElementById('weightDisplay').textContent = weightKg ? weightKg : '—';
+    if (weightKg) document.getElementById('weightInput').value = weightKg;
+    updateWattsPerKg();
+  }
+  document.getElementById('weightSaveBtn').addEventListener('click', async ()=>{
+    const v = parseFloat(document.getElementById('weightInput').value);
+    const msg = document.getElementById('weightMsg');
+    if (!v || v <= 0){ msg.textContent = 'Enter a valid weight in kg.'; return; }
+    weightKg = v;
+    localStorage.setItem(weightCacheKey, String(v));
+    document.getElementById('weightDisplay').textContent = v;
+    updateWattsPerKg();
+    try {
+      const { error } = await supabase.from('settings').upsert(
+        { user_id:user.id, key:'weight_kg', value:{v}, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,key' }
       );
       if (error) throw error;
@@ -294,6 +348,7 @@ const supabase = createSupabaseClient();
   })();
 
   await loadFtp();
+  await loadWeight();
   refreshStravaStatus();
 
   // ---- Subscription management (Stripe Customer Portal) ----

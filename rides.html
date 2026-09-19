@@ -16,6 +16,8 @@
     --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --z-recovery:#5A6472; --z-endurance:#4C8BF5; --z-tempo:#3DBE7A; --z-threshold:#E8B93D;
+    --z-vo2:#F08A3C; --z-anaerobic:#E5484D; --z-neuro:#B14AED;
   }
   *{box-sizing:border-box;}
   :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
@@ -203,7 +205,7 @@ const supabase = createSupabaseClient();
         + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
         + '</div>'
         + '<div class="ride-chart-wrap" id="chartwrap-'+r.id+'" style="display:none;">'
-        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--text-dim); opacity:.6;"></i>Target</span></div>'
+        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--z-threshold); opacity:.75;"></i>Target intensity zone</span></div>'
         + '<canvas id="chart-'+r.id+'" width="760" height="150"></canvas>'
         + '</div>'
         + '</div>';
@@ -225,6 +227,22 @@ const supabase = createSupabaseClient();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  const ZONES = [
+    {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
+    {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},
+    {max:Infinity,color:'var(--z-neuro)'}
+  ];
+  function zoneColor(pct){ if(pct==null) return 'var(--text-dim)'; for(const z of ZONES) if(pct<z.max) return z.color; return ZONES[ZONES.length-1].color; }
+  function zoneColorRGBA(pct, alpha){
+    const map = {
+      'var(--z-recovery)':'90,100,114', 'var(--z-endurance)':'76,139,245', 'var(--z-tempo)':'61,190,122',
+      'var(--z-threshold)':'232,185,61', 'var(--z-vo2)':'240,138,60', 'var(--z-anaerobic)':'229,72,77',
+      'var(--z-neuro)':'177,74,237', 'var(--text-dim)':'140,151,166'
+    };
+    const rgb = map[zoneColor(pct)] || '140,151,166';
+    return 'rgba('+rgb+','+alpha+')';
+  }
+
   function drawRideChart(ride){
     const canvas = document.getElementById('chart-'+ride.id);
     if (!canvas) return;
@@ -238,21 +256,39 @@ const supabase = createSupabaseClient();
     const maxPower = Math.max(50, ...samples.map(s=>Number(s.power)||0), ...samples.map(s=>Number(s.target)||0)) * 1.15;
     const maxHr = Math.max(60, ...samples.map(s=>Number(s.hr)||0)) * 1.1;
     const xAt = i => (i/Math.max(1,n-1))*w;
-    function line(getVal, max, color, width, dashed){
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width||2;
-      ctx.setLineDash(dashed ? [5,4] : []);
+
+    // Historical FTP at the time of this ride, backed out from NP/IF (rather than today's FTP),
+    // so the zone coloring reflects what was actually true when the ride happened.
+    const histFtp = (ride.np && ride.intensity_factor) ? (ride.np / ride.intensity_factor) : null;
+
+    // Colored zone-intensity background (skyline profile), same technique as Live Ride's overview chart,
+    // using each sample's own target power to classify + size each sliver.
+    if (histFtp){
       samples.forEach((s,i)=>{
-        const v = Number(getVal(s))||0;
-        const y = h - (v/max)*h;
-        if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
+        const tgt = Number(s.target);
+        if (!tgt) return;
+        const pct = (tgt/histFtp)*100;
+        const barH = Math.max(h*0.06, Math.min(h*0.95, (pct/160)*h));
+        ctx.fillStyle = zoneColorRGBA(pct, 0.75);
+        const x = xAt(i);
+        const segW = w/Math.max(1,n-1) + 1;
+        ctx.fillRect(x, h-barH, segW, barH);
       });
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
-    const hasTarget = samples.some(s=>s.target!=null);
-    if (hasTarget) line(s=>s.target, maxPower, 'rgba(140,151,166,0.7)', 2, true);
-    line(s=>s.hr, maxHr, '#E5484D');
-    line(s=>s.power, maxPower, '#45D6C4');
+
+    function line(getVal, max, color, outline){
+      [ {c: outline, lw: 4}, {c: color, lw: 2} ].forEach(pass=>{
+        ctx.beginPath(); ctx.strokeStyle = pass.c; ctx.lineWidth = pass.lw; ctx.setLineDash([]);
+        samples.forEach((s,i)=>{
+          const v = Number(getVal(s))||0;
+          const y = h - (v/max)*h;
+          if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
+        });
+        ctx.stroke();
+      });
+    }
+    line(s=>s.hr, maxHr, '#E5484D', 'rgba(255,255,255,0.6)');
+    line(s=>s.power, maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
   }
 
   document.getElementById('ridesList').addEventListener('click', (e)=>{
