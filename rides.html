@@ -203,7 +203,7 @@ const supabase = createSupabaseClient();
         + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
         + '</div>'
         + '<div class="ride-chart-wrap" id="chartwrap-'+r.id+'" style="display:none;">'
-        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span></div>'
+        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--text-dim); opacity:.6;"></i>Target</span></div>'
         + '<canvas id="chart-'+r.id+'" width="760" height="150"></canvas>'
         + '</div>'
         + '</div>';
@@ -230,18 +230,22 @@ const supabase = createSupabaseClient();
     const samples = ride.samples || [];
     if (!samples.length) return;
     const n = samples.length;
-    const maxPower = Math.max(50, ...samples.map(s=>Number(s.power)||0)) * 1.15;
+    const maxPower = Math.max(50, ...samples.map(s=>Number(s.power)||0), ...samples.map(s=>Number(s.target)||0)) * 1.15;
     const maxHr = Math.max(60, ...samples.map(s=>Number(s.hr)||0)) * 1.1;
     const xAt = i => (i/Math.max(1,n-1))*w;
-    function line(getVal, max, color){
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    function line(getVal, max, color, width, dashed){
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = width||2;
+      ctx.setLineDash(dashed ? [5,4] : []);
       samples.forEach((s,i)=>{
         const v = Number(getVal(s))||0;
         const y = h - (v/max)*h;
         if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
       });
       ctx.stroke();
+      ctx.setLineDash([]);
     }
+    const hasTarget = samples.some(s=>s.target!=null);
+    if (hasTarget) line(s=>s.target, maxPower, 'rgba(140,151,166,0.7)', 2, true);
     line(s=>s.hr, maxHr, '#E5484D');
     line(s=>s.power, maxPower, '#45D6C4');
   }
