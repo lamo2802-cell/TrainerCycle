@@ -19,14 +19,6 @@
   }
   *{box-sizing:border-box;}
 
-  .page-banner{
-    height:140px; border-radius:10px; margin-bottom:20px; background-size:cover; background-position:center 30%;
-    position:relative; overflow:hidden;
-  }
-  .page-banner::after{
-    content:""; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(10,13,17,0.35) 0%, rgba(10,13,17,0.55) 55%, var(--bg) 100%);
-  }
   :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
   .app{ position:relative; min-height:100vh; }
@@ -116,7 +108,6 @@
   </div>
 
   <div class="main">
-    <div class="page-banner" style="background-image:url('banner-settings.jpg');"></div>
     <h1>Settings</h1>
 
     <div class="panel">
