@@ -94,10 +94,9 @@
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:20px; text-align:center; margin-bottom:16px;
   }
-  .stage-figure{ width:100%; max-width:320px; margin:0 auto 12px; }
-  .positions-row{ display:flex; gap:14px; justify-content:center; margin-bottom:14px; }
-  .position-box{ flex:1; max-width:170px; }
-  .position-arrow{ font-size:22px; color:var(--accent); align-self:center; flex-shrink:0; }
+  .positions-row{ display:flex; gap:20px; justify-content:center; align-items:center; margin-bottom:14px; }
+  .position-box{ flex:1; max-width:220px; }
+  .position-arrow{ font-size:28px; color:var(--accent); align-self:center; flex-shrink:0; }
   .position-box svg{ width:100%; display:block; }
   .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
   .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
@@ -179,7 +178,6 @@
         </div>
 
         <div class="stage">
-          <div class="stage-figure" id="stageFigure"></div>
           <div class="positions-row" id="positionsRow"></div>
           <div class="stage-name" id="stageName">Choose a workout to begin</div>
           <div class="stage-target" id="stageTarget"></div>
@@ -294,24 +292,24 @@ const supabase = createSupabaseClient();
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:62,y:68},{x:58,y:92}], armR:[{x:80,y:45},{x:98,y:68},{x:102,y:92}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
-      finish: { head:{x:80,y:45,r:13}, torso:[{x:80,y:45},{x:78,y:85}],
-        armL:[{x:78,y:45},{x:60,y:60},{x:55,y:80}], armR:[{x:78,y:45},{x:96,y:60},{x:101,y:80}],
-        legL:[{x:78,y:85},{x:55,y:110},{x:55,y:G}], legR:[{x:78,y:85},{x:105,y:105},{x:125,y:140}], ground:G }
+      finish: { head:{x:60,y:52,r:13}, torso:[{x:60,y:52},{x:65,y:92}],
+        armL:[{x:60,y:52},{x:42,y:65},{x:38,y:85}], armR:[{x:60,y:52},{x:78,y:65},{x:82,y:85}],
+        legL:[{x:65,y:92},{x:52,y:112},{x:55,y:G}], legR:[{x:65,y:92},{x:100,y:118},{x:132,y:136}], ground:G }
     },
     deadlift: {
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
-        armL:[{x:80,y:45},{x:75,y:75},{x:72,y:105}], armR:[{x:80,y:45},{x:85,y:75},{x:88,y:105}],
+        armL:[{x:80,y:45},{x:78,y:70},{x:76,y:95}], armR:[{x:80,y:45},{x:82,y:70},{x:84,y:95}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
-      finish: { head:{x:110,y:55,r:13}, torso:[{x:108,y:58},{x:80,y:92}],
-        armL:[{x:102,y:60},{x:88,y:95},{x:78,y:120}], armR:[{x:102,y:60},{x:92,y:95},{x:82,y:120}],
-        legL:[{x:80,y:92},{x:76,y:118},{x:75,y:G}], legR:[{x:80,y:92},{x:84,y:118},{x:85,y:G}], ground:G }
+      finish: { head:{x:33,y:41,r:13}, torso:[{x:45,y:55},{x:82,y:90}],
+        armL:[{x:45,y:55},{x:42,y:85},{x:40,y:115}], armR:[{x:45,y:55},{x:48,y:85},{x:46,y:115}],
+        legL:[{x:82,y:90},{x:78,y:115},{x:74,y:G}], legR:[{x:82,y:90},{x:86,y:115},{x:90,y:G}], ground:G }
     },
     bicep_curl: {
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
-        armL:[{x:80,y:45},{x:65,y:70},{x:60,y:98}], armR:[{x:80,y:45},{x:95,y:70},{x:100,y:98}],
+        armL:[{x:58,y:46},{x:54,y:74},{x:50,y:98}], armR:[{x:102,y:46},{x:106,y:74},{x:110,y:98}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
       finish: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
-        armL:[{x:80,y:45},{x:65,y:70},{x:72,y:50}], armR:[{x:80,y:45},{x:95,y:70},{x:88,y:50}],
+        armL:[{x:58,y:46},{x:54,y:74},{x:70,y:56}], armR:[{x:102,y:46},{x:106,y:74},{x:90,y:56}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G }
     },
     shoulder_press: {
@@ -350,19 +348,19 @@ const supabase = createSupabaseClient();
     },
     row: {
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
-        armL:[{x:80,y:50},{x:105,y:58},{x:130,y:65}], armR:[{x:80,y:50},{x:65,y:70},{x:62,y:95}],
+        armL:[{x:70,y:48},{x:50,y:60},{x:35,y:75}], armR:[{x:90,y:48},{x:110,y:60},{x:125,y:75}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
       finish: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
-        armL:[{x:80,y:50},{x:62,y:55},{x:45,y:50}], armR:[{x:80,y:50},{x:65,y:70},{x:62,y:95}],
+        armL:[{x:70,y:48},{x:55,y:55},{x:68,y:62}], armR:[{x:90,y:48},{x:105,y:55},{x:92,y:62}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G }
     },
     calf_raise: {
       start: { head:{x:80,y:28,r:13}, torso:[{x:80,y:42},{x:80,y:85}],
         armL:[{x:80,y:45},{x:65,y:70},{x:60,y:95}], armR:[{x:80,y:45},{x:95,y:70},{x:100,y:95}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:146}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:146}], ground:148 },
-      finish: { head:{x:80,y:20,r:13}, torso:[{x:80,y:34},{x:80,y:77}],
-        armL:[{x:80,y:37},{x:65,y:62},{x:60,y:87}], armR:[{x:80,y:37},{x:95,y:62},{x:100,y:87}],
-        legL:[{x:80,y:77},{x:78,y:107},{x:75,y:144}], legR:[{x:80,y:77},{x:82,y:107},{x:85,y:144}], ground:148 }
+      finish: { head:{x:80,y:14,r:13}, torso:[{x:80,y:28},{x:80,y:71}],
+        armL:[{x:80,y:31},{x:65,y:56},{x:60,y:81}], armR:[{x:80,y:31},{x:95,y:56},{x:100,y:81}],
+        legL:[{x:80,y:71},{x:78,y:101},{x:76,y:142}], legR:[{x:80,y:71},{x:82,y:101},{x:84,y:142}], ground:148 }
     },
     clamshell: {
       start: { head:{x:25,y:60,r:12}, torso:[{x:35,y:60},{x:85,y:62}],
@@ -386,20 +384,6 @@ const supabase = createSupabaseClient();
     }
   };
 
-  function renderFigure(key, container){
-    const pose = POSES[key];
-    if (!pose){ container.innerHTML = '<div style="padding:40px 0; color:var(--text-dim); font-size:13px;">No illustration yet for this exercise.</div>'; return; }
-    if (pose.hold){
-      container.innerHTML = poseSVG(pose.hold);
-      return;
-    }
-    // crossfade between start and finish for a subtle sense of motion
-    container.innerHTML =
-      '<div style="position:relative;"><style>@keyframes poseA{0%,45%{opacity:1;}55%,100%{opacity:0;}} @keyframes poseB{0%,45%{opacity:0;}55%,100%{opacity:1;}}</style>' +
-      '<div style="animation:poseA 2.6s ease-in-out infinite;">'+poseSVG(pose.start)+'</div>' +
-      '<div style="position:absolute; inset:0; animation:poseB 2.6s ease-in-out infinite;">'+poseSVG(pose.finish)+'</div>' +
-      '</div>';
-  }
   function renderPositions(key, container){
     const pose = POSES[key];
     if (!pose){ container.innerHTML = ''; return; }
@@ -508,13 +492,11 @@ const supabase = createSupabaseClient();
       document.getElementById('nextStepInfo').innerHTML = flat.length ? ('First: <b>'+flat[0].ex.name+'</b> · '+flat[0].ex.sets+'x'+flat[0].ex.reps) : '—';
       restEl.style.display = 'none';
       stageAction.innerHTML = '';
-      renderFigure('', document.getElementById('stageFigure'));
       renderPositions('', document.getElementById('positionsRow'));
       return;
     }
 
     if (entry.type === 'work'){
-      renderFigure(entry.ex.key, document.getElementById('stageFigure'));
       renderPositions(entry.ex.key, document.getElementById('positionsRow'));
       document.getElementById('stageName').textContent = entry.ex.name;
       document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + entry.ex.reps + ' reps';
@@ -529,7 +511,6 @@ const supabase = createSupabaseClient();
       document.getElementById('stageName').textContent = 'Rest';
       document.getElementById('stageTarget').textContent = '';
       document.getElementById('stageNotes').textContent = 'Next: ' + entry.ex.name + ' · set ' + entry.nextSetNum + ' of ' + entry.ex.sets;
-      renderFigure('', document.getElementById('stageFigure'));
       renderPositions('', document.getElementById('positionsRow'));
       restEl.style.display = 'block';
       restEl.textContent = fmtDur(restRemaining);
@@ -564,6 +545,17 @@ const supabase = createSupabaseClient();
     renderStage();
   }
 
+  let wakeLock = null;
+  async function requestWakeLock(){
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+  }
+  function releaseWakeLock(){
+    if (wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', async ()=>{
+    if (document.visibilityState === 'visible' && running) await requestWakeLock();
+  });
+
   document.getElementById('startBtn').addEventListener('click', ()=>{
     running = true;
     if (idx === -1 && flat.length) advance();
@@ -573,6 +565,7 @@ const supabase = createSupabaseClient();
     document.getElementById('stopBtn').disabled = false;
     document.getElementById('workoutSelect').disabled = true;
     document.querySelector('.live-layout').classList.add('session-active');
+    requestWakeLock();
   });
   document.getElementById('pauseBtn').addEventListener('click', ()=>{
     running = false;
@@ -580,10 +573,12 @@ const supabase = createSupabaseClient();
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'Resume';
     document.getElementById('pauseBtn').disabled = true;
+    releaseWakeLock();
   });
   function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
+    releaseWakeLock();
     document.querySelector('.live-layout').classList.remove('session-active');
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
