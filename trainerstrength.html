@@ -97,6 +97,7 @@
   .stage-figure{ width:100%; max-width:320px; margin:0 auto 12px; }
   .positions-row{ display:flex; gap:14px; justify-content:center; margin-bottom:14px; }
   .position-box{ flex:1; max-width:170px; }
+  .position-arrow{ font-size:22px; color:var(--accent); align-self:center; flex-shrink:0; }
   .position-box svg{ width:100%; display:block; }
   .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
   .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
@@ -219,11 +220,16 @@ const supabase = createSupabaseClient();
   const TORSO_COLOR = '#45D6C4';
   const HEAD_COLOR = '#E7ECF2';
   const GROUND_COLOR = '#2A323D';
+  const JOINT_COLOR = '#E7ECF2';
 
   function pathFor(pts, color, width){
     let d = 'M '+pts[0].x+' '+pts[0].y;
     for (let i=1;i<pts.length;i++) d += ' L '+pts[i].x+' '+pts[i].y;
-    return '<path d="'+d+'" stroke="'+color+'" stroke-width="'+width+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    let svg = '<path d="'+d+'" stroke="'+color+'" stroke-width="'+width+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    // Joint dots at each point along the limb - makes the figure read as an articulated
+    // body rather than a vague scribble, especially at small sizes.
+    pts.forEach(pt=>{ svg += '<circle cx="'+pt.x+'" cy="'+pt.y+'" r="'+(width*0.45)+'" fill="'+JOINT_COLOR+'"/>'; });
+    return svg;
   }
   function poseSVG(p){
     let svg = '<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">';
@@ -377,6 +383,7 @@ const supabase = createSupabaseClient();
     }
     container.innerHTML =
       '<div class="position-box"><div>'+poseSVG(pose.start)+'</div><div class="position-label">Start</div></div>' +
+      '<div class="position-arrow">→</div>' +
       '<div class="position-box"><div>'+poseSVG(pose.finish)+'</div><div class="position-label">Finish</div></div>';
   }
 

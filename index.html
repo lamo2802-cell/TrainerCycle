@@ -18,6 +18,25 @@
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+
+  #splashScreen{
+    position:fixed; inset:0; background:#10141A; z-index:2000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    animation: splashFadeOut 0.5s ease 1.3s forwards;
+  }
+  #splashScreen.skip{ display:none; }
+  .splash-logo-wrap{ width:84px; height:84px; animation: splashPop 0.6s cubic-bezier(.2,1.4,.4,1); }
+  .splash-icon{ width:100%; height:100%; }
+  .splash-arc{ stroke-dasharray:214; stroke-dashoffset:214; animation: splashDraw 0.9s ease 0.15s forwards; }
+  .splash-word{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:26px; font-weight:700; color:#E7ECF2;
+    opacity:0; animation: splashTextIn 0.5s ease 0.5s forwards;
+  }
+  .splash-word span{ color:#45D6C4; }
+  @keyframes splashPop{ 0%{ transform:scale(0.6); opacity:0; } 100%{ transform:scale(1); opacity:1; } }
+  @keyframes splashDraw{ to{ stroke-dashoffset:0; } }
+  @keyframes splashTextIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes splashFadeOut{ to{ opacity:0; visibility:hidden; pointer-events:none; } }
   :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
 
@@ -133,6 +152,25 @@
 </style>
 </head>
 <body>
+<div id="splashScreen">
+  <div class="splash-logo-wrap">
+    <svg viewBox="0 0 100 100" class="splash-icon">
+      <circle cx="50" cy="50" r="34" fill="none" stroke="#2A323D" stroke-width="6"/>
+      <path d="M 50 16 A 34 34 0 1 1 21.2 65.5" fill="none" stroke="#45D6C4" stroke-width="6" stroke-linecap="round" class="splash-arc"/>
+      <circle cx="50" cy="50" r="6.5" fill="#45D6C4"/>
+      <line x1="50" y1="50" x2="66" y2="24" stroke="#E7ECF2" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="splash-word">Trainer<span>Cycle</span></div>
+</div>
+<script>
+  if (sessionStorage.getItem('tc_splash_shown')) {
+    document.getElementById('splashScreen').classList.add('skip');
+  } else {
+    sessionStorage.setItem('tc_splash_shown', '1');
+  }
+</script>
+
 <div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
