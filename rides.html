@@ -214,10 +214,15 @@ const supabase = createSupabaseClient();
   // Keeps a canvas's actual pixel buffer in sync with its rendered CSS width.
   function fitCanvasWidth(canvas){
     const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
     const displayWidth = Math.round(rect.width);
     const displayHeight = Math.round(rect.height);
-    if (displayWidth > 0 && canvas.width !== displayWidth) canvas.width = displayWidth;
-    if (displayHeight > 0 && canvas.height !== displayHeight) canvas.height = displayHeight;
+    const bufferWidth = Math.round(displayWidth * dpr);
+    const bufferHeight = Math.round(displayHeight * dpr);
+    if (displayWidth > 0 && canvas.width !== bufferWidth) canvas.width = bufferWidth;
+    if (displayHeight > 0 && canvas.height !== bufferHeight) canvas.height = bufferHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   function drawRideChart(ride){
@@ -225,7 +230,7 @@ const supabase = createSupabaseClient();
     if (!canvas) return;
     fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
     ctx.clearRect(0,0,w,h);
     const samples = ride.samples || [];
     if (!samples.length) return;

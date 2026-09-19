@@ -858,17 +858,22 @@ const supabase = createSupabaseClient();
   // fill wide containers (tablets in landscape, etc.) instead of staying a fixed small size.
   function fitCanvasWidth(canvas){
     const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
     const displayWidth = Math.round(rect.width);
     const displayHeight = Math.round(rect.height);
-    if (displayWidth > 0 && canvas.width !== displayWidth) canvas.width = displayWidth;
-    if (displayHeight > 0 && canvas.height !== displayHeight) canvas.height = displayHeight;
+    const bufferWidth = Math.round(displayWidth * dpr);
+    const bufferHeight = Math.round(displayHeight * dpr);
+    if (displayWidth > 0 && canvas.width !== bufferWidth) canvas.width = bufferWidth;
+    if (displayHeight > 0 && canvas.height !== bufferHeight) canvas.height = bufferHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw calls elsewhere use CSS-pixel coordinates (canvas.clientWidth/Height); this maps them to the sharper physical buffer
   }
 
   function drawOverviewChart(){
     const canvas = document.getElementById('overviewChart');
     fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
     ctx.clearRect(0,0,w,h);
 
     const hasPlan = flatSteps.length > 0;
@@ -961,7 +966,7 @@ const supabase = createSupabaseClient();
     const canvas = document.getElementById('stepChart');
     fitCanvasWidth(canvas);
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
     ctx.clearRect(0,0,w,h);
     const step = flatSteps[stepIndex];
     if (!step){ return; }
