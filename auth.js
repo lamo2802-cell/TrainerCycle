@@ -145,8 +145,11 @@ export function requireAuth(supabase){
       '#authGate .divider::before, #authGate .divider::after{ content:""; flex:1; height:1px; background:#2A323D; }' +
       '#authGate .switch{ font-size:12.5px; color:#8C97A6; margin-top:6px; }' +
       '#authGate .switch a{ color:#45D6C4; cursor:pointer; text-decoration:underline; }' +
+      '#authGate .back-home{ display:block; text-align:left; font-size:12.5px; color:#8C97A6; text-decoration:none; margin-bottom:16px; cursor:pointer; }' +
+      '#authGate .back-home:hover{ color:#45D6C4; }' +
       '</style>' +
       '<div class="box">' +
+      '<a class="back-home" id="authBackHome">← Back to Home</a>' +
       '<img class="logo" src="logo.svg" alt="TrainerCycle">' +
 
       '<div id="viewSignin">' +
@@ -205,6 +208,13 @@ export function requireAuth(supabase){
 
       '</div>';
     document.body.appendChild(gate);
+
+    document.getElementById('authBackHome').addEventListener('click', ()=>{
+      const path = window.location.pathname;
+      const onHome = path === '/' || path.endsWith('/index.html');
+      if (onHome) gate.remove();
+      else window.location.href = 'index.html';
+    });
 
     gate.addEventListener('click', (e)=>{
       const btn = e.target.closest('[data-toggle-pw]');
