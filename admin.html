@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Admin — TrainerCycle</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<meta name="theme-color" content="#10141A">
+<style>
+  *{box-sizing:border-box;}
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --topbar-h: calc(80px + env(safe-area-inset-top, 0px));
+  }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .top-bar{
+    height:var(--topbar-h); display:flex; align-items:center; padding:0 14px; padding-top:env(safe-area-inset-top, 0px);
+    background:var(--bg); border-bottom:1px solid var(--line); position:relative;
+  }
+  .top-logo{ height:60px; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
+  .main{ padding:28px 24px; max-width:900px; margin:0 auto; }
+  h1{ font-size:19px; margin:0 0 4px; }
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:0 0 24px; }
+  .stats-grid{ display:flex; flex-wrap:wrap; gap:12px; margin-bottom:28px; }
+  .stat-card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; flex:1 1 200px; }
+  .stat-val{ font-family:var(--mono); font-size:30px; font-weight:600; color:var(--accent); }
+  .stat-lbl{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
+  .section-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:28px 0 10px; }
+  .denied{ text-align:center; padding:80px 20px; color:var(--text-dim); }
+  .denied h2{ color:var(--text); }
+  .refresh-btn{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <img src="wordmark.svg" class="top-logo" alt="TrainerCycle">
+</div>
+<div class="main" id="mainContent">
+  <div class="denied">Loading…</div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth } from './auth.js?v=11';
+const supabase = createSupabaseClient();
+
+(async function(){
+  const user = await requireAuth(supabase);
+  const el = document.getElementById('mainContent');
+
+  async function load(){
+    el.innerHTML = '<div class="denied">Loading…</div>';
+    const { data, error } = await supabase.rpc('get_admin_stats');
+    if (error){
+      el.innerHTML = '<div class="denied"><h2>Not authorized</h2><p>This page is only visible to the account owner.</p></div>';
+      return;
+    }
+    el.innerHTML =
+      '<h1>Admin</h1>' +
+      '<p class="sub">Signed in as ' + (user.email || '') + '</p>' +
+
+      '<div class="section-title">Accounts</div>' +
+      '<div class="stats-grid">' +
+        stat(data.total_users, 'Total signups') +
+        stat(data.confirmed_users, 'Confirmed accounts') +
+        stat(data.signups_last_7_days, 'New signups (7d)') +
+      '</div>' +
+
+      '<div class="section-title">Subscriptions</div>' +
+      '<div class="stats-grid">' +
+        stat(data.active_subscribers, 'Active (paid)') +
+        stat(data.trialing, 'Trialing') +
+        stat(data.canceled, 'Canceled') +
+        stat(data.owners, 'Owner accounts') +
+      '</div>' +
+
+      '<div class="section-title">Activity</div>' +
+      '<div class="stats-grid">' +
+        stat(data.total_rides, 'Total rides logged') +
+        stat(data.rides_last_7_days, 'Rides (7d)') +
+        stat(data.rides_last_30_days, 'Rides (30d)') +
+        stat(data.strava_connections, 'Strava connections') +
+        stat(data.custom_workouts, 'Custom workouts built') +
+      '</div>' +
+
+      '<button class="refresh-btn" id="refreshBtn">Refresh</button>';
+    document.getElementById('refreshBtn').addEventListener('click', load);
+  }
+
+  function stat(val, label){
+    return '<div class="stat-card"><div class="stat-val">'+(val ?? '—')+'</div><div class="stat-lbl">'+label+'</div></div>';
+  }
+
+  await load();
+})();
+</script>
+</body>
+</html>
