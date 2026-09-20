@@ -289,7 +289,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth } from './auth.js?v=10';
+import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=11';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -316,6 +316,8 @@ const supabase = createSupabaseClient();
     const user = await requireAuth(supabase);
     if (!handled){ handled = true; await showSignedIn(user); }
   });
+
+  checkBluetoothSupport();
 
   let handled = false;
   supabase.auth.onAuthStateChange((event, session)=>{

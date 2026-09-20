@@ -309,13 +309,14 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=10';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=11';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
+  checkBluetoothSupport();
   if (user.id === '24629e67-0ec6-4e80-a1a1-cff123ee1aa5'){
     document.getElementById('simulateTrainerBtn').style.display = '';
   }

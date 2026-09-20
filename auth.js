@@ -494,6 +494,29 @@ export async function isSubscriptionActive(supabase, user){
   return !!(data && activeStatuses.includes(data.status));
 }
 
+// Shows a small dismissible warning if this browser doesn't support Web Bluetooth (Safari on any
+// platform, Firefox, and older browsers). Feature-detects via navigator.bluetooth rather than
+// user-agent sniffing, so it stays accurate as browsers change support over time.
+export function checkBluetoothSupport(){
+  if (navigator.bluetooth) return;
+
+  const el = document.createElement('div');
+  el.id = 'btWarning';
+  el.innerHTML =
+    '<style>' +
+    '#btWarning{ position:fixed; left:16px; right:16px; top:calc(env(safe-area-inset-top, 0px) + 68px); z-index:850; max-width:420px; margin:0 auto; ' +
+    'background:#171D25; border:1px solid #E8B93D; border-radius:10px; padding:12px 36px 12px 14px; ' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-shadow:0 8px 24px rgba(0,0,0,.4); }' +
+    '#btWarning .close{ position:absolute; top:6px; right:8px; background:none; border:none; color:#8C97A6; font-size:16px; cursor:pointer; padding:4px; line-height:1; }' +
+    '#btWarning .close:hover{ color:#E7ECF2; }' +
+    '#btWarning p{ margin:0; color:#E7ECF2; font-size:12.5px; line-height:1.4; }' +
+    '</style>' +
+    '<button class="close" id="btWarningClose" aria-label="Dismiss">✕</button>' +
+    '<p>⚠️ Your browser doesn\'t support the Bluetooth this app needs for live trainer control. Use Chrome or Edge instead (not supported in Safari or on iOS).</p>';
+  document.body.appendChild(el);
+  document.getElementById('btWarningClose').addEventListener('click', ()=> el.remove());
+}
+
 export async function requireSubscription(supabase, user){
   const urlParams = new URLSearchParams(window.location.search);
   const justSubscribed = urlParams.get('subscribed') === '1';
