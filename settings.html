@@ -177,6 +177,15 @@
     </div>
 
     <div class="panel">
+      <div class="panel-title">Communications</div>
+      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:13px; color:var(--text-dim);">
+        <input type="checkbox" id="marketingToggle" style="margin-top:3px; flex-shrink:0;">
+        I'd like to receive occasional training tips and updates from TrainerCycle by email.
+      </label>
+      <div class="msg" id="marketingMsg"></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Support</div>
       <div class="panel-desc">Something not working, or got a question? Get in touch directly.</div>
       <a href="mailto:support@trainercycle.com" style="text-decoration:none;"><button style="width:100%;">Contact Support</button></a>
@@ -185,7 +194,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, saveMarketingConsent } from './auth.js';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -362,6 +371,25 @@ const supabase = createSupabaseClient();
   await loadFtp();
   await loadWeight();
   refreshStravaStatus();
+
+  // ---- Marketing email preference ----
+  (async ()=>{
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','marketing_consent').eq('user_id', user.id).maybeSingle();
+      document.getElementById('marketingToggle').checked = !!(data && data.value && data.value.v);
+    } catch(e){ /* leave unchecked if it can't be read */ }
+  })();
+  document.getElementById('marketingToggle').addEventListener('change', async (e)=>{
+    const msg = document.getElementById('marketingMsg');
+    try {
+      await saveMarketingConsent(supabase, user.id, e.target.checked);
+      msg.textContent = 'Saved.';
+    } catch(err){
+      msg.textContent = 'Could not save — check connection.';
+      e.target.checked = !e.target.checked;
+    }
+    setTimeout(()=>{ msg.textContent = ''; }, 2500);
+  });
 
   // ---- Subscription management (Stripe Customer Portal) ----
   document.getElementById('manageSubBtn').addEventListener('click', async ()=>{

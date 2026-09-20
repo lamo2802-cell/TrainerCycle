@@ -70,6 +70,49 @@ export async function signInWithGoogleIdToken(supabase, idToken, nonce){
   return supabase.auth.signInWithIdToken({ provider:'google', token: idToken, nonce });
 }
 
+// Shared password-strength rule, used by both signup and the reset-password page so the
+// requirements shown to the user always match what's actually enforced.
+export function passwordRequirements(pw){
+  return {
+    length: pw.length >= 8,
+    upper: /[A-Z]/.test(pw),
+    lower: /[a-z]/.test(pw),
+    number: /[0-9]/.test(pw),
+    symbol: /[^A-Za-z0-9]/.test(pw)
+  };
+}
+export function passwordValid(pw){
+  const r = passwordRequirements(pw);
+  return r.length && r.upper && r.lower && r.number && r.symbol;
+}
+function passwordChecklistHtml(id){
+  return '<ul id="'+id+'" style="text-align:left; font-size:11.5px; color:#8C97A6; margin:2px 0 12px; padding-left:18px; list-style:none;">' +
+    '<li data-req="length">○ At least 8 characters</li>' +
+    '<li data-req="upper">○ One uppercase letter</li>' +
+    '<li data-req="lower">○ One lowercase letter</li>' +
+    '<li data-req="number">○ One number</li>' +
+    '<li data-req="symbol">○ One symbol</li>' +
+    '</ul>';
+}
+function updatePasswordChecklist(listId, pw){
+  const r = passwordRequirements(pw);
+  Object.keys(r).forEach(k=>{
+    const li = document.querySelector('#'+listId+' [data-req="'+k+'"]');
+    if (!li) return;
+    li.textContent = (r[k] ? '✓ ' : '○ ') + li.textContent.slice(2);
+    li.style.color = r[k] ? '#45D6C4' : '#8C97A6';
+  });
+}
+
+// Records marketing-email consent (or its absence) with a timestamp, in the same settings table
+// used for FTP/weight/etc, so there's an auditable record of when/whether it was given.
+export async function saveMarketingConsent(supabase, userId, consented){
+  return supabase.from('settings').upsert(
+    { user_id:userId, key:'marketing_consent', value:{ v:consented, consented_at:new Date().toISOString() }, updated_at:new Date().toISOString() },
+    { onConflict:'user_id,key' }
+  );
+}
+
 // Shows a full-screen sign-in gate until the user is authenticated, then resolves with the user object.
 export function requireAuth(supabase){
   return new Promise((resolve)=>{
@@ -78,49 +121,167 @@ export function requireAuth(supabase){
     gate.id = 'authGate';
     gate.innerHTML =
       '<style>' +
-      '#authGate{ position:fixed; inset:0; background:#10141A; z-index:1000; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }' +
-      '#authGate .box{ background:#171D25; border:1px solid #2A323D; border-radius:12px; padding:32px; max-width:340px; width:90%; text-align:center; }' +
-      '#authGate img{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
+      '#authGate{ position:fixed; inset:0; background:#10141A; z-index:1000; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; overflow-y:auto; padding:20px 0; }' +
+      '#authGate .box{ background:#171D25; border:1px solid #2A323D; border-radius:12px; padding:32px; max-width:340px; width:90%; text-align:center; margin:auto; }' +
+      '#authGate img.logo{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
       '#authGate h2{ color:#E7ECF2; font-size:18px; margin:0 0 6px; }' +
       '#authGate p{ color:#8C97A6; font-size:13px; margin:0 0 20px; line-height:1.4; }' +
-      '#authGate button{ width:100%; padding:11px; border-radius:6px; border:1px solid #2A323D; background:#fff; color:#1F1F1F; font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; }' +
+      '#authGate input[type=email], #authGate input[type=password]{ width:100%; box-sizing:border-box; padding:10px; margin-bottom:10px; border-radius:6px; border:1px solid #2A323D; background:#1D242D; color:#E7ECF2; font-size:13.5px; }' +
+      '#authGate label.consent{ display:flex; align-items:flex-start; gap:8px; text-align:left; font-size:12px; color:#8C97A6; margin-bottom:14px; cursor:pointer; }' +
+      '#authGate label.consent input{ margin-top:2px; flex-shrink:0; }' +
+      '#authGate button{ width:100%; padding:11px; border-radius:6px; border:1px solid #2A323D; background:#fff; color:#1F1F1F; font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; }' +
+      '#authGate button.primary{ background:#45D6C4; color:#08211E; border-color:#45D6C4; }' +
       '#authGate button:disabled{ opacity:.5; cursor:not-allowed; }' +
-      '#authGate .msg{ color:#8C97A6; font-size:12px; margin-top:14px; min-height:16px; }' +
+      '#authGate .msg{ color:#8C97A6; font-size:12px; margin-top:4px; min-height:16px; }' +
+      '#authGate .msg.error{ color:#E5484D; }' +
+      '#authGate .divider{ display:flex; align-items:center; gap:10px; color:#8C97A6; font-size:11.5px; margin:14px 0; }' +
+      '#authGate .divider::before, #authGate .divider::after{ content:""; flex:1; height:1px; background:#2A323D; }' +
+      '#authGate .switch{ font-size:12.5px; color:#8C97A6; margin-top:6px; }' +
+      '#authGate .switch a{ color:#45D6C4; cursor:pointer; text-decoration:underline; }' +
       '</style>' +
       '<div class="box">' +
-      '<img src="logo.svg" alt="TrainerCycle">' +
+      '<img class="logo" src="logo.svg" alt="TrainerCycle">' +
+
+      '<div id="viewSignin">' +
       '<h2>Sign in to TrainerCycle</h2>' +
-      '<p>Sign in with your Google account to continue.</p>' +
+      '<p>Sign in to continue.</p>' +
       '<div id="authGoogleBtnContainer" style="display:flex; justify-content:center; min-height:40px;"></div>' +
       '<button id="authGoogleBtn" style="display:none;">' +
       '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
       'Sign in with Google' +
       '</button>' +
-      '<div class="msg" id="authMsg"></div>' +
+      '<div class="divider">or</div>' +
+      '<input type="email" id="siEmail" placeholder="Email" autocomplete="email">' +
+      '<input type="password" id="siPassword" placeholder="Password" autocomplete="current-password">' +
+      '<button class="primary" id="siSubmit" style="background:#45D6C4;color:#08211E;border-color:#45D6C4;">Sign In</button>' +
+      '<div class="switch"><a id="gotoForgot">Forgot password?</a></div>' +
+      '<div class="switch">No account? <a id="gotoSignup">Sign up</a></div>' +
+      '<div class="msg" id="siMsg"></div>' +
+      '</div>' +
+
+      '<div id="viewSignup" style="display:none;">' +
+      '<h2>Create your account</h2>' +
+      '<p>7 days free, then £4.99/month.</p>' +
+      '<div id="authGoogleBtnContainer2" style="display:flex; justify-content:center; min-height:40px;"></div>' +
+      '<button id="authGoogleBtn2" style="display:none;">' +
+      '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
+      'Sign up with Google' +
+      '</button>' +
+      '<div class="divider">or</div>' +
+      '<input type="email" id="suEmail" placeholder="Email" autocomplete="email">' +
+      '<input type="password" id="suPassword" placeholder="Password" autocomplete="new-password">' +
+      passwordChecklistHtml('suChecklist') +
+      '<label class="consent"><input type="checkbox" id="suMarketing">I\'d like to receive occasional training tips and updates from TrainerCycle by email. You can change this anytime in Settings.</label>' +
+      '<button class="primary" id="suSubmit" style="background:#45D6C4;color:#08211E;border-color:#45D6C4;">Create Account</button>' +
+      '<div class="switch">Already have an account? <a id="gotoSignin">Sign in</a></div>' +
+      '<div class="msg" id="suMsg"></div>' +
+      '</div>' +
+
+      '<div id="viewForgot" style="display:none;">' +
+      '<h2>Reset your password</h2>' +
+      '<p>Enter your email and we\'ll send you a reset link.</p>' +
+      '<input type="email" id="fpEmail" placeholder="Email" autocomplete="email">' +
+      '<button class="primary" id="fpSubmit" style="background:#45D6C4;color:#08211E;border-color:#45D6C4;">Send Reset Link</button>' +
+      '<div class="switch"><a id="gotoSigninFromForgot">Back to sign in</a></div>' +
+      '<div class="msg" id="fpMsg"></div>' +
+      '</div>' +
+
       '</div>';
     document.body.appendChild(gate);
 
-    tryRenderGoogleButton(
-      document.getElementById('authGoogleBtnContainer'),
-      async (idToken, nonce)=>{
-        const { error } = await signInWithGoogleIdToken(supabase, idToken, nonce);
-        if (error) document.getElementById('authMsg').textContent = 'Error: ' + error.message;
-      },
-      ()=>{ document.getElementById('authMsg').textContent = 'Sign-in failed — try again.'; }
-    ).then(rendered=>{
-      if (!rendered) document.getElementById('authGoogleBtn').style.display = 'flex';
+    function showView(name){
+      ['Signin','Signup','Forgot'].forEach(v=>{
+        document.getElementById('view'+v).style.display = (v.toLowerCase()===name) ? 'block' : 'none';
+      });
+    }
+    document.getElementById('gotoSignup').addEventListener('click', ()=>showView('signup'));
+    document.getElementById('gotoSignin').addEventListener('click', ()=>showView('signin'));
+    document.getElementById('gotoForgot').addEventListener('click', ()=>showView('forgot'));
+    document.getElementById('gotoSigninFromForgot').addEventListener('click', ()=>showView('signin'));
+
+    // Google button - rendered twice (sign-in view and sign-up view do the exact same thing;
+    // Google itself doesn't distinguish "signup" from "signin", it just authenticates).
+    async function setupGoogle(containerId, btnId){
+      const rendered = await tryRenderGoogleButton(
+        document.getElementById(containerId),
+        async (idToken, nonce)=>{
+          const { error } = await signInWithGoogleIdToken(supabase, idToken, nonce);
+          if (error){ document.getElementById('siMsg').textContent = 'Error: ' + error.message; }
+        },
+        ()=>{ document.getElementById('siMsg').textContent = 'Sign-in failed — try again.'; }
+      );
+      if (!rendered) document.getElementById(btnId).style.display = 'flex';
+    }
+    setupGoogle('authGoogleBtnContainer', 'authGoogleBtn');
+    setupGoogle('authGoogleBtnContainer2', 'authGoogleBtn2');
+    [ 'authGoogleBtn', 'authGoogleBtn2' ].forEach(id=>{
+      document.getElementById(id).addEventListener('click', async ()=>{
+        const btn = document.getElementById(id);
+        btn.disabled = true;
+        const { error } = await supabase.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.href } });
+        if (error){ document.getElementById('siMsg').textContent = 'Error: ' + error.message; btn.disabled = false; }
+      });
     });
 
-    document.getElementById('authGoogleBtn').addEventListener('click', async ()=>{
-      const btn = document.getElementById('authGoogleBtn');
-      const msg = document.getElementById('authMsg');
+    // Sign in with email/password
+    document.getElementById('siSubmit').addEventListener('click', async ()=>{
+      const email = document.getElementById('siEmail').value.trim();
+      const password = document.getElementById('siPassword').value;
+      const msg = document.getElementById('siMsg');
+      msg.className = 'msg'; msg.textContent = '';
+      if (!email || !password){ msg.className='msg error'; msg.textContent = 'Enter your email and password.'; return; }
+      const btn = document.getElementById('siSubmit');
       btn.disabled = true;
-      msg.textContent = 'Redirecting to Google…';
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.href }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error){ msg.className='msg error'; msg.textContent = error.message; btn.disabled = false; }
+    });
+
+    // Live password checklist on signup
+    document.getElementById('suPassword').addEventListener('input', (e)=>{
+      updatePasswordChecklist('suChecklist', e.target.value);
+    });
+
+    // Sign up with email/password
+    document.getElementById('suSubmit').addEventListener('click', async ()=>{
+      const email = document.getElementById('suEmail').value.trim();
+      const password = document.getElementById('suPassword').value;
+      const marketing = document.getElementById('suMarketing').checked;
+      const msg = document.getElementById('suMsg');
+      msg.className = 'msg'; msg.textContent = '';
+      if (!email){ msg.className='msg error'; msg.textContent = 'Enter your email.'; return; }
+      if (!passwordValid(password)){ msg.className='msg error'; msg.textContent = 'Password doesn\'t meet the requirements above.'; return; }
+      const btn = document.getElementById('suSubmit');
+      btn.disabled = true;
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error){ msg.className='msg error'; msg.textContent = error.message; btn.disabled = false; return; }
+      if (data && data.user){
+        try { await saveMarketingConsent(supabase, data.user.id, marketing); } catch(e){ /* non-fatal */ }
+      }
+      if (data && data.session){
+        // Email confirmation is off - signed in immediately, gate will close via onAuthStateChange
+      } else {
+        msg.className = 'msg'; msg.style.color = '#45D6C4';
+        msg.textContent = 'Check your email to confirm your account, then sign in.';
+        btn.disabled = false;
+      }
+    });
+
+    // Forgot password
+    document.getElementById('fpSubmit').addEventListener('click', async ()=>{
+      const email = document.getElementById('fpEmail').value.trim();
+      const msg = document.getElementById('fpMsg');
+      msg.className = 'msg'; msg.textContent = '';
+      if (!email){ msg.className='msg error'; msg.textContent = 'Enter your email.'; return; }
+      const btn = document.getElementById('fpSubmit');
+      btn.disabled = true;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password.html'
       });
-      if (error){ msg.textContent = 'Error: ' + error.message; btn.disabled = false; }
+      btn.disabled = false;
+      // Supabase deliberately doesn't reveal whether the email exists, to prevent user enumeration -
+      // show the same message either way.
+      msg.style.color = '#45D6C4';
+      msg.textContent = 'If an account exists for that email, a reset link is on its way.';
     });
 
     function done(user){
