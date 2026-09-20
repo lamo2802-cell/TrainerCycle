@@ -309,7 +309,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=7';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=8';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -1134,6 +1134,10 @@ const supabase = createSupabaseClient();
   document.getElementById('startBtn').addEventListener('click', async ()=>{
     if (!trainerDevice || !trainerDevice.gatt.connected){
       alert('Connect your trainer before starting a ride — use the "Connect trainer" button in the menu.');
+      return;
+    }
+    if (!(await isSubscriptionActive(supabase, user))){
+      alert('Your subscription isn\'t active — head to Settings to resubscribe before starting a ride.');
       return;
     }
     document.getElementById('startBtn').disabled = true;

@@ -480,6 +480,18 @@ export async function showSubscribeNudge(supabase, user){
   });
 }
 
+// Re-checks subscription status fresh (no caching), without showing any UI itself - for a moment
+// like "about to start a ride" where the page's original gate check may be stale (left open for
+// hours, or the subscription lapsed/was cancelled since page load). Returns true/false only; the
+// caller decides what to do. Note: the real enforcement for saved ride data is server-side (RLS on
+// completed_rides requires an active subscription at insert time) - this is a UX freshness check,
+// not the security boundary.
+export async function isSubscriptionActive(supabase, user){
+  const activeStatuses = ['active', 'owner', 'trialing'];
+  const { data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+  return !!(data && activeStatuses.includes(data.status));
+}
+
 export async function requireSubscription(supabase, user){
   const urlParams = new URLSearchParams(window.location.search);
   const justSubscribed = urlParams.get('subscribed') === '1';

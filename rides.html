@@ -142,7 +142,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=7';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=8';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -207,7 +207,11 @@ const supabase = createSupabaseClient();
         + '<div class="ride-name">'+escapeHtml(r.workout_name)
         + '<span class="ride-tag'+(r.completed?'':' partial')+'">'+(r.completed?'Completed':'Partial')+'</span>'
         + '</div><div class="ride-date">'+fmtDate(r.started_at)+'</div>'
-        + '</div><div style="display:flex; gap:6px;"><button data-details="'+r.id+'">View chart</button><button data-tcx="'+r.id+'">Export TCX</button><button data-strava="'+r.id+'">Upload to Strava</button></div></div>'
+        + '</div><div style="display:flex; gap:6px;"><button data-details="'+r.id+'">View chart</button><button data-tcx="'+r.id+'">Export TCX</button>'
+        + (r.strava_uploaded_at
+            ? '<button disabled style="opacity:.7; cursor:default;">Uploaded ✓</button>'
+            : '<button data-strava="'+r.id+'">Upload to Strava</button>')
+        + '</div></div>'
         + '<div class="ride-stats">'
         + '<div class="ride-stat"><div class="val">'+fmtDur(r.duration_sec)+'</div><div class="lbl">Duration</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_power ?? '—')+'</div><div class="lbl">Avg Power</div></div>'
@@ -378,13 +382,19 @@ const supabase = createSupabaseClient();
           const isNotConnected = data && data.error === 'Strava not connected';
           alert(isNotConnected ? 'Connect Strava first from the Settings page.' : ('Strava upload failed: ' + (data && data.error ? JSON.stringify(data.error) : (error ? error.message : 'unknown error'))));
         }
+        setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
       } else {
+        const uploadedAt = new Date().toISOString();
+        ride.strava_uploaded_at = uploadedAt;
+        try { await supabase.from('completed_rides').update({ strava_uploaded_at: uploadedAt }).eq('id', ride.id); } catch(e){ /* non-fatal - button still shows uploaded for this session */ }
         btn.textContent = 'Uploaded ✓';
+        btn.style.opacity = '.7';
+        btn.style.cursor = 'default';
+        btn.removeAttribute('data-strava');
       }
     } catch(err){
       btn.textContent = 'Failed';
       if (!silent) alert('Strava upload failed: ' + err.message);
-    } finally {
       setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
     }
   }
