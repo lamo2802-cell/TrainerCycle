@@ -171,7 +171,7 @@ export function requireAuth(supabase){
 
       '<div id="viewSignup" style="display:none;">' +
       '<h2>Create your account</h2>' +
-      '<p>7 days free, then £4.99/month.</p>' +
+      '<p>New subscribers get 7 days free, then £4.99/month.</p>' +
       '<div id="authGoogleBtnContainer2" style="display:flex; justify-content:center; min-height:40px;"></div>' +
       '<button id="authGoogleBtn2" style="display:none;">' +
       '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
@@ -465,7 +465,7 @@ export async function showSubscribeNudge(supabase, user){
     '#subNudge .msg{ color:#8C97A6; font-size:11.5px; margin-top:8px; min-height:14px; }' +
     '</style>' +
     '<button class="close" id="subNudgeClose" aria-label="Dismiss">✕</button>' +
-    '<p>You\'re browsing free — subscribe to unlock workouts, training plans, and live Bluetooth sessions. 7 days free, then £4.99/month.</p>' +
+    '<p>You\'re browsing free — subscribe to unlock workouts, training plans, and live Bluetooth sessions. New subscribers get 7 days free, then £4.99/month.</p>' +
     '<button class="cta" id="subNudgeBtn">Start Free Trial</button>' +
     '<div class="msg" id="subNudgeMsg"></div>';
   document.body.appendChild(nudge);
@@ -538,19 +538,19 @@ export async function requireSubscription(supabase, user){
       '</style>' +
       '<div class="box">' +
       '<img src="logo.svg" alt="TrainerCycle">' +
-      '<h2>Start your free 7-day trial</h2>' +
-      '<div class="trial-badge">7 days free, then £4.99/month</div>' +
+      '<h2>Subscribe to TrainerCycle</h2>' +
+      '<div class="trial-badge">New subscribers: 7 days free, then £4.99/month</div>' +
       '<ul class="benefits">' +
       '<li>Live Bluetooth trainer control with real ERG resistance — the trainer actually holds your target power</li>' +
       '<li>A full workout library plus multi-week structured training plans</li>' +
       '<li>Cycling and strength training together, built around your FTP</li>' +
       '<li>Full ride history, TCX export, and automatic Strava upload</li>' +
-      '<li>Cancel anytime — no charge at all if you cancel within your first 7 days</li>' +
+      '<li>New subscribers: cancel anytime in your first 7 days at no charge</li>' +
       '</ul>' +
       '<div style="font-size:11px; color:#8C97A6; margin-bottom:14px; line-height:1.4; text-align:left; background:#1D242D; border-radius:6px; padding:10px 12px;">Requires a Bluetooth ERG-capable smart trainer, used in Chrome or Edge — <b>not supported in Safari or any browser on iOS.</b></div>' +
-      '<button id="subBtn">Start Free Trial</button>' +
+      '<button id="subBtn">Subscribe</button>' +
       '<div class="msg" id="subMsg"></div>' +
-      '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By starting your trial you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>. Your card is charged £4.99/month automatically starting 7 days from today unless you cancel before then.</div>' +
+      '<div style="font-size:11px; color:#8C97A6; margin-top:16px;">By subscribing you agree to our <a href="terms.html" style="color:#45D6C4;" target="_blank">Terms of Service</a> and <a href="privacy.html" style="color:#45D6C4;" target="_blank">Privacy Policy</a>. New subscribers: nothing is charged for 7 days, then £4.99/month automatically unless you cancel first. If you\'ve had a TrainerCycle trial before, your subscription starts immediately at £4.99/month.</div>' +
       '</div>';
     document.body.appendChild(gate);
 
