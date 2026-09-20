@@ -7,6 +7,69 @@ export function createSupabaseClient(){
   );
 }
 
+const GOOGLE_CLIENT_ID = '452232016404-njma4hqk5ut7587daeipq9sgcrk8fube.apps.googleusercontent.com';
+
+function generateNonce(){
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2,'0')).join('');
+}
+async function sha256Hex(input){
+  const enc = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+let gisScriptPromise = null;
+function loadGoogleScript(){
+  if (gisScriptPromise) return gisScriptPromise;
+  gisScriptPromise = new Promise((resolve, reject)=>{
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google script'));
+    document.head.appendChild(script);
+    setTimeout(()=>reject(new Error('Timed out loading Google script')), 3000);
+  });
+  return gisScriptPromise;
+}
+
+// Renders Google's own Sign In With Google button into containerEl, so the whole sign-in exchange
+// happens directly between the browser and Google (no Supabase redirect involved) - this is what
+// keeps Google's own screen naming trainercycle.com instead of the raw Supabase project address.
+// Calls onSignedIn(idToken, rawNonce) once the user completes sign-in via Google's button.
+// Returns true if the button rendered successfully, false if the caller should fall back to the
+// existing redirect-based flow instead (e.g. Google's script was blocked or failed to load).
+export async function tryRenderGoogleButton(containerEl, onSignedIn, onError){
+  try {
+    await loadGoogleScript();
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) throw new Error('Google Identity Services unavailable');
+    const rawNonce = generateNonce();
+    const hashedNonce = await sha256Hex(rawNonce);
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response)=>{
+        try { await onSignedIn(response.credential, rawNonce); }
+        catch(e){ onError(e); }
+      },
+      nonce: hashedNonce
+    });
+    window.google.accounts.id.renderButton(containerEl, { theme:'outline', size:'large', width:260, text:'signin_with', shape:'rectangular' });
+    return true;
+  } catch(e){
+    console.error('Google Identity Services unavailable, falling back to redirect sign-in:', e);
+    return false;
+  }
+}
+
+// Shares one signInWithIdToken call site for both sign-in entry points (the shared gate and Home's
+// own hero card), so the nonce/error handling only needs to be right in one place.
+export async function signInWithGoogleIdToken(supabase, idToken, nonce){
+  return supabase.auth.signInWithIdToken({ provider:'google', token: idToken, nonce });
+}
+
 // Shows a full-screen sign-in gate until the user is authenticated, then resolves with the user object.
 export function requireAuth(supabase){
   return new Promise((resolve)=>{
@@ -28,13 +91,25 @@ export function requireAuth(supabase){
       '<img src="logo.svg" alt="TrainerCycle">' +
       '<h2>Sign in to TrainerCycle</h2>' +
       '<p>Sign in with your Google account to continue.</p>' +
-      '<button id="authGoogleBtn">' +
+      '<div id="authGoogleBtnContainer" style="display:flex; justify-content:center; min-height:40px;"></div>' +
+      '<button id="authGoogleBtn" style="display:none;">' +
       '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
       'Sign in with Google' +
       '</button>' +
       '<div class="msg" id="authMsg"></div>' +
       '</div>';
     document.body.appendChild(gate);
+
+    tryRenderGoogleButton(
+      document.getElementById('authGoogleBtnContainer'),
+      async (idToken, nonce)=>{
+        const { error } = await signInWithGoogleIdToken(supabase, idToken, nonce);
+        if (error) document.getElementById('authMsg').textContent = 'Error: ' + error.message;
+      },
+      ()=>{ document.getElementById('authMsg').textContent = 'Sign-in failed — try again.'; }
+    ).then(rendered=>{
+      if (!rendered) document.getElementById('authGoogleBtn').style.display = 'flex';
+    });
 
     document.getElementById('authGoogleBtn').addEventListener('click', async ()=>{
       const btn = document.getElementById('authGoogleBtn');
