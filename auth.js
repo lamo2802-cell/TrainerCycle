@@ -196,6 +196,13 @@ export function requireAuth(supabase){
       '<div class="msg" id="fpMsg"></div>' +
       '</div>' +
 
+      '<div id="viewCheckEmail" style="display:none;">' +
+      '<div style="font-size:40px; margin-bottom:6px;">📬</div>' +
+      '<h2>Check your email</h2>' +
+      '<p>We\'ve sent a confirmation link to <b id="checkEmailAddress" style="color:#E7ECF2;"></b>. Click the link to activate your account, then come back and sign in.</p>' +
+      '<div class="switch"><a id="gotoSigninFromCheck">Back to sign in</a></div>' +
+      '</div>' +
+
       '</div>';
     document.body.appendChild(gate);
 
@@ -209,7 +216,7 @@ export function requireAuth(supabase){
     });
 
     function showView(name){
-      ['Signin','Signup','Forgot'].forEach(v=>{
+      ['Signin','Signup','Forgot','CheckEmail'].forEach(v=>{
         document.getElementById('view'+v).style.display = (v.toLowerCase()===name) ? 'block' : 'none';
       });
     }
@@ -217,6 +224,7 @@ export function requireAuth(supabase){
     document.getElementById('gotoSignin').addEventListener('click', ()=>showView('signin'));
     document.getElementById('gotoForgot').addEventListener('click', ()=>showView('forgot'));
     document.getElementById('gotoSigninFromForgot').addEventListener('click', ()=>showView('signin'));
+    document.getElementById('gotoSigninFromCheck').addEventListener('click', ()=>showView('signin'));
 
     // Google button - rendered twice (sign-in view and sign-up view do the exact same thing;
     // Google itself doesn't distinguish "signup" from "signin", it just authenticates).
@@ -283,9 +291,8 @@ export function requireAuth(supabase){
       if (data && data.session){
         // Email confirmation is off - signed in immediately, gate will close via onAuthStateChange
       } else {
-        msg.className = 'msg'; msg.style.color = '#45D6C4';
-        msg.textContent = 'Check your email to confirm your account, then sign in.';
-        btn.disabled = false;
+        document.getElementById('checkEmailAddress').textContent = email;
+        showView('checkemail');
       }
     });
 
