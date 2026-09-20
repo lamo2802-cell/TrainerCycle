@@ -142,13 +142,12 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=6';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge } from './auth.js?v=6';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
-  await requireSubscription(supabase, user);
   let rides = [];
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
