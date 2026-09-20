@@ -155,12 +155,13 @@ export function requireAuth(supabase){
       '<div id="viewSignin">' +
       '<h2>Sign in to TrainerCycle</h2>' +
       '<p>Sign in to continue.</p>' +
+      '<p style="font-size:12px; color:#45D6C4; font-weight:600; margin-bottom:6px;">For quicker sign in, use Google</p>' +
       '<div id="authGoogleBtnContainer" style="display:flex; justify-content:center; min-height:40px;"></div>' +
       '<button id="authGoogleBtn" style="display:none;">' +
       '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
-      'Sign in with Google' +
+      'Use Google' +
       '</button>' +
-      '<div class="divider">or</div>' +
+      '<div class="divider">or use a password</div>' +
       '<input type="email" id="siEmail" placeholder="Email" autocomplete="email">' +
       passwordFieldHtml('siPassword', 'Password', 'current-password') +
       '<button class="primary" id="siSubmit" style="background:#45D6C4;color:#08211E;border-color:#45D6C4;">Sign In</button>' +
@@ -172,10 +173,11 @@ export function requireAuth(supabase){
       '<div id="viewSignup" style="display:none;">' +
       '<h2>Create your account</h2>' +
       '<p>New subscribers get 7 days free, then £4.99/month.</p>' +
+      '<p style="font-size:12px; color:#45D6C4; font-weight:600; margin-bottom:6px;">For quicker sign up, use Google</p>' +
       '<div id="authGoogleBtnContainer2" style="display:flex; justify-content:center; min-height:40px;"></div>' +
       '<button id="authGoogleBtn2" style="display:none;">' +
       '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.87 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
-      'Sign up with Google' +
+      'Use Google' +
       '</button>' +
       '<p style="font-size:11px; margin:-4px 0 14px; color:#8C97A6;">By continuing with Google, you agree to our <a href="terms.html" target="_blank" style="color:#45D6C4;">Terms of Service</a> and <a href="privacy.html" target="_blank" style="color:#45D6C4;">Privacy Policy</a>.</p>' +
       '<div class="divider">or</div>' +
