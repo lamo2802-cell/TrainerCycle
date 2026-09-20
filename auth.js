@@ -85,6 +85,13 @@ export function passwordValid(pw){
   const r = passwordRequirements(pw);
   return r.length && r.upper && r.lower && r.number && r.symbol;
 }
+// Renders a password input with a show/hide eye toggle button, so people can check what they typed.
+export function passwordFieldHtml(id, placeholder, autocomplete){
+  return '<div style="position:relative; margin-bottom:10px;">' +
+    '<input type="password" id="'+id+'" placeholder="'+placeholder+'" autocomplete="'+autocomplete+'" style="margin-bottom:0; padding-right:38px;">' +
+    '<button type="button" data-toggle-pw="'+id+'" style="position:absolute; right:4px; top:0; bottom:0; width:34px; padding:0; margin:0; background:transparent; border:none; color:#8C97A6; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">👁</button>' +
+    '</div>';
+}
 function passwordChecklistHtml(id){
   return '<ul id="'+id+'" style="text-align:left; font-size:11.5px; color:#8C97A6; margin:2px 0 12px; padding-left:18px; list-style:none;">' +
     '<li data-req="length">○ At least 8 characters</li>' +
@@ -126,7 +133,7 @@ export function requireAuth(supabase){
       '#authGate img.logo{ width:56px; height:56px; border-radius:12px; margin-bottom:14px; }' +
       '#authGate h2{ color:#E7ECF2; font-size:18px; margin:0 0 6px; }' +
       '#authGate p{ color:#8C97A6; font-size:13px; margin:0 0 20px; line-height:1.4; }' +
-      '#authGate input[type=email], #authGate input[type=password]{ width:100%; box-sizing:border-box; padding:10px; margin-bottom:10px; border-radius:6px; border:1px solid #2A323D; background:#1D242D; color:#E7ECF2; font-size:13.5px; }' +
+      '#authGate input[type=email], #authGate input[type=password], #authGate input[type=text]{ width:100%; box-sizing:border-box; padding:10px; margin-bottom:10px; border-radius:6px; border:1px solid #2A323D; background:#1D242D; color:#E7ECF2; font-size:13.5px; }' +
       '#authGate label.consent{ display:flex; align-items:flex-start; gap:8px; text-align:left; font-size:12px; color:#8C97A6; margin-bottom:14px; cursor:pointer; }' +
       '#authGate label.consent input{ margin-top:2px; flex-shrink:0; }' +
       '#authGate button{ width:100%; padding:11px; border-radius:6px; border:1px solid #2A323D; background:#fff; color:#1F1F1F; font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px; }' +
@@ -152,7 +159,7 @@ export function requireAuth(supabase){
       '</button>' +
       '<div class="divider">or</div>' +
       '<input type="email" id="siEmail" placeholder="Email" autocomplete="email">' +
-      '<input type="password" id="siPassword" placeholder="Password" autocomplete="current-password">' +
+      passwordFieldHtml('siPassword', 'Password', 'current-password') +
       '<button class="primary" id="siSubmit" style="background:#45D6C4;color:#08211E;border-color:#45D6C4;">Sign In</button>' +
       '<div class="switch"><a id="gotoForgot">Forgot password?</a></div>' +
       '<div class="switch">No account? <a id="gotoSignup">Sign up</a></div>' +
@@ -170,7 +177,8 @@ export function requireAuth(supabase){
       '<p style="font-size:11px; margin:-4px 0 14px; color:#8C97A6;">By continuing with Google, you agree to our <a href="terms.html" target="_blank" style="color:#45D6C4;">Terms of Service</a> and <a href="privacy.html" target="_blank" style="color:#45D6C4;">Privacy Policy</a>.</p>' +
       '<div class="divider">or</div>' +
       '<input type="email" id="suEmail" placeholder="Email" autocomplete="email">' +
-      '<input type="password" id="suPassword" placeholder="Password" autocomplete="new-password">' +
+      passwordFieldHtml('suPassword', 'Password', 'new-password') +
+      passwordFieldHtml('suPasswordConfirm', 'Confirm password', 'new-password') +
       passwordChecklistHtml('suChecklist') +
       '<label class="consent"><input type="checkbox" id="suTerms">I agree to the <a href="terms.html" target="_blank" style="color:#45D6C4;">Terms of Service</a> and <a href="privacy.html" target="_blank" style="color:#45D6C4;">Privacy Policy</a>.</label>' +
       '<label class="consent"><input type="checkbox" id="suMarketing">I\'d like to receive occasional training tips and updates from TrainerCycle by email. You can change this anytime in Settings.</label>' +
@@ -190,6 +198,15 @@ export function requireAuth(supabase){
 
       '</div>';
     document.body.appendChild(gate);
+
+    gate.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-toggle-pw]');
+      if (!btn) return;
+      const input = document.getElementById(btn.dataset.togglePw);
+      if (!input) return;
+      input.type = input.type === 'password' ? 'text' : 'password';
+      btn.textContent = input.type === 'password' ? '👁' : '🙈';
+    });
 
     function showView(name){
       ['Signin','Signup','Forgot'].forEach(v=>{
@@ -247,6 +264,7 @@ export function requireAuth(supabase){
     document.getElementById('suSubmit').addEventListener('click', async ()=>{
       const email = document.getElementById('suEmail').value.trim();
       const password = document.getElementById('suPassword').value;
+      const passwordConfirm = document.getElementById('suPasswordConfirm').value;
       const marketing = document.getElementById('suMarketing').checked;
       const agreedTerms = document.getElementById('suTerms').checked;
       const msg = document.getElementById('suMsg');
@@ -254,6 +272,7 @@ export function requireAuth(supabase){
       if (!email){ msg.className='msg error'; msg.textContent = 'Enter your email.'; return; }
       if (!agreedTerms){ msg.className='msg error'; msg.textContent = 'You need to agree to the Terms of Service and Privacy Policy to continue.'; return; }
       if (!passwordValid(password)){ msg.className='msg error'; msg.textContent = 'Password doesn\'t meet the requirements above.'; return; }
+      if (password !== passwordConfirm){ msg.className='msg error'; msg.textContent = 'Passwords don\'t match.'; return; }
       const btn = document.getElementById('suSubmit');
       btn.disabled = true;
       const { data, error } = await supabase.auth.signUp({ email, password });
