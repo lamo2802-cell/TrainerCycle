@@ -270,7 +270,11 @@ export function requireAuth(supabase){
       const btn = document.getElementById('siSubmit');
       btn.disabled = true;
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error){ msg.className='msg error'; msg.textContent = error.message; btn.disabled = false; }
+      if (error){
+        msg.className='msg error';
+        msg.textContent = error.message + ' If you originally signed up with Google, use the Google button above instead of a password.';
+        btn.disabled = false;
+      }
     });
 
     // Live password checklist on signup
@@ -295,6 +299,20 @@ export function requireAuth(supabase){
       btn.disabled = true;
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error){ msg.className='msg error'; msg.textContent = error.message; btn.disabled = false; return; }
+      // Supabase deliberately returns a fake, session-less "success" for an email that's already
+      // registered (to prevent account enumeration) - session is null either way, so the only
+      // reliable signal is an empty identities array, which only happens on the already-exists path.
+      const alreadyExists = data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
+      if (alreadyExists){
+        msg.className = 'msg error';
+        msg.innerHTML = 'An account already exists for that email. <a id="suGotoSigninInline" style="color:#45D6C4; cursor:pointer; text-decoration:underline;">Sign in instead</a>, or use "Forgot password?" if you don\'t remember it.';
+        document.getElementById('suGotoSigninInline').addEventListener('click', ()=>{
+          document.getElementById('siEmail').value = email;
+          showView('signin');
+        });
+        btn.disabled = false;
+        return;
+      }
       if (data && data.user){
         try { await saveMarketingConsent(supabase, data.user.id, marketing); } catch(e){ /* non-fatal */ }
       }
