@@ -428,6 +428,58 @@ function showWelcomeMessage(){
 }
 
 // Checks the user's subscription status; shows a paywall gate and blocks until active.
+// Starts Stripe Checkout. Shared by the hard paywall gate and the soft subscribe nudge so the
+// actual checkout call only lives in one place. Returns nothing - navigates away on success, or
+// calls onError(message) so the caller can show it in its own UI.
+export async function startCheckout(supabase, onError){
+  const { data: fnData, error } = await supabase.functions.invoke('create-checkout-session', {
+    body: { returnUrl: window.location.href }
+  });
+  if (error || !fnData || !fnData.url){
+    onError('Checkout isn\'t available yet — try again shortly.');
+    return;
+  }
+  window.location.href = fnData.url;
+}
+
+// Shows a small, dismissible reminder to subscribe - unlike requireSubscription, this never blocks
+// the page; it's for pages that are free to browse (Rides, Settings, Home, Help) but still benefit
+// from a nudge. Does nothing if the user already has an active subscription.
+export async function showSubscribeNudge(supabase, user){
+  const activeStatuses = ['active', 'owner', 'trialing'];
+  const { data } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+  if (data && activeStatuses.includes(data.status)) return;
+
+  const nudge = document.createElement('div');
+  nudge.id = 'subNudge';
+  nudge.innerHTML =
+    '<style>' +
+    '#subNudge{ position:fixed; left:16px; right:16px; bottom:16px; z-index:900; max-width:420px; margin:0 auto; ' +
+    'background:#171D25; border:1px solid #45D6C4; border-radius:12px; padding:16px 40px 16px 16px; ' +
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-shadow:0 8px 24px rgba(0,0,0,.4); }' +
+    '#subNudge .close{ position:absolute; top:8px; right:10px; background:none; border:none; color:#8C97A6; font-size:18px; cursor:pointer; padding:4px; line-height:1; }' +
+    '#subNudge .close:hover{ color:#E7ECF2; }' +
+    '#subNudge p{ margin:0 0 10px; color:#E7ECF2; font-size:13px; line-height:1.4; }' +
+    '#subNudge button.cta{ width:100%; padding:9px; border-radius:6px; border:1px solid #45D6C4; background:#45D6C4; color:#08211E; font-weight:600; font-size:13.5px; cursor:pointer; }' +
+    '#subNudge button.cta:disabled{ opacity:.5; cursor:not-allowed; }' +
+    '#subNudge .msg{ color:#8C97A6; font-size:11.5px; margin-top:8px; min-height:14px; }' +
+    '</style>' +
+    '<button class="close" id="subNudgeClose" aria-label="Dismiss">✕</button>' +
+    '<p>You\'re browsing free — subscribe to unlock workouts, training plans, and live Bluetooth sessions. 7 days free, then £4.99/month.</p>' +
+    '<button class="cta" id="subNudgeBtn">Start Free Trial</button>' +
+    '<div class="msg" id="subNudgeMsg"></div>';
+  document.body.appendChild(nudge);
+
+  document.getElementById('subNudgeClose').addEventListener('click', ()=> nudge.remove());
+  document.getElementById('subNudgeBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('subNudgeBtn');
+    const msg = document.getElementById('subNudgeMsg');
+    btn.disabled = true;
+    msg.textContent = 'Setting up checkout…';
+    await startCheckout(supabase, (errMsg)=>{ msg.textContent = errMsg; btn.disabled = false; });
+  });
+}
+
 export async function requireSubscription(supabase, user){
   const urlParams = new URLSearchParams(window.location.search);
   const justSubscribed = urlParams.get('subscribed') === '1';
@@ -495,15 +547,7 @@ export async function requireSubscription(supabase, user){
       const msg = document.getElementById('subMsg');
       btn.disabled = true;
       msg.textContent = 'Setting up checkout…';
-      const { data: fnData, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: { returnUrl: window.location.href }
-      });
-      if (error || !fnData || !fnData.url){
-        msg.textContent = 'Checkout isn\'t available yet — try again shortly.';
-        btn.disabled = false;
-        return;
-      }
-      window.location.href = fnData.url;
+      await startCheckout(supabase, (errMsg)=>{ msg.textContent = errMsg; btn.disabled = false; });
     });
     // Note: this gate does not auto-resolve — a real subscription redirects away to Stripe
     // and back, at which point the page reloads and this check runs again.

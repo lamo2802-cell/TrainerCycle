@@ -287,7 +287,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, renderSidebarUserBadge, requireSubscription, requireAuth } from './auth.js?v=6';
+import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth } from './auth.js?v=7';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -301,7 +301,7 @@ const supabase = createSupabaseClient();
     document.getElementById('quickstart').style.display = '';
     document.getElementById('cardsSection').style.display = '';
     renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
-    await requireSubscription(supabase, user);
+    await showSubscribeNudge(supabase, user);
   }
 
   document.getElementById('heroGetStartedBtn').addEventListener('click', async ()=>{

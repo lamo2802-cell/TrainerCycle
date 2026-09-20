@@ -194,13 +194,13 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, saveMarketingConsent } from './auth.js?v=6';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent } from './auth.js?v=7';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
-  await requireSubscription(supabase, user);
+  await showSubscribeNudge(supabase, user);
 
   // ---- FTP ----
   let ftp = 100;
