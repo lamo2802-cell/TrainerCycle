@@ -175,6 +175,9 @@
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div class="sidebar">
     <p class="sub" style="margin-top:0;">Home</p>
+    <div class="block" id="sidebarLoginBlock" style="display:none;">
+      <button id="sidebarLoginBtn" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600; font-size:13.5px; cursor:pointer;">Log In</button>
+    </div>
     <div class="block">
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
@@ -295,16 +298,22 @@ const supabase = createSupabaseClient();
     document.getElementById('signinSection').style.display = 'flex';
     document.getElementById('signinSection').style.justifyContent = 'center';
     document.getElementById('cardsSection').style.display = 'none';
+    document.getElementById('sidebarLoginBlock').style.display = '';
   }
   async function showSignedIn(user){
     document.getElementById('signinSection').style.display = 'none';
     document.getElementById('quickstart').style.display = '';
     document.getElementById('cardsSection').style.display = '';
+    document.getElementById('sidebarLoginBlock').style.display = 'none';
     renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
     await showSubscribeNudge(supabase, user);
   }
 
   document.getElementById('heroGetStartedBtn').addEventListener('click', async ()=>{
+    const user = await requireAuth(supabase);
+    if (!handled){ handled = true; await showSignedIn(user); }
+  });
+  document.getElementById('sidebarLoginBtn').addEventListener('click', async ()=>{
     const user = await requireAuth(supabase);
     if (!handled){ handled = true; await showSignedIn(user); }
   });
