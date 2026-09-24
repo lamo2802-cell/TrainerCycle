@@ -82,6 +82,28 @@
     .side-panel .block{ flex:1; min-width:150px; }
   }
 
+  /* Short viewports (tablets/phones in landscape) - there's a lot of stacked content (dash,
+     progress, two charts, controls) and not much vertical room, so tighten everything up rather
+     than relying on flex-shrink alone to make it fit without scrolling. */
+  @media (max-height:600px){
+    .main{ padding-top:calc(56px + env(safe-area-inset-top, 0px)); }
+    :root{ --topbar-h: calc(50px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:40px; }
+    .dash{ gap:6px; margin-bottom:8px; }
+    .metric{ padding:6px 8px; }
+    .metric .val{ font-size:clamp(18px, 4vw, 32px); }
+    .metric .lbl{ font-size:9px; margin-top:0; }
+    .step-readout{ margin-bottom:4px; }
+    .step-progress{ margin:2px 0 6px; height:6px; }
+    .next-step{ margin-bottom:6px; font-size:11px; }
+    .chart-panel.flex-chart{ padding:6px 10px; margin-bottom:6px; }
+    .chart-panel-title{ margin-bottom:2px; font-size:10px; }
+    .chart-legend{ margin-bottom:2px; font-size:10px; gap:10px; }
+    .chart-click-info{ margin-top:2px; font-size:10px; }
+    .controls{ padding:6px 0 2px; }
+    .controls button{ padding:10px 10px; font-size:13px; }
+  }
+
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
   button:hover{ border-color:var(--accent); }
   button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
