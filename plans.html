@@ -124,6 +124,7 @@
   .day-row:hover{ background:var(--panel-2); }
   .day-name{ width:36px; flex-shrink:0; color:var(--text-dim); font-size:12px; font-family:var(--mono); }
   .day-workout{ flex:1; font-size:13px; }
+  .day-mini-chart{ display:block; width:100%; height:20px; margin-top:5px; border-radius:3px; overflow:hidden; background:var(--panel-2); }
   .day-workout.rest{ color:var(--text-dim); font-style:italic; }
   .day-workout a{ color:var(--text); text-decoration:none; }
   .day-workout a:hover{ color:var(--accent); }
@@ -233,6 +234,52 @@ const supabase = createSupabaseClient();
   function focusLabel(f){ return FOCUS_LABELS[f] || f || ''; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+  // Mini workout-overview chart, same approach as the Workouts library page, so previews look
+  // consistent wherever they show up in the app.
+  const ZONES = [
+    {max:60,  color:'var(--z-recovery)'}, {max:76,  color:'var(--z-endurance)'},
+    {max:91,  color:'var(--z-tempo)'}, {max:106, color:'var(--z-threshold)'},
+    {max:121, color:'var(--z-vo2)'}, {max:151, color:'var(--z-anaerobic)'},
+    {max:Infinity, color:'var(--z-neuro)'}
+  ];
+  function zoneFor(pct){
+    if (pct == null) return { color:'var(--text-dim)' };
+    for (const z of ZONES) if (pct < z.max) return z;
+    return ZONES[ZONES.length-1];
+  }
+  const previewFtp = 200; // only affects the rare watts-based step's relative bar height in these small previews
+  function effectivePct(step){
+    if (step.targetType === 'ftp_pct') return (step.low + step.high)/2;
+    if (step.targetType === 'watts') return ((step.low + step.high)/2 / previewFtp) * 100;
+    if (step.targetType === 'hr_pct') return (step.low + step.high)/2;
+    return null;
+  }
+  function flatten(steps){
+    let out = [];
+    for (const s of (steps||[])){
+      if (s.type === 'repeat'){
+        for (let i=0;i<s.repetitions;i++) out = out.concat(flatten(s.steps));
+      } else out.push(s);
+    }
+    return out;
+  }
+  function miniChartSVG(steps){
+    const flat = flatten(steps);
+    if (!flat.length) return '';
+    const total = flat.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    let x = 0;
+    const bars = flat.map(s=>{
+      const pct = effectivePct(s);
+      const z = zoneFor(pct);
+      const w = ((s.duration||1)/total) * 100;
+      const h = pct!=null ? Math.max(15, Math.min(100, (pct/160)*100)) : 30;
+      const bar = '<rect x="'+x+'" y="'+(100-h)+'" width="'+Math.max(0.5,w-0.3)+'" height="'+h+'" fill="'+z.color+'"/>';
+      x += w;
+      return bar;
+    }).join('');
+    return '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="day-mini-chart">'+bars+'</svg>';
+  }
+
   let plans = [];
   let workoutNames = {}; // id -> {name, category}
   let activePlanId = null;
@@ -329,7 +376,7 @@ const supabase = createSupabaseClient();
       if (planErr) throw planErr;
       plans = planData || [];
 
-      const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category,duration_sec');
+      const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category,duration_sec,steps');
       if (wErr) throw wErr;
       (workoutData||[]).forEach(w=>{ workoutNames[w.id] = w; });
 
@@ -486,7 +533,9 @@ const supabase = createSupabaseClient();
         return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+targetPage+'?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (durLabel ? '<span class="tag">'+durLabel+'</span>' : '')
-          + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div></div>';
+          + (tag ? '<span class="tag">'+tag+'</span>' : '')
+          + (!isStrength && wk && wk.steps ? miniChartSVG(wk.steps) : '')
+          + '</div></div>';
       }).join('');
       return '<div class="week-block"><div class="week-title">Week '+w.week+(w.deload ? ' <span class="tag" style="background:var(--accent); color:#08211E;">Deload</span>' : '')+'</div>'+days+'</div>';
     }).join('');
