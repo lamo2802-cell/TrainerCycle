@@ -86,22 +86,22 @@
      progress, two charts, controls) and not much vertical room, so tighten everything up rather
      than relying on flex-shrink alone to make it fit without scrolling. */
   @media (max-height:600px){
-    .main{ padding-top:calc(56px + env(safe-area-inset-top, 0px)); }
-    :root{ --topbar-h: calc(50px + env(safe-area-inset-top, 0px)); }
-    .top-logo{ height:40px; }
-    .dash{ gap:6px; margin-bottom:8px; }
+    .main{ padding-top:calc(52px + env(safe-area-inset-top, 0px)); }
+    :root{ --topbar-h: calc(46px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:34px; }
+    .dash{ gap:6px; margin-bottom:6px; }
     .metric{ padding:6px 8px; }
-    .metric .val{ font-size:clamp(18px, 4vw, 32px); }
-    .metric .lbl{ font-size:9px; margin-top:0; }
-    .step-readout{ margin-bottom:4px; }
-    .step-progress{ margin:2px 0 6px; height:6px; }
-    .next-step{ margin-bottom:6px; font-size:11px; }
-    .chart-panel.flex-chart{ padding:6px 10px; margin-bottom:6px; }
+    .metric .val{ font-size:clamp(26px, 6.5vw, 46px); }
+    .metric .lbl{ font-size:13px; margin-top:1px; }
+    .step-readout{ margin-bottom:3px; font-size:12px; }
+    .step-progress{ margin:2px 0 5px; height:6px; }
+    .next-step{ margin-bottom:5px; font-size:11px; }
+    .chart-panel.flex-chart{ padding:5px 8px; margin-bottom:5px; }
     .chart-panel-title{ margin-bottom:2px; font-size:10px; }
     .chart-legend{ margin-bottom:2px; font-size:10px; gap:10px; }
     .chart-click-info{ margin-top:2px; font-size:10px; }
-    .controls{ padding:6px 0 2px; }
-    .controls button{ padding:10px 10px; font-size:13px; }
+    .controls{ padding:5px 0 2px; }
+    .controls button{ padding:9px 10px; font-size:13px; }
   }
 
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
@@ -117,11 +117,10 @@
   .dash{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
   .dash.time-dash .val{ font-size:22px; }
   .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:clamp(28px, 7vw, 58px); font-weight:600; }
-  .metric .lbl{ font-size:clamp(11px, 2.6vw, 16px); }
+  .metric .val{ font-family:var(--mono); font-size:clamp(30px, 7.5vw, 60px); font-weight:600; }
+  .metric .lbl{ font-size:clamp(13px, 3vw, 17px); color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:3px; }
   .metric .sub-val{ font-family:var(--mono); font-size:clamp(10px, 2.2vw, 13px); color:var(--text-dim); margin-top:2px; }
   .dash{ gap:clamp(8px, 2vw, 20px); margin-bottom:16px; }
-  .metric .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
   .metric.power .val{ color:var(--accent); }
   .metric.target .val{ color:var(--text-dim); }
 
@@ -331,7 +330,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=11';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=12';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -363,11 +362,13 @@ const supabase = createSupabaseClient();
   const AUTO_PAUSE_THRESHOLD = 4; // consecutive ~1s samples with no pedaling
   let log = []; // {t,power,cadence,hr,target}
   let sessionStart = null;
+  let powerSmoothingSec = 3; // display-only smoothing window; raw samples in `log` are unaffected
 
   let trainerDevice=null, trainerControl=null, trainerControlReady=false;
   let lastTargetWatts = null;
   let hrDevice=null;
   let activeElapsedSec = 0; // running-time-only elapsed seconds, excludes paused time
+  let recentPowerBuffer = []; // {t, power} for the last powerSmoothingSec seconds - dash display only
 
   // ---- data load ----
   const ftpCacheKey = 'tc_ftp_' + user.id;
@@ -381,6 +382,11 @@ const supabase = createSupabaseClient();
       else { const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
     } catch(e){ const c = localStorage.getItem(ftpCacheKey); if (c) ftp = parseFloat(c)||100; }
     document.getElementById('ftpDisplay').textContent = Math.round(ftp);
+
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','power_smoothing_sec').eq('user_id', user.id).maybeSingle();
+      if (data && data.value && typeof data.value.v === 'number') powerSmoothingSec = data.value.v;
+    } catch(e){ /* keep the default of 3 */ }
 
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle();
@@ -851,13 +857,26 @@ const supabase = createSupabaseClient();
     if (banner) banner.style.display = 'none';
   }
 
+  function displayPower(rawPower){
+    // Rolling-average smoothing for the dash number only - `log` keeps the raw sample, so
+    // saved/exported data and NP stay based on what was actually recorded, not this display value.
+    if (powerSmoothingSec <= 0) return rawPower;
+    const now = Date.now();
+    recentPowerBuffer.push({ t: now, power: rawPower });
+    const cutoff = now - powerSmoothingSec*1000;
+    while (recentPowerBuffer.length && recentPowerBuffer[0].t < cutoff) recentPowerBuffer.shift();
+    const sum = recentPowerBuffer.reduce((a,r)=>a+r.power, 0);
+    return Math.round(sum / recentPowerBuffer.length);
+  }
+
   function handleBikeSample(parsed){
     if (parsed.power!=null){
+      const shownPower = displayPower(parsed.power);
       const powerEl = document.getElementById('mPower');
-      powerEl.textContent = parsed.power;
-      powerEl.style.color = zoneColor(ftp>0 ? (parsed.power/ftp)*100 : null);
+      powerEl.textContent = shownPower;
+      powerEl.style.color = zoneColor(ftp>0 ? (shownPower/ftp)*100 : null);
       const wkgEl = document.getElementById('mWattsPerKg');
-      if (wkgEl) wkgEl.textContent = (weightKg && weightKg>0) ? ('· '+(parsed.power/weightKg).toFixed(1)+' W/kg') : '';
+      if (wkgEl) wkgEl.textContent = (weightKg && weightKg>0) ? ('· '+(shownPower/weightKg).toFixed(1)+' W/kg') : '';
     }
     if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
     if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
@@ -962,7 +981,7 @@ const supabase = createSupabaseClient();
       [ {c: outline, lw: 4.5}, {c: color, lw: 2} ].forEach(pass=>{
         ctx.beginPath(); ctx.strokeStyle = pass.c; ctx.lineWidth = pass.lw; ctx.setLineDash([]);
         log.forEach((r,i)=>{
-          const v = Number(getVal(r))||0;
+          const v = Number(getVal(r,i))||0;
           const x = hasPlan ? xAt(r) : xAt(i);
           const y = h - (v/max)*h;
           if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
@@ -970,8 +989,9 @@ const supabase = createSupabaseClient();
         ctx.stroke();
       });
     }
-    line(r=>r.hr, maxHr, '#E5484D', 'rgba(255,255,255,0.6)');
-    line(r=>r.power, maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
+    const smoothedPower = smoothedSeries(log, 'elapsed');
+    line((r,i)=>r.hr, maxHr, '#E5484D', 'rgba(255,255,255,0.6)');
+    line((r,i)=>smoothedPower[i], maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
   }
 
   document.getElementById('overviewChart').addEventListener('click', (e)=>{
@@ -1038,13 +1058,30 @@ const supabase = createSupabaseClient();
       ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
       samplesInStep.forEach((r,i)=>{
         const x = Math.min(w, (r.stepElapsed/dur)*w);
-        const y = h - ((Number(getVal(r))||0)/max)*h;
+        const y = h - ((Number(getVal(r,i))||0)/max)*h;
         if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       });
       ctx.stroke();
     }
-    line(r=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
-    line(r=>r.power, maxPower, '#45D6C4');
+    const smoothedStepPower = smoothedSeries(samplesInStep, 'stepElapsed');
+    line((r,i)=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
+    line((r,i)=>smoothedStepPower[i], maxPower, '#45D6C4');
+  }
+
+  // Trailing-window average of power for chart display, computed from the raw log at draw time -
+  // matches the same smoothing window as the dash display, but never alters the stored log itself.
+  function smoothedSeries(entries, timeKey){
+    if (powerSmoothingSec <= 0) return entries.map(r => Number(r.power)||0);
+    return entries.map((r,i)=>{
+      const t = r[timeKey];
+      let sum = 0, n = 0;
+      for (let j=i; j>=0; j--){
+        const rt = entries[j][timeKey];
+        if (t - rt > powerSmoothingSec) break;
+        sum += Number(entries[j].power)||0; n++;
+      }
+      return n ? sum/n : (Number(r.power)||0);
+    });
   }
 
   function zoneColorRGBA(pct, alpha){

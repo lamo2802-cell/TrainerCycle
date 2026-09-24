@@ -159,6 +159,19 @@
     </div>
 
     <div class="panel">
+      <div class="panel-title">Power Display Smoothing</div>
+      <div class="panel-desc">Raw power jumps around a lot pedal stroke to pedal stroke - this smooths the number and charts on Live Ride over a short rolling window, so it's actually readable while riding. This only affects what's displayed; the exact data is still what gets saved and exported.</div>
+      <select id="powerSmoothingSelect">
+        <option value="0">Off (raw, unsmoothed)</option>
+        <option value="1">1 second</option>
+        <option value="3" selected>3 seconds (default)</option>
+        <option value="5">5 seconds</option>
+        <option value="10">10 seconds</option>
+      </select>
+      <div class="msg" id="smoothingMsg"></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Strava</div>
       <div class="panel-desc">Connect your Strava account to enable one-tap uploads from the Rides page.</div>
       <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
@@ -201,7 +214,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent } from './auth.js?v=11';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent } from './auth.js?v=12';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -377,6 +390,28 @@ const supabase = createSupabaseClient();
 
   await loadFtp();
   await loadWeight();
+
+  // ---- Power display smoothing ----
+  (async ()=>{
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','power_smoothing_sec').eq('user_id', user.id).maybeSingle();
+      const v = (data && data.value && typeof data.value.v === 'number') ? data.value.v : 3;
+      document.getElementById('powerSmoothingSelect').value = String(v);
+    } catch(e){ /* leave at the default (3) shown in the markup */ }
+  })();
+  document.getElementById('powerSmoothingSelect').addEventListener('change', async (e)=>{
+    const v = parseInt(e.target.value, 10);
+    const msg = document.getElementById('smoothingMsg');
+    try {
+      const { error } = await supabase.from('settings').upsert(
+        { user_id:user.id, key:'power_smoothing_sec', value:{v}, updated_at:new Date().toISOString() },
+        { onConflict:'user_id,key' }
+      );
+      if (error) throw error;
+      msg.textContent = 'Saved.';
+    } catch(err){ msg.textContent = 'Could not save — check connection.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 2500);
+  });
   refreshStravaStatus();
 
   // ---- Marketing email preference ----

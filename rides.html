@@ -142,7 +142,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=11';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=12';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -325,28 +325,55 @@ const supabase = createSupabaseClient();
   // ---- TCX export ----
   function buildTcx(ride){
     const start = new Date(ride.started_at);
-    const trackpoints = (ride.samples||[]).map(s=>{
-      const t = new Date(start.getTime() + (Number(s.elapsed)||0)*1000).toISOString();
-      let tp = '<Trackpoint><Time>'+t+'</Time>';
-      if (s.hr !== '' && s.hr != null) tp += '<HeartRateBpm><Value>'+Math.round(Number(s.hr))+'</Value></HeartRateBpm>';
-      if (s.cadence !== '' && s.cadence != null) tp += '<Cadence>'+Math.round(Number(s.cadence))+'</Cadence>';
-      if (s.power !== '' && s.power != null) tp += '<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Watts>'+Math.round(Number(s.power))+'</ns3:Watts></ns3:TPX></Extensions>';
-      tp += '</Trackpoint>';
-      return tp;
+    const samples = ride.samples || [];
+
+    // Group consecutive samples into laps whenever the step changes, so each interval in the
+    // planned workout becomes its own lap on Strava's activity page (warm-up, each effort, each
+    // recovery, etc.) instead of the whole ride showing as one undifferentiated block - this is
+    // what actually lets Strava's own laps table show the workout structure.
+    const laps = [];
+    let current = null;
+    samples.forEach(s=>{
+      const stepIdx = s.stepIdx != null ? s.stepIdx : 0;
+      if (!current || current.stepIdx !== stepIdx){
+        current = { stepIdx, samples: [] };
+        laps.push(current);
+      }
+      current.samples.push(s);
+    });
+    if (!laps.length) laps.push({ stepIdx: 0, samples: [] });
+
+    const lapXml = laps.map(lap=>{
+      const lapStartElapsed = lap.samples.length ? Number(lap.samples[0].elapsed)||0 : 0;
+      const lapStartTime = new Date(start.getTime() + lapStartElapsed*1000).toISOString();
+      const lapDurSec = lap.samples.length
+        ? Math.max(1, (Number(lap.samples[lap.samples.length-1].elapsed)||0) - lapStartElapsed + 1)
+        : 0;
+      const trackpoints = lap.samples.map(s=>{
+        const t = new Date(start.getTime() + (Number(s.elapsed)||0)*1000).toISOString();
+        let tp = '<Trackpoint><Time>'+t+'</Time>';
+        if (s.hr !== '' && s.hr != null) tp += '<HeartRateBpm><Value>'+Math.round(Number(s.hr))+'</Value></HeartRateBpm>';
+        if (s.cadence !== '' && s.cadence != null) tp += '<Cadence>'+Math.round(Number(s.cadence))+'</Cadence>';
+        if (s.power !== '' && s.power != null) tp += '<Extensions><ns3:TPX xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><ns3:Watts>'+Math.round(Number(s.power))+'</ns3:Watts></ns3:TPX></Extensions>';
+        tp += '</Trackpoint>';
+        return tp;
+      }).join('');
+
+      return '<Lap StartTime="'+lapStartTime+'">\n'
+        + '<TotalTimeSeconds>'+lapDurSec+'</TotalTimeSeconds>\n'
+        + '<DistanceMeters>0</DistanceMeters>\n'
+        + '<Calories>0</Calories>\n'
+        + '<Intensity>Active</Intensity>\n'
+        + '<TriggerMethod>Manual</TriggerMethod>\n'
+        + '<Track>'+trackpoints+'</Track>\n'
+        + '</Lap>\n';
     }).join('');
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n'
       + '<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n'
       + '<Activities><Activity Sport="Biking">\n'
       + '<Id>'+start.toISOString()+'</Id>\n'
-      + '<Lap StartTime="'+start.toISOString()+'">\n'
-      + '<TotalTimeSeconds>'+(ride.duration_sec||0)+'</TotalTimeSeconds>\n'
-      + '<DistanceMeters>0</DistanceMeters>\n'
-      + '<Calories>0</Calories>\n'
-      + '<Intensity>Active</Intensity>\n'
-      + '<TriggerMethod>Manual</TriggerMethod>\n'
-      + '<Track>'+trackpoints+'</Track>\n'
-      + '</Lap>\n'
+      + lapXml
       + '<Creator xsi:type="Device_t"><Name>TrainerCycle</Name></Creator>\n'
       + '</Activity></Activities>\n'
       + '</TrainingCenterDatabase>';
