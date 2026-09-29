@@ -82,6 +82,26 @@
     .side-panel .block{ flex:1; min-width:150px; }
   }
 
+  /* Tablets in landscape (e.g. iPad/Fire, ~700-900px tall) - shorter than desktop but taller than
+     the max-height:600px tier below, so that tier never fired here and a little scroll crept back
+     in. Trim the same spacing, just less aggressively, to close that gap. */
+  @media (max-height:900px) and (orientation:landscape){
+    .main{ padding-top:calc(64px + env(safe-area-inset-top, 0px)); }
+    :root{ --topbar-h: calc(56px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:46px; }
+    .dash{ gap:8px; margin-bottom:10px; }
+    .metric{ padding:8px 10px; }
+    .metric .val{ font-size:clamp(26px, 6vw, 48px); }
+    .metric .lbl{ margin-top:2px; }
+    .step-progress{ margin:3px 0 8px; }
+    .next-step{ margin-bottom:8px; }
+    .chart-panel.flex-chart{ padding:8px 12px; margin-bottom:8px; }
+    .chart-panel-title{ margin-bottom:3px; }
+    .chart-legend{ margin-bottom:3px; }
+    .controls{ padding:8px 0 4px; }
+    .controls button{ padding:12px 14px; font-size:14px; }
+  }
+
   /* Short viewports (tablets/phones in landscape) - there's a lot of stacked content (dash,
      progress, two charts, controls) and not much vertical room, so tighten everything up rather
      than relying on flex-shrink alone to make it fit without scrolling. */
@@ -776,11 +796,60 @@ const supabase = createSupabaseClient();
         scheduleTrainerReconnect(trainerDevice);
       });
       await setupTrainer(trainerDevice);
+      rememberDevice('trainer', trainerDevice);
     } catch(e){
       document.getElementById('trainerDot').classList.add('err');
       document.getElementById('trainerStatus').textContent = 'Connection failed: ' + e.message;
     }
   });
+
+  // ---- Bluetooth: remember + silently reconnect last-used devices ----
+  // Chrome/Android keep Web Bluetooth permission grants around, so navigator.bluetooth.getDevices()
+  // returns devices we've already been granted access to without popping the chooser again. On
+  // load we use that to reconnect straight to the trainer/HR strap used last time — no tap needed.
+  function rememberDevice(kind, device){
+    try {
+      localStorage.setItem('tc_last_'+kind+'_id', device.id);
+      localStorage.setItem('tc_last_'+kind+'_name', device.name || '');
+    } catch(e){ /* storage unavailable — silently skip remembering */ }
+  }
+  async function autoReconnectDevices(){
+    if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+    let known;
+    try { known = await navigator.bluetooth.getDevices(); } catch(e){ return; }
+    if (!known.length) return;
+
+    const lastTrainerId = localStorage.getItem('tc_last_trainer_id');
+    const trainerMatch = lastTrainerId && known.find(d=>d.id===lastTrainerId);
+    if (trainerMatch && !trainerDevice){
+      document.getElementById('trainerStatus').textContent = 'Reconnecting to last trainer…';
+      trainerDevice = trainerMatch;
+      trainerDevice.addEventListener('gattserverdisconnected', ()=>{
+        document.getElementById('trainerDot').classList.remove('on');
+        document.getElementById('trainerDot').classList.add('err');
+        document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
+        trainerControlReady = false;
+        scheduleTrainerReconnect(trainerDevice);
+      });
+      try { await setupTrainer(trainerDevice); }
+      catch(e){ document.getElementById('trainerStatus').textContent = 'Auto-reconnect failed — tap Connect trainer'; }
+    }
+
+    const lastHrId = localStorage.getItem('tc_last_hr_id');
+    const hrMatch = lastHrId && known.find(d=>d.id===lastHrId);
+    if (hrMatch && !hrDevice){
+      document.getElementById('hrStatus').textContent = 'Reconnecting to last HR strap…';
+      hrDevice = hrMatch;
+      hrDevice.addEventListener('gattserverdisconnected', ()=>{
+        document.getElementById('hrDot').classList.remove('on');
+        document.getElementById('hrDot').classList.add('err');
+        document.getElementById('hrStatus').textContent = 'Disconnected — reconnecting…';
+        scheduleHrReconnect(hrDevice);
+      });
+      try { await setupHr(hrDevice); }
+      catch(e){ document.getElementById('hrStatus').textContent = 'Auto-reconnect failed — tap Connect HR strap'; }
+    }
+  }
 
   // ---- Bluetooth: heart rate strap ----
   async function setupHr(device){
@@ -829,6 +898,7 @@ const supabase = createSupabaseClient();
         scheduleHrReconnect(hrDevice);
       });
       await setupHr(hrDevice);
+      rememberDevice('hr', hrDevice);
     } catch(e){
       document.getElementById('hrDot').classList.add('err');
       document.getElementById('hrStatus').textContent = 'Connection failed: ' + e.message;
@@ -935,6 +1005,12 @@ const supabase = createSupabaseClient();
     const hasPlan = flatSteps.length > 0;
     const totalPlanned = hasPlan ? (flatSteps.reduce((a,s)=>a+(s.duration||0),0) || 1) : null;
 
+    // Single watts-based scale shared by the background target blocks AND the actual power/HR
+    // trace below, so a rider actually hitting target shows the power line lining up with the
+    // TOP of the block it's riding in, rather than the two using unrelated scales.
+    const plannedWatts = hasPlan ? flatSteps.map(s=>targetWatts(s)).filter(v=>v!=null) : [];
+    const maxPower = Math.max(200, ...plannedWatts, ...log.map(r=>Number(r.power)||0), ...log.map(r=>Number(r.target)||0)) * 1.15;
+
     if (hasPlan){
       // background: full workout profile, vivid — matching the Workouts library's chart style.
       // Bar HEIGHT scales with intensity (a skyline profile), not just color — same technique as the mini chart.
@@ -942,7 +1018,9 @@ const supabase = createSupabaseClient();
       flatSteps.forEach(s=>{
         const seg = ((s.duration||0)/totalPlanned)*w;
         const pct = effectivePct(s);
-        const barH = pct!=null ? Math.max(h*0.08, Math.min(h*0.95, (pct/160)*h)) : h*0.25;
+        const tw = targetWatts(s);
+        const barH = tw!=null ? Math.max(h*0.04, Math.min(h*0.98, (tw/maxPower)*h))
+                   : (pct!=null ? Math.max(h*0.08, Math.min(h*0.95, (pct/160)*h)) : h*0.25);
         ctx.fillStyle = zoneColorRGBA(pct, 0.85);
         ctx.fillRect(x, h-barH, seg, barH);
         x += seg;
@@ -969,7 +1047,6 @@ const supabase = createSupabaseClient();
 
     if (!log.length) return;
     const n = log.length;
-    const maxPower = Math.max(200, ...log.map(r=>Number(r.power)||0), ...log.map(r=>Number(r.target)||0)) * 1.15;
     const maxHr = Math.max(160, ...log.map(r=>Number(r.hr)||0)) * 1.1;
     // x position: aligned to planned timeline if a workout is selected, else spread across full width
     const xAt = hasPlan
@@ -1495,6 +1572,8 @@ const supabase = createSupabaseClient();
   if (!navigator.bluetooth){
     document.getElementById('unsupportedNote').innerHTML =
       '<div class="unsupported">Web Bluetooth isn\'t available in this browser. Use Chrome or Edge (desktop or Android) — Safari and iOS don\'t support it.</div>';
+  } else {
+    autoReconnectDevices();
   }
   loadData().then(()=>{
     drawOverviewChart(); drawStepChart();
