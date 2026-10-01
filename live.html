@@ -757,6 +757,19 @@ const supabase = createSupabaseClient();
     })();
   }
 
+  // When the Bluetooth chooser comes up empty (nothing matching shows, or it's dismissed), the
+  // browser reports it the same way as an explicit Cancel - "User cancelled the requestDevice()
+  // chooser" or "No Bluetooth devices found matching the filters." Both really mean "the device
+  // never appeared in the list", which is almost always: something else already has a BLE
+  // connection open to it (its own app, Zwift, Garmin Connect, another tab), or it needs a
+  // power-cycle to start advertising fresh. Surface that instead of the raw browser text.
+  function friendlyBtError(e, kind){
+    if (e && e.name === 'NotFoundError'){
+      return 'Didn\'t see it in the list — close any other app connected to the ' + kind + ' (its own app, Zwift, Garmin Connect, another browser tab), then power-cycle it and try again.';
+    }
+    return 'Connection failed: ' + (e && e.message ? e.message : e);
+  }
+
   document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
     if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser. Use Chrome or Edge on desktop or Android.'); return; }
     try {
@@ -775,7 +788,7 @@ const supabase = createSupabaseClient();
       rememberDevice('trainer', trainerDevice);
     } catch(e){
       document.getElementById('trainerDot').classList.add('err');
-      document.getElementById('trainerStatus').textContent = 'Connection failed: ' + e.message;
+      document.getElementById('trainerStatus').textContent = friendlyBtError(e, 'trainer');
     }
   });
 
@@ -877,7 +890,7 @@ const supabase = createSupabaseClient();
       rememberDevice('hr', hrDevice);
     } catch(e){
       document.getElementById('hrDot').classList.add('err');
-      document.getElementById('hrStatus').textContent = 'Connection failed: ' + e.message;
+      document.getElementById('hrStatus').textContent = friendlyBtError(e, 'HR strap');
     }
   });
 
