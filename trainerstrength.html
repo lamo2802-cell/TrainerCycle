@@ -99,6 +99,7 @@
   .position-arrow{ font-size:28px; color:var(--accent); align-self:center; flex-shrink:0; }
   .position-box svg{ width:100%; display:block; }
   .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
+  .position-box.single{ max-width:200px; margin:0 auto; }
   .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
   .stage-target{ font-family:var(--mono); font-size:clamp(15px, 4vw, 22px); color:var(--accent); margin-bottom:6px; }
   .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
@@ -220,62 +221,120 @@ const supabase = createSupabaseClient();
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
-  // ---- original stick-figure illustrations (no third-party images) ----
-  // ---- realistic pose illustrations: shared renderer draws a smooth-limbed figure from joint coordinates ----
-  const LIMB_COLOR = '#8892A0';
-  const TORSO_COLOR_TOP = '#5AEBDB';
-  const TORSO_COLOR_BOTTOM = '#33A597';
-  const HEAD_COLOR = '#E7ECF2';
+  // ---- animated "Athletic" illustrations: shared renderer draws a volumetric, shaded figure
+  // from joint coordinates, continuously interpolated between a start and finish keyframe to
+  // show the actual rep motion (no third-party images/video - pure vector art) ----
+  const LIMB_TOP = '#A7B0BD', LIMB_BOT = '#69727F';
+  const TORSO_TOP = '#5AEBDB', TORSO_BOT = '#2C9488';
+  const HEAD_TOP = '#F3F6F8', HEAD_BOT = '#CBD3DB';
   const GROUND_COLOR = '#2A323D';
-  const JOINT_COLOR = '#6B7684';
+  const KIT_COLOR = '#171D25';
+  const SHADOW_COLOR = 'rgba(0,0,0,0.35)';
 
-  function pathFor(pts, color, width){
-    let d = 'M '+pts[0].x+' '+pts[0].y;
-    for (let i=1;i<pts.length;i++) d += ' L '+pts[i].x+' '+pts[i].y;
-    return '<path d="'+d+'" stroke="'+color+'" stroke-width="'+width+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function lerpPt(a,b,t){ return { x: lerp(a.x,b.x,t), y: lerp(a.y,b.y,t) }; }
+  function lerpPts(a,b,t){ return a.map((p,i)=>lerpPt(p,b[i],t)); }
+  function lerpPose(a,b,t){
+    const out = {};
+    if (a.head) out.head = { x: lerp(a.head.x,b.head.x,t), y: lerp(a.head.y,b.head.y,t), r: lerp(a.head.r,b.head.r,t) };
+    if (a.torso) out.torso = lerpPts(a.torso, b.torso, t);
+    if (a.armL) out.armL = lerpPts(a.armL, b.armL, t);
+    if (a.armR) out.armR = lerpPts(a.armR, b.armR, t);
+    if (a.legL) out.legL = lerpPts(a.legL, b.legL, t);
+    if (a.legR) out.legR = lerpPts(a.legR, b.legR, t);
+    if (a.ground!=null) out.ground = lerp(a.ground,b.ground,t);
+    return out;
   }
-  // Builds a tapered filled torso shape (wider at shoulders, narrower at hips) from the
-  // two-point torso line already defined per pose, rather than just a thick stroked bar.
-  function torsoShape(pts, gradId){
-    const top = pts[0], bottom = pts[pts.length-1];
-    const dx = bottom.x - top.x, dy = bottom.y - top.y;
-    const len = Math.sqrt(dx*dx + dy*dy) || 1;
-    const nx = -dy/len, ny = dx/len; // perpendicular unit vector
-    const topW = 15, botW = 11;
-    const p1 = {x: top.x + nx*topW, y: top.y + ny*topW};
-    const p2 = {x: top.x - nx*topW, y: top.y - ny*topW};
-    const p3 = {x: bottom.x - nx*botW, y: bottom.y - ny*botW};
-    const p4 = {x: bottom.x + nx*botW, y: bottom.y + ny*botW};
-    return '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0%" stop-color="'+TORSO_COLOR_TOP+'"/><stop offset="100%" stop-color="'+TORSO_COLOR_BOTTOM+'"/>' +
-      '</linearGradient></defs>' +
-      '<path d="M '+p1.x+' '+p1.y+' L '+p2.x+' '+p2.y+' L '+p3.x+' '+p3.y+' L '+p4.x+' '+p4.y+' Z" fill="url(#'+gradId+')"/>';
+  const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function taperedQuad(p1, p2, w1, w2){
+    const dx=p2.x-p1.x, dy=p2.y-p1.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||0.01;
+    const nx=-dy/len, ny=dx/len;
+    const a={x:p1.x+nx*w1,y:p1.y+ny*w1}, b={x:p1.x-nx*w1,y:p1.y-ny*w1};
+    const c={x:p2.x-nx*w2,y:p2.y-ny*w2}, d={x:p2.x+nx*w2,y:p2.y+ny*w2};
+    return 'M '+a.x+' '+a.y+' L '+b.x+' '+b.y+' L '+c.x+' '+c.y+' L '+d.x+' '+d.y+' Z';
   }
+  function midOffset(p1, p2, amt){
+    const dx=p2.x-p1.x, dy=p2.y-p1.y;
+    const len=Math.sqrt(dx*dx+dy*dy)||0.01;
+    const nx=-dy/len, ny=dx/len;
+    return { x:(p1.x+p2.x)/2+nx*amt, y:(p1.y+p2.y)/2+ny*amt };
+  }
+
   let poseIdCounter = 0;
+  function limbShapeAthletic(pts, w0, w1, w2, gradId, bulge){
+    let svg = '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0%" stop-color="'+LIMB_TOP+'"/><stop offset="100%" stop-color="'+LIMB_BOT+'"/></linearGradient></defs>';
+    svg += '<path d="'+taperedQuad(pts[0],pts[1],w0,w1)+'" fill="url(#'+gradId+')"/>';
+    svg += '<circle cx="'+pts[1].x+'" cy="'+pts[1].y+'" r="'+w1+'" fill="url(#'+gradId+')"/>';
+    svg += '<path d="'+taperedQuad(pts[1],pts[2],w1,w2)+'" fill="url(#'+gradId+')"/>';
+    svg += '<circle cx="'+pts[2].x+'" cy="'+pts[2].y+'" r="'+(w2*1.1)+'" fill="url(#'+gradId+')"/>';
+    if (bulge){
+      const mid = midOffset(pts[0], pts[1], w0*0.45);
+      svg += '<ellipse cx="'+mid.x+'" cy="'+mid.y+'" rx="'+(w0*0.55)+'" ry="'+(w0*0.85)+'" fill="#fff" opacity="0.10"/>';
+    }
+    return svg;
+  }
+  // Broader shoulders, tapered waist (a trained V-build), plus a simple vest-colored kit
+  // panel over the chest so it reads as clothing rather than bare skin.
+  function torsoShapeAthletic(pts, gradId){
+    const top = pts[0], bottom = pts[pts.length-1];
+    const dx = bottom.x-top.x, dy = bottom.y-top.y;
+    const len = Math.sqrt(dx*dx+dy*dy) || 1;
+    const nx = -dy/len, ny = dx/len;
+    const topW = 21, botW = 11;
+    const p1={x:top.x+nx*topW,y:top.y+ny*topW}, p2={x:top.x-nx*topW,y:top.y-ny*topW};
+    const p3={x:bottom.x-nx*botW,y:bottom.y-ny*botW}, p4={x:bottom.x+nx*botW,y:bottom.y+ny*botW};
+    const waistPull = 5;
+    const midL = midOffset(p1, p4, -waistPull);
+    const midR = midOffset(p2, p3, waistPull);
+    let svg = '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1">'+
+      '<stop offset="0%" stop-color="'+TORSO_TOP+'"/><stop offset="100%" stop-color="'+TORSO_BOT+'"/></linearGradient></defs>'+
+      '<path d="M '+p1.x+' '+p1.y+' L '+p2.x+' '+p2.y+' Q '+midR.x+' '+midR.y+' '+p3.x+' '+p3.y+' L '+p4.x+' '+p4.y+' Q '+midL.x+' '+midL.y+' '+p1.x+' '+p1.y+' Z" fill="url(#'+gradId+')"/>';
+    const chestW1 = topW*0.75, chestW2 = (topW+botW)/2*0.7;
+    const chestMidTop = lerpPt(top, bottom, 0.02), chestMidBot = lerpPt(top, bottom, 0.62);
+    const cp1={x:chestMidTop.x+nx*chestW1,y:chestMidTop.y+ny*chestW1}, cp2={x:chestMidTop.x-nx*chestW1,y:chestMidTop.y-ny*chestW1};
+    const cp3={x:chestMidBot.x-nx*chestW2,y:chestMidBot.y-ny*chestW2}, cp4={x:chestMidBot.x+nx*chestW2,y:chestMidBot.y+ny*chestW2};
+    svg += '<path d="M '+cp1.x+' '+cp1.y+' L '+cp2.x+' '+cp2.y+' L '+cp3.x+' '+cp3.y+' L '+cp4.x+' '+cp4.y+' Z" fill="'+KIT_COLOR+'" opacity="0.55"/>';
+    return svg;
+  }
   function poseSVG(p){
     poseIdCounter++;
-    const gradId = 'torsoGrad'+poseIdCounter;
-    let svg = '<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">';
-    if (p.ground!=null) svg += '<line x1="8" y1="'+p.ground+'" x2="152" y2="'+p.ground+'" stroke="'+GROUND_COLOR+'" stroke-width="3" stroke-linecap="round"/>';
-    if (p.legL) svg += pathFor(p.legL, LIMB_COLOR, 14);
-    if (p.legR) svg += pathFor(p.legR, LIMB_COLOR, 14);
-    if (p.torso) svg += torsoShape(p.torso, gradId);
-    if (p.armL) svg += pathFor(p.armL, LIMB_COLOR, 10);
-    if (p.armR) svg += pathFor(p.armR, LIMB_COLOR, 10);
-    // Joint markers only at the shoulder and hip (where torso meets limbs) - enough to read
-    // as an articulated body without the visual clutter of a dot at every single point.
-    if (p.torso){
-      svg += '<circle cx="'+p.torso[0].x+'" cy="'+p.torso[0].y+'" r="5" fill="'+JOINT_COLOR+'"/>';
-      svg += '<circle cx="'+p.torso[p.torso.length-1].x+'" cy="'+p.torso[p.torso.length-1].y+'" r="5" fill="'+JOINT_COLOR+'"/>';
+    const gid = poseIdCounter;
+    let svg = '';
+    if (p.ground!=null){
+      svg += '<line x1="8" y1="'+p.ground+'" x2="152" y2="'+p.ground+'" stroke="'+GROUND_COLOR+'" stroke-width="3" stroke-linecap="round"/>';
+      [p.legL, p.legR].forEach(leg=>{
+        if (!leg) return;
+        const foot = leg[leg.length-1];
+        svg += '<ellipse cx="'+foot.x+'" cy="'+(p.ground+2)+'" rx="12" ry="3" fill="'+SHADOW_COLOR+'"/>';
+      });
     }
-    if (p.head) svg += '<circle cx="'+p.head.x+'" cy="'+p.head.y+'" r="'+p.head.r+'" fill="'+HEAD_COLOR+'"/><circle cx="'+(p.head.x+5)+'" cy="'+(p.head.y-4)+'" r="3" fill="#171D25" opacity="0.15"/>';
-    svg += '</svg>';
-    return svg;
+    if (p.legL) svg += limbShapeAthletic(p.legL, 11.5, 8.5, 6, 'legL'+gid, true);
+    if (p.legR) svg += limbShapeAthletic(p.legR, 11.5, 8.5, 6, 'legR'+gid, true);
+    if (p.torso) svg += torsoShapeAthletic(p.torso, 'torso'+gid);
+    if (p.armL) svg += limbShapeAthletic(p.armL, 7.5, 5.8, 4.5, 'armL'+gid, true);
+    if (p.armR) svg += limbShapeAthletic(p.armR, 7.5, 5.8, 4.5, 'armR'+gid, true);
+    if (p.torso && p.head) svg += '<path d="'+taperedQuad(p.head, p.torso[0], 6.5, 9)+'" fill="'+LIMB_BOT+'"/>';
+    if (p.head){
+      const hid = 'head'+gid;
+      svg += '<defs><radialGradient id="'+hid+'" cx="35%" cy="30%" r="75%">'+
+        '<stop offset="0%" stop-color="'+HEAD_TOP+'"/><stop offset="100%" stop-color="'+HEAD_BOT+'"/></radialGradient></defs>';
+      svg += '<circle cx="'+p.head.x+'" cy="'+p.head.y+'" r="'+p.head.r+'" fill="url(#'+hid+')"/>';
+      const faceDx = (p.torso ? p.torso[0].x - p.head.x : 6);
+      const dir = faceDx >= 0 ? 1 : -1;
+      svg += '<ellipse cx="'+(p.head.x+dir*p.head.r*0.15)+'" cy="'+(p.head.y+p.head.r*0.45)+'" rx="'+(p.head.r*0.7)+'" ry="'+(p.head.r*0.35)+'" fill="#000" opacity="0.07"/>';
+      svg += '<circle cx="'+(p.head.x+dir*p.head.r*0.4)+'" cy="'+(p.head.y-p.head.r*0.05)+'" r="'+(p.head.r*0.11)+'" fill="#2A323D"/>';
+    }
+    return '<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">'+svg+'</svg>';
   }
 
   const G = 148; // standard ground line for standing exercises
   const POSES = {
     squat: {
+      tempo: 2200,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:62,y:68},{x:58,y:92}], armR:[{x:80,y:45},{x:98,y:68},{x:102,y:92}],
         legL:[{x:80,y:85},{x:65,y:115},{x:62,y:G}], legR:[{x:80,y:85},{x:95,y:115},{x:98,y:G}], ground:G },
@@ -284,6 +343,7 @@ const supabase = createSupabaseClient();
         legL:[{x:85,y:100},{x:60,y:105},{x:62,y:G}], legR:[{x:85,y:100},{x:110,y:105},{x:98,y:G}], ground:G }
     },
     pushup: {
+      tempo: 1900,
       start: { head:{x:25,y:68,r:12}, torso:[{x:35,y:68},{x:115,y:75}],
         armL:[{x:35,y:68},{x:33,y:100},{x:33,y:128}], legL:[{x:115,y:75},{x:135,y:100},{x:150,y:120}], ground:128 },
       finish: { head:{x:25,y:100,r:12}, torso:[{x:35,y:100},{x:115,y:105}],
@@ -294,6 +354,7 @@ const supabase = createSupabaseClient();
         armL:[{x:35,y:75},{x:33,y:105},{x:33,y:130}], legL:[{x:115,y:80},{x:135,y:105},{x:150,y:125}], ground:130 }
     },
     lunge: {
+      tempo: 2200,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:62,y:68},{x:58,y:92}], armR:[{x:80,y:45},{x:98,y:68},{x:102,y:92}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -302,6 +363,7 @@ const supabase = createSupabaseClient();
         legL:[{x:65,y:92},{x:52,y:112},{x:55,y:G}], legR:[{x:65,y:92},{x:100,y:118},{x:132,y:136}], ground:G }
     },
     deadlift: {
+      tempo: 2400,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:78,y:70},{x:76,y:95}], armR:[{x:80,y:45},{x:82,y:70},{x:84,y:95}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -310,6 +372,7 @@ const supabase = createSupabaseClient();
         legL:[{x:82,y:90},{x:78,y:115},{x:74,y:G}], legR:[{x:82,y:90},{x:86,y:115},{x:90,y:G}], ground:G }
     },
     bicep_curl: {
+      tempo: 1500,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:58,y:46},{x:54,y:74},{x:50,y:98}], armR:[{x:102,y:46},{x:106,y:74},{x:110,y:98}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -318,6 +381,7 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G }
     },
     shoulder_press: {
+      tempo: 1700,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:62,y:50},{x:58,y:50}], armR:[{x:80,y:45},{x:98,y:50},{x:102,y:50}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -326,12 +390,14 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G }
     },
     situp: {
+      tempo: 1600,
       start: { head:{x:30,y:120,r:12}, torso:[{x:40,y:120},{x:110,y:122}],
         legL:[{x:110,y:122},{x:125,y:110},{x:140,y:125}], ground:130 },
       finish: { head:{x:60,y:90,r:12}, torso:[{x:65,y:95},{x:100,y:120}],
         legL:[{x:100,y:120},{x:120,y:110},{x:140,y:125}], ground:130 }
     },
     jumping_jack: {
+      tempo: 900,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:70,y:70},{x:65,y:95}], armR:[{x:80,y:45},{x:90,y:70},{x:95,y:95}],
         legL:[{x:80,y:85},{x:78,y:115},{x:76,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:84,y:G}], ground:G },
@@ -340,18 +406,21 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:85},{x:60,y:115},{x:45,y:G}], legR:[{x:80,y:85},{x:100,y:115},{x:115,y:G}], ground:G }
     },
     glute_bridge: {
+      tempo: 1700,
       start: { head:{x:25,y:120,r:12}, torso:[{x:35,y:120},{x:95,y:122}],
         legL:[{x:95,y:122},{x:110,y:105},{x:130,y:122}], ground:124 },
       finish: { head:{x:25,y:120,r:12}, torso:[{x:35,y:120},{x:95,y:100}],
         legL:[{x:95,y:100},{x:110,y:105},{x:130,y:122}], ground:124 }
     },
     mountain_climber: {
+      tempo: 500,
       start: { head:{x:25,y:68,r:12}, torso:[{x:35,y:68},{x:115,y:72}],
         armL:[{x:35,y:68},{x:33,y:100},{x:33,y:128}], legL:[{x:115,y:72},{x:132,y:95},{x:148,y:115}], ground:128 },
       finish: { head:{x:25,y:68,r:12}, torso:[{x:35,y:68},{x:115,y:72}],
         armL:[{x:35,y:68},{x:33,y:100},{x:33,y:128}], legL:[{x:115,y:72},{x:90,y:90},{x:75,y:100}], ground:128 }
     },
     row: {
+      tempo: 1500,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:70,y:48},{x:50,y:60},{x:35,y:75}], armR:[{x:90,y:48},{x:110,y:60},{x:125,y:75}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -360,6 +429,7 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G }
     },
     calf_raise: {
+      tempo: 1400,
       start: { head:{x:80,y:28,r:13}, torso:[{x:80,y:42},{x:80,y:85}],
         armL:[{x:80,y:45},{x:65,y:70},{x:60,y:95}], armR:[{x:80,y:45},{x:95,y:70},{x:100,y:95}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:146}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:146}], ground:148 },
@@ -368,12 +438,14 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:71},{x:78,y:101},{x:76,y:142}], legR:[{x:80,y:71},{x:82,y:101},{x:84,y:142}], ground:148 }
     },
     clamshell: {
+      tempo: 1600,
       start: { head:{x:25,y:60,r:12}, torso:[{x:35,y:60},{x:85,y:62}],
         legL:[{x:85,y:62},{x:105,y:75},{x:120,y:62}], legR:[{x:85,y:62},{x:105,y:75},{x:120,y:62}] },
       finish: { head:{x:25,y:60,r:12}, torso:[{x:35,y:60},{x:85,y:62}],
         legL:[{x:85,y:62},{x:105,y:75},{x:120,y:62}], legR:[{x:85,y:62},{x:108,y:58},{x:128,y:35}] }
     },
     standing_hip_abduction: {
+      tempo: 1500,
       start: { head:{x:80,y:26,r:13}, torso:[{x:80,y:40},{x:80,y:85}],
         armL:[{x:80,y:45},{x:65,y:65},{x:60,y:88}], armR:[{x:80,y:45},{x:95,y:65},{x:100,y:88}],
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:82,y:115},{x:85,y:G}], ground:G },
@@ -382,6 +454,7 @@ const supabase = createSupabaseClient();
         legL:[{x:80,y:85},{x:78,y:115},{x:75,y:G}], legR:[{x:80,y:85},{x:100,y:105},{x:118,y:128}], ground:G }
     },
     straight_leg_raise: {
+      tempo: 1800,
       start: { head:{x:25,y:120,r:12}, torso:[{x:35,y:120},{x:95,y:122}],
         legL:[{x:95,y:122},{x:110,y:108},{x:125,y:122}], legR:[{x:95,y:122},{x:118,y:124},{x:142,y:126}], ground:130 },
       finish: { head:{x:25,y:120,r:12}, torso:[{x:35,y:120},{x:95,y:122}],
@@ -389,17 +462,34 @@ const supabase = createSupabaseClient();
     }
   };
 
+  // Tracks the currently running rAF loop so switching exercises (or clearing the display)
+  // cancels the previous animation instead of letting it keep running into a stale/detached SVG.
+  let positionsAnimToken = 0;
   function renderPositions(key, container){
+    positionsAnimToken++;
+    const myToken = positionsAnimToken;
     const pose = POSES[key];
     if (!pose){ container.innerHTML = ''; return; }
-    if (pose.hold){
-      container.innerHTML = '<div class="position-box"><div>'+poseSVG(pose.hold)+'</div><div class="position-label">Hold position</div></div>';
+
+    container.innerHTML = '<div class="position-box single"><div></div><div class="position-label">'+(pose.hold ? 'Hold position' : 'Rep motion')+'</div></div>';
+    const svgHost = container.querySelector('.position-box.single > div');
+
+    if (pose.hold || !pose.tempo || reduceMotion){
+      svgHost.innerHTML = poseSVG(pose.hold || pose.start);
       return;
     }
-    container.innerHTML =
-      '<div class="position-box"><div>'+poseSVG(pose.start)+'</div><div class="position-label">Start</div></div>' +
-      '<div class="position-arrow">→</div>' +
-      '<div class="position-box"><div>'+poseSVG(pose.finish)+'</div><div class="position-label">Finish</div></div>';
+
+    let startTime = performance.now();
+    function frame(now){
+      if (myToken !== positionsAnimToken) return; // superseded by a newer renderPositions call
+      const elapsed = (now - startTime) % (pose.tempo*2);
+      const half = elapsed < pose.tempo;
+      const localT = ease((half ? elapsed : elapsed - pose.tempo) / pose.tempo);
+      const t = half ? localT : 1 - localT;
+      svgHost.innerHTML = poseSVG(lerpPose(pose.start, pose.finish, t));
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   }
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
