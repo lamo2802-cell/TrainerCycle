@@ -86,20 +86,24 @@
      the max-height:600px tier below, so that tier never fired here and a little scroll crept back
      in. Trim the same spacing, just less aggressively, to close that gap. */
   @media (max-height:900px) and (orientation:landscape){
-    .main{ padding-top:calc(64px + env(safe-area-inset-top, 0px)); }
+    .main{ padding:calc(64px + env(safe-area-inset-top, 0px)) 18px 8px; }
     :root{ --topbar-h: calc(56px + env(safe-area-inset-top, 0px)); }
     .top-logo{ height:46px; }
-    .dash{ gap:8px; margin-bottom:10px; }
-    .metric{ padding:8px 10px; }
-    .metric .val{ font-size:clamp(26px, 6vw, 48px); }
-    .metric .lbl{ margin-top:2px; }
-    .step-progress{ margin:3px 0 8px; }
-    .next-step{ margin-bottom:8px; }
-    .chart-panel.flex-chart{ padding:8px 12px; margin-bottom:8px; }
+    .dash{ gap:8px; margin-bottom:8px; }
+    .metric{ padding:7px 10px; }
+    .metric .val{ font-size:clamp(24px, 5.5vw, 44px); }
+    .metric .lbl{ margin-top:2px; font-size:clamp(11px, 2.4vw, 15px); }
+    .metric .sub-val{ margin-top:1px; }
+    .step-readout{ margin-bottom:3px; }
+    .step-progress{ margin:3px 0 6px; height:8px; }
+    .next-step{ margin-bottom:6px; }
+    .auto-pause-banner{ padding:8px 12px; margin:-6px 0 10px; }
+    .start-hint{ margin-bottom:5px; }
+    .chart-panel.flex-chart{ padding:7px 12px; margin-bottom:6px; }
     .chart-panel-title{ margin-bottom:3px; }
     .chart-legend{ margin-bottom:3px; }
-    .controls{ padding:8px 0 4px; }
-    .controls button{ padding:12px 14px; font-size:14px; }
+    .controls{ padding:6px 0 2px; margin-bottom:0; }
+    .controls button{ padding:11px 14px; font-size:14px; }
   }
 
   /* Short viewports (tablets/phones in landscape) - there's a lot of stacked content (dash,
@@ -235,7 +239,6 @@
           <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
           <button id="connectTrainerBtn">Connect trainer</button>
           <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
-          <button id="simulateTrainerBtn" style="display:none; margin-top:0;">Simulate trainer (test)</button>
         </div>
 
         <div class="block">
@@ -358,9 +361,6 @@ const supabase = createSupabaseClient();
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
   checkBluetoothSupport();
-  if (user.id === '24629e67-0ec6-4e80-a1a1-cff123ee1aa5'){
-    document.getElementById('simulateTrainerBtn').style.display = '';
-  }
   const ZONES = [
     {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
     {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},
@@ -756,30 +756,6 @@ const supabase = createSupabaseClient();
       }
     })();
   }
-
-  // ---- trainer simulator (owner account only, for testing without real hardware) ----
-  let simInterval = null;
-  let simPower = null;
-  function startSimulatedTrainer(){
-    clearInterval(simInterval);
-    trainerDevice = { name: 'Simulated Trainer', gatt: { connected: true, disconnect(){ this.connected = false; } } };
-    trainerControlReady = true;
-    simPower = null;
-    document.getElementById('trainerDot').classList.remove('err');
-    document.getElementById('trainerDot').classList.add('on');
-    document.getElementById('trainerStatus').textContent = 'Simulated Trainer (test mode — no real hardware)';
-    document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
-    document.getElementById('calibrateBtn').disabled = true;
-    updateStartAvailability();
-    simInterval = setInterval(()=>{
-      const target = lastTargetWatts || 150;
-      simPower = simPower==null ? target : simPower + (target - simPower)*0.3 + (Math.random()*16-8);
-      simPower = Math.max(0, Math.round(simPower));
-      const cadence = Math.round(75 + (Math.random()*14-7));
-      handleBikeSample({ power: simPower, cadence, heartRate: null });
-    }, 1000);
-  }
-  document.getElementById('simulateTrainerBtn').addEventListener('click', startSimulatedTrainer);
 
   document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
     if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser. Use Chrome or Edge on desktop or Android.'); return; }
