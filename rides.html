@@ -98,9 +98,48 @@
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
   #ridesList canvas{ width:100%; height:150px; display:block; }
   .filters select{ max-width:200px; }
+
+  /* Full-screen animated logo shown right after a ride is saved, before the post-ride summary
+     is revealed underneath it - a little "landing" moment instead of the page just appearing. */
+  .logo-reveal-overlay{
+    position:fixed; inset:0; z-index:500; background:var(--bg);
+    display:none; align-items:center; justify-content:center; flex-direction:column; gap:16px;
+  }
+  html.logo-reveal-pending .logo-reveal-overlay{ display:flex; }
+  .logo-reveal-overlay.lr-fade-out{ opacity:0; transition:opacity .5s ease; pointer-events:none; }
+  .logo-reveal-mark{ width:104px; height:104px; }
+  .logo-reveal-mark .lr-needle{ transform-origin:60px 60px; animation:lrSpin 1.05s cubic-bezier(.22,1,.36,1) forwards; }
+  .logo-reveal-mark .lr-arc{ stroke-dasharray:264; stroke-dashoffset:264; animation:lrDraw 1.05s ease forwards; }
+  .logo-reveal-mark .lr-hub{ transform-origin:60px 60px; animation:lrPulse .6s ease .5s backwards; }
+  .logo-reveal-word{ font-size:22px; font-weight:700; color:var(--text); letter-spacing:-0.01em; opacity:0; animation:lrWordIn .5s ease .7s forwards; }
+  .logo-reveal-word span{ color:var(--accent); }
+  .logo-reveal-sub{ font-size:12px; color:var(--text-dim); letter-spacing:.06em; text-transform:uppercase; opacity:0; animation:lrWordIn .5s ease .85s forwards; }
+  @keyframes lrSpin{ from{ transform:rotate(-480deg); } to{ transform:rotate(0deg); } }
+  @keyframes lrDraw{ from{ stroke-dashoffset:264; } to{ stroke-dashoffset:0; } }
+  @keyframes lrPulse{ from{ transform:scale(0); } 70%{ transform:scale(1.25); } to{ transform:scale(1); } }
+  @keyframes lrWordIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce){
+    .logo-reveal-mark .lr-needle, .logo-reveal-mark .lr-arc, .logo-reveal-mark .lr-hub, .logo-reveal-word, .logo-reveal-sub{ animation:none !important; opacity:1 !important; stroke-dashoffset:0 !important; }
+  }
 </style>
 </head>
 <body>
+<script>
+  // Set before first paint so the overlay is there from frame one, not flashed in after load.
+  if (new URLSearchParams(window.location.search).get('summary')) document.documentElement.classList.add('logo-reveal-pending');
+</script>
+<div class="logo-reveal-overlay" id="logoRevealOverlay">
+  <svg class="logo-reveal-mark" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="60" cy="60" r="42" fill="none" stroke="#2A323D" stroke-width="3"/>
+    <path class="lr-arc" d="M 60 18 A 42 42 0 1 1 25.5 82.6" fill="none" stroke="#45D6C4" stroke-width="6" stroke-linecap="round"/>
+    <g class="lr-needle">
+      <line x1="60" y1="60" x2="76" y2="30" stroke="#E7ECF2" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <circle class="lr-hub" cx="60" cy="60" r="8" fill="#45D6C4"/>
+  </svg>
+  <div class="logo-reveal-word">Trainer<span>Cycle</span></div>
+  <div class="logo-reveal-sub">Ride saved</div>
+</div>
 <div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
@@ -187,7 +226,29 @@ const supabase = createSupabaseClient();
         const stravaBtn = document.querySelector('[data-strava="'+summaryId+'"]');
         if (conn && stravaBtn) uploadRideToStrava(ride, stravaBtn, true);
       } catch(e){ /* best effort — the manual button is still right there either way */ }
+
+      hideLogoReveal();
+    } else {
+      hideLogoReveal();
     }
+  }
+
+  // Lets the full-screen logo animation play for a minimum stretch (so it never just flashes),
+  // then fades out to reveal the already-scrolled-to, already-drawn summary underneath it.
+  let logoRevealShownAt = document.documentElement.classList.contains('logo-reveal-pending') ? Date.now() : null;
+  function hideLogoReveal(){
+    if (logoRevealShownAt == null) return;
+    const minMs = 1300;
+    const wait = Math.max(0, minMs - (Date.now() - logoRevealShownAt));
+    setTimeout(()=>{
+      const overlay = document.getElementById('logoRevealOverlay');
+      overlay.classList.add('lr-fade-out');
+      setTimeout(()=>{
+        overlay.style.display = 'none';
+        document.documentElement.classList.remove('logo-reveal-pending');
+      }, 500);
+    }, wait);
+    logoRevealShownAt = null;
   }
 
   function render(){
@@ -278,13 +339,15 @@ const supabase = createSupabaseClient();
     const histFtp = (ride.np && ride.intensity_factor) ? (ride.np / ride.intensity_factor) : null;
 
     // Colored zone-intensity background (skyline profile), same technique as Live Ride's overview chart,
-    // using each sample's own target power to classify + size each sliver.
+    // using each sample's own target power to classify + size each sliver. The bar height is scaled
+    // against the SAME maxPower used for the power trace below, so a target block's top lines up with
+    // where the actual power line sits at that wattage - not a separate %FTP-based scale.
     if (histFtp){
       samples.forEach((s,i)=>{
         const tgt = Number(s.target);
         if (!tgt) return;
         const pct = (tgt/histFtp)*100;
-        const barH = Math.max(h*0.06, Math.min(h*0.95, (pct/160)*h));
+        const barH = Math.max(h*0.04, Math.min(h*0.98, (tgt/maxPower)*h));
         ctx.fillStyle = zoneColorRGBA(pct, 0.75);
         const x = xAt(i);
         const segW = w/Math.max(1,n-1) + 1;
