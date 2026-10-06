@@ -429,11 +429,77 @@ function showWelcomeMessage(){
   document.getElementById('welcomeCloseBtn').addEventListener('click', ()=> el.remove());
 }
 
+// ---- Google Play Billing (Android app only) ----
+// Inside the Android app (a Trusted Web Activity), subscriptions must be sold through Google Play
+// rather than Stripe. The app is launched with a referrer of android-app://<package>, which we
+// remember because the referrer is only present on the first page load of a session.
+const PLAY_PACKAGE = 'com.trainercycle.app';
+const PLAY_SKU = 'trainercycle_monthly';
+const PLAY_BILLING_URL = 'https://play.google.com/billing';
+export const PLAY_MANAGE_URL = 'https://play.google.com/store/account/subscriptions?sku=' + PLAY_SKU + '&package=' + PLAY_PACKAGE;
+
+export function isPlayApp(){
+  try {
+    if (document.referrer && document.referrer.indexOf('android-app://' + PLAY_PACKAGE) === 0){
+      localStorage.setItem('tc_play_app', '1');
+    }
+  } catch(_){}
+  let remembered = false;
+  try { remembered = localStorage.getItem('tc_play_app') === '1'; } catch(_){}
+  return remembered && typeof window.getDigitalGoodsService === 'function';
+}
+
+async function startPlayPurchase(supabase, onError){
+  try {
+    const service = await window.getDigitalGoodsService(PLAY_BILLING_URL);
+    // Confirms the product exists and is purchasable before showing the Play purchase sheet.
+    const details = await service.getDetails([PLAY_SKU]);
+    if (!details || !details.length){
+      onError('Subscription isn\'t available in Google Play yet — try again shortly.');
+      return;
+    }
+    const request = new PaymentRequest(
+      [{ supportedMethods: PLAY_BILLING_URL, data: { sku: PLAY_SKU } }],
+      { total: { label: 'Total', amount: { currency: 'USD', value: '0' } } }
+    );
+    const response = await request.show();
+    const purchaseToken = response.details && response.details.purchaseToken;
+    if (!purchaseToken){
+      await response.complete('fail');
+      onError('Google Play didn\'t return a purchase — you haven\'t been charged. Try again.');
+      return;
+    }
+    // Server verifies the purchase with Google, acknowledges it and activates the subscription.
+    const { data, error } = await supabase.functions.invoke('verify-play-purchase', {
+      body: { purchaseToken, productId: PLAY_SKU }
+    });
+    if (error || !data || !data.success){
+      await response.complete('fail');
+      onError('We couldn\'t confirm your purchase yet. If you were charged, reopen the app in a few minutes — it will activate automatically.');
+      return;
+    }
+    await response.complete('success');
+    // Reload with the same ?subscribed=1 flag Stripe uses so the welcome message shows.
+    window.location.href = window.location.pathname + '?subscribed=1';
+  } catch(e){
+    if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')){
+      onError('Purchase cancelled.');
+    } else {
+      onError('Couldn\'t start Google Play purchase: ' + (e && e.message ? e.message : e));
+    }
+  }
+}
+
 // Checks the user's subscription status; shows a paywall gate and blocks until active.
-// Starts Stripe Checkout. Shared by the hard paywall gate and the soft subscribe nudge so the
-// actual checkout call only lives in one place. Returns nothing - navigates away on success, or
-// calls onError(message) so the caller can show it in its own UI.
+// Starts checkout - Google Play inside the Android app, Stripe Checkout everywhere else. Shared by
+// the hard paywall gate and the soft subscribe nudge so the actual checkout call only lives in one
+// place. Returns nothing - navigates away on success, or calls onError(message) so the caller can
+// show it in its own UI.
 export async function startCheckout(supabase, onError){
+  if (isPlayApp()){
+    await startPlayPurchase(supabase, onError);
+    return;
+  }
   const { data: fnData, error } = await supabase.functions.invoke('create-checkout-session', {
     body: { returnUrl: window.location.href }
   });

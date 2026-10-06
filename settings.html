@@ -214,7 +214,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent } from './auth.js?v=12';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL } from './auth.js?v=13';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -434,9 +434,23 @@ const supabase = createSupabaseClient();
   });
 
   // ---- Subscription management (Stripe Customer Portal) ----
+  // Subscriptions bought through Google Play are managed in Google Play, not Stripe.
+  let subProvider = null;
+  try {
+    const { data: subRow } = await supabase.from('subscriptions').select('billing_provider').eq('user_id', user.id).maybeSingle();
+    subProvider = subRow && subRow.billing_provider;
+  } catch(_){}
+  const managedByPlay = subProvider === 'google_play';
+  if (managedByPlay){
+    document.querySelector('#manageSubBtn').closest('.panel').querySelector('.panel-desc').textContent =
+      'Your subscription is billed through Google Play — change or cancel it any time in the Play Store.';
+    document.getElementById('manageSubBtn').textContent = 'Manage in Google Play';
+  }
+
   document.getElementById('manageSubBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('manageSubBtn');
     const msg = document.getElementById('subMsg');
+    if (managedByPlay){ window.open(PLAY_MANAGE_URL, '_blank'); return; }
     btn.disabled = true;
     msg.textContent = 'Opening billing portal…';
     try {
