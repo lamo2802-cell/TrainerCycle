@@ -22,7 +22,7 @@
   *{box-sizing:border-box;}
   :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
-  .app{ position:relative; min-height:100vh; }
+  .app{ position:relative; min-height:100vh; min-height:var(--app-h, 100vh); }
   .sidebar{
     position:fixed; top:var(--topbar-h); left:0; bottom:0; width:340px; max-width:85vw;
     background:var(--panel); border-right:1px solid var(--line);
@@ -62,7 +62,11 @@
   .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
   select, input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:7px 9px; font-size:13.5px; width:100%; font-family:var(--sans); }
   html, body{ height:100%; }
-  .main{ height:100vh; height:100dvh; overflow:hidden; display:flex; flex-direction:column; }
+  /* --app-h is the real visible height, measured in JS (see script below). 100vh/100dvh can be
+     taller than what's actually visible on some tablet browsers (system bars), which pushed the
+     bottom buttons off-screen and made the page scroll. */
+  html, body{ overflow:hidden; }
+  .main{ height:100vh; height:100dvh; height:var(--app-h, 100dvh); overflow:hidden; display:flex; flex-direction:column; }
   .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
   .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; transition:width .2s ease, opacity .2s ease; }
   .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
@@ -190,6 +194,18 @@
   .celebrate-subtitle{ font-size:14px; color:var(--text-dim); margin-bottom:26px; font-family:var(--mono); }
   .celebrate-content button{ width:auto; padding:12px 32px; font-size:15px; }
 </style>
+<script>
+  (function(){
+    function setAppH(){
+      try { document.documentElement.style.setProperty('--app-h', Math.round(window.innerHeight) + 'px'); } catch(_){}
+    }
+    setAppH();
+    window.addEventListener('resize', setAppH);
+    window.addEventListener('orientationchange', function(){ setTimeout(setAppH, 150); });
+    document.addEventListener('DOMContentLoaded', setAppH);
+    window.addEventListener('load', function(){ setAppH(); setTimeout(setAppH, 400); });
+  })();
+</script>
 </head>
 <body>
 <div class="top-bar">
