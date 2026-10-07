@@ -412,6 +412,20 @@ const supabase = createSupabaseClient();
     const step = flatSteps[stepIndex];
     return !!(step && /^ramp/i.test(step.note || ''));
   }
+  // The ramp keeps climbing 5% every minute past its written steps, until the rider can't hold it.
+  const RAMP_EXTEND_STEP_PCT = 5;
+  const RAMP_MAX_PCT = 400;              // safety ceiling on the target, as % of FTP
+  function isOpenEndedRamp(){
+    if (!currentWorkoutMeta || currentWorkoutMeta.category !== 'test' || !flatSteps.length) return false;
+    const last = flatSteps[flatSteps.length-1];
+    return /ramp/i.test(last.note || '') && last.targetType === 'ftp_pct';
+  }
+  function nextRampStep(){
+    const last = flatSteps[flatSteps.length-1];
+    const mid = (last.low + last.high) / 2 + RAMP_EXTEND_STEP_PCT;
+    if (mid > RAMP_MAX_PCT) return null;
+    return { type:'step', duration:60, targetType:'ftp_pct', low:mid-2, high:mid+2, note:'Ramp' };
+  }
   function finishRampTest(){
     if (rampEnding) return;
     rampEnding = true;
@@ -562,15 +576,15 @@ const supabase = createSupabaseClient();
     if (flatSteps.length){
       for (let i=stepIndex+1;i<flatSteps.length;i++) remaining += flatSteps[i].duration||0;
       if (step) remaining += Math.max(0, step.duration - stepElapsed);
-      document.getElementById('totalRemaining').textContent = fmtDur(remaining);
+      document.getElementById('totalRemaining').textContent = isOpenEndedRamp() ? '—' : fmtDur(remaining);
     } else {
       document.getElementById('totalRemaining').textContent = '—';
     }
 
     document.getElementById('mWorkoutTime').textContent = fmtDur(activeElapsedSec);
-    document.getElementById('mWorkoutTotal').textContent = totalPlanned!=null
-      ? ('of ' + fmtDur(totalPlanned))
-      : '';
+    document.getElementById('mWorkoutTotal').textContent = isOpenEndedRamp()
+      ? 'until you can\'t hold it'
+      : (totalPlanned!=null ? ('of ' + fmtDur(totalPlanned)) : '');
     document.getElementById('mIntervalTime').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '0:00';
 
     const nextEl = document.getElementById('nextStepInfo');
@@ -581,6 +595,10 @@ const supabase = createSupabaseClient();
       if (next){
         const nt = targetWatts(next);
         nextEl.innerHTML = 'Next: <b>' + (next.note||'Step '+(stepIndex+2)) + '</b> · ' + fmtDur(next.duration) + (nt!=null ? ' · ~'+nt+'W' : '');
+      } else if (isOpenEndedRamp() && stepIndex > -1){
+        const more = nextRampStep();
+        const nt = more ? targetWatts(more) : null;
+        nextEl.innerHTML = 'Next: <b>Ramp</b> · +' + RAMP_EXTEND_STEP_PCT + '%' + (nt!=null ? ' · ~'+nt+'W' : '') + ' — keeps going until you can\'t hold it.';
       } else if (stepIndex+1 >= flatSteps.length && stepIndex > -1){
         nextEl.innerHTML = 'Last step — cool down and stop when ready.';
       } else {
@@ -1302,6 +1320,10 @@ const supabase = createSupabaseClient();
     stepIndex += 1;
     stepElapsed = 0;
     bailActive = false;
+    if (stepIndex >= flatSteps.length && isOpenEndedRamp() && !rampEnding){
+      const more = nextRampStep();
+      if (more) flatSteps.push(more);
+    }
     if (stepIndex >= flatSteps.length){
       stopSession(true); return;
     }
