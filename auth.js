@@ -450,10 +450,14 @@ export function isPlayApp(){
 }
 
 async function startPlayPurchase(supabase, onError){
+  let stage = '';
   try {
-    const service = await window.getDigitalGoodsService(PLAY_BILLING_URL);
+    const withTimeout = (p, ms, what)=> Promise.race([p, new Promise((_,rej)=> setTimeout(()=> rej(new Error(what + ' timed out')), ms))]);
+    stage = 'connecting to Google Play';
+    const service = await withTimeout(window.getDigitalGoodsService(PLAY_BILLING_URL), 15000, 'Connecting to Google Play');
     // Confirms the product exists and is purchasable before showing the Play purchase sheet.
-    const details = await service.getDetails([PLAY_SKU]);
+    stage = 'loading the subscription';
+    const details = await withTimeout(service.getDetails([PLAY_SKU]), 15000, 'Loading the subscription');
     if (!details || !details.length){
       onError('Subscription isn\'t available in Google Play yet — try again shortly.');
       return;
@@ -462,6 +466,7 @@ async function startPlayPurchase(supabase, onError){
       [{ supportedMethods: PLAY_BILLING_URL, data: { sku: PLAY_SKU } }],
       { total: { label: 'Total', amount: { currency: 'USD', value: '0' } } }
     );
+    stage = 'opening Google Play';
     const response = await request.show();
     const purchaseToken = response.details && response.details.purchaseToken;
     if (!purchaseToken){
@@ -485,7 +490,7 @@ async function startPlayPurchase(supabase, onError){
     if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')){
       onError('Purchase cancelled.');
     } else {
-      onError('Couldn\'t start Google Play purchase: ' + (e && e.message ? e.message : e));
+      onError('Couldn\'t start Google Play purchase (' + stage + '): ' + (e && e.message ? e.message : e));
     }
   }
 }
