@@ -214,7 +214,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL } from './auth.js?v=13';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=14';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -434,23 +434,50 @@ const supabase = createSupabaseClient();
   });
 
   // ---- Subscription management (Stripe Customer Portal) ----
-  // Subscriptions bought through Google Play are managed in Google Play, not Stripe.
-  let subProvider = null;
+  // Which billing system a subscription belongs to decides what this panel shows. Inside the
+  // Android app we never send people to Stripe - Play subscribers manage in Google Play, and
+  // everyone else gets a plain explanation (or a Subscribe button if they have nothing yet).
+  let subRow = null;
   try {
-    const { data: subRow } = await supabase.from('subscriptions').select('billing_provider').eq('user_id', user.id).maybeSingle();
-    subProvider = subRow && subRow.billing_provider;
+    const r = await supabase.from('subscriptions').select('status, billing_provider').eq('user_id', user.id).maybeSingle();
+    subRow = r.data;
   } catch(_){}
-  const managedByPlay = subProvider === 'google_play';
-  if (managedByPlay){
-    document.querySelector('#manageSubBtn').closest('.panel').querySelector('.panel-desc').textContent =
-      'Your subscription is billed through Google Play — change or cancel it any time in the Play Store.';
-    document.getElementById('manageSubBtn').textContent = 'Manage in Google Play';
+  const inPlayApp = isPlayApp();
+  const managedByPlay = !!(subRow && subRow.billing_provider === 'google_play');
+  const isOwner = !!(subRow && subRow.status === 'owner');
+  const hasActiveSub = !!(subRow && ['active','trialing'].includes(subRow.status));
+  const subPanel = document.getElementById('manageSubBtn').closest('.panel');
+  const subDesc = subPanel.querySelector('.panel-desc');
+  const subBtnEl = document.getElementById('manageSubBtn');
+  let subMode = 'stripe';
+  if (isOwner){
+    subMode = 'none';
+    subDesc.textContent = 'You have owner access — there\'s no billing to manage.';
+    subBtnEl.style.display = 'none';
+  } else if (managedByPlay){
+    subMode = 'play';
+    subDesc.textContent = 'Your subscription is billed through Google Play — change or cancel it any time in the Play Store.';
+    subBtnEl.textContent = 'Manage in Google Play';
+  } else if (inPlayApp && hasActiveSub){
+    subMode = 'none';
+    subDesc.textContent = 'Your subscription wasn\'t set up through Google Play, so it can\'t be changed from this app. Manage it from your TrainerCycle account on the web.';
+    subBtnEl.style.display = 'none';
+  } else if (inPlayApp){
+    subMode = 'subscribe';
+    subDesc.textContent = 'You don\'t have an active subscription. New subscribers get 7 days free, then £4.99/month, billed through Google Play.';
+    subBtnEl.textContent = 'Start Free Trial';
   }
 
   document.getElementById('manageSubBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('manageSubBtn');
     const msg = document.getElementById('subMsg');
-    if (managedByPlay){ window.open(PLAY_MANAGE_URL, '_blank'); return; }
+    if (subMode === 'play'){ window.open(PLAY_MANAGE_URL, '_blank'); return; }
+    if (subMode === 'subscribe'){
+      btn.disabled = true;
+      msg.textContent = 'Opening Google Play…';
+      await startCheckout(supabase, (errMsg)=>{ msg.textContent = errMsg; btn.disabled = false; });
+      return;
+    }
     btn.disabled = true;
     msg.textContent = 'Opening billing portal…';
     try {
