@@ -396,6 +396,28 @@ const supabase = createSupabaseClient();
   let autoPaused = false;
   let zeroActivityStreak = 0;
   const AUTO_PAUSE_THRESHOLD = 4; // consecutive ~1s samples with no pedaling
+
+  // ---- ramp test auto-finish ----
+  // A ramp test ends when the rider can no longer hold the target, not when they remember to
+  // press Stop. During the "Ramp" steps we watch for power well under target (or cadence collapsing)
+  // for a sustained stretch, or for pedalling stopping altogether, and then finish the test.
+  const RAMP_FAIL_POWER_FRACTION = 0.8;  // below 80% of target counts as not holding it
+  const RAMP_FAIL_CADENCE = 40;          // rpm - below this counts as not holding it
+  const RAMP_FAIL_SECONDS = 10;          // sustained this long before we call it
+  const RAMP_STEP_GRACE_SECONDS = 15;    // ignore the first seconds of each step while ERG catches up
+  let latestRawPower = null, latestCadence = null;
+  let rampFailStreak = 0, rampEnding = false;
+  function inRampPhase(){
+    if (!currentWorkoutMeta || currentWorkoutMeta.category !== 'test') return false;
+    const step = flatSteps[stepIndex];
+    return !!(step && /^ramp/i.test(step.note || ''));
+  }
+  function finishRampTest(){
+    if (rampEnding) return;
+    rampEnding = true;
+    beep(600, 400);
+    stopSession(true);
+  }
   let log = []; // {t,power,cadence,hr,target}
   let sessionStart = null;
   let powerSmoothingSec = 3; // display-only smoothing window; raw samples in `log` are unaffected
@@ -945,6 +967,8 @@ const supabase = createSupabaseClient();
   }
 
   function handleBikeSample(parsed){
+    if (parsed.power!=null) latestRawPower = parsed.power;
+    if (parsed.cadence!=null) latestCadence = parsed.cadence;
     if (parsed.power!=null){
       const shownPower = displayPower(parsed.power);
       const powerEl = document.getElementById('mPower');
@@ -974,7 +998,10 @@ const supabase = createSupabaseClient();
         if (autoPaused) resumeWorkout();
       } else if (running && !autoPaused){
         zeroActivityStreak += 1;
-        if (zeroActivityStreak >= AUTO_PAUSE_THRESHOLD) pauseWorkout(true);
+        if (zeroActivityStreak >= AUTO_PAUSE_THRESHOLD){
+          if (inRampPhase() && stepElapsed >= RAMP_STEP_GRACE_SECONDS) finishRampTest();
+          else pauseWorkout(true);
+        }
       }
     }
 
@@ -1255,6 +1282,17 @@ const supabase = createSupabaseClient();
       if (remaining > 0 && remaining <= 3) beep(880, 120); // 3-2-1 warning before the interval changes
       if (stepElapsed >= step.duration) advanceStep();
     }
+    if (inRampPhase() && !rampEnding){
+      const tgt = targetWatts(flatSteps[stepIndex]);
+      const lowPower = tgt && latestRawPower != null && latestRawPower < tgt * RAMP_FAIL_POWER_FRACTION;
+      const lowCadence = latestCadence != null && latestCadence < RAMP_FAIL_CADENCE;
+      if (stepElapsed >= RAMP_STEP_GRACE_SECONDS && (lowPower || lowCadence)){
+        rampFailStreak += 1;
+        if (rampFailStreak >= RAMP_FAIL_SECONDS) finishRampTest();
+      } else {
+        rampFailStreak = 0;
+      }
+    }
     renderStepReadout();
     drawOverviewChart();
     drawStepChart();
@@ -1404,6 +1442,9 @@ const supabase = createSupabaseClient();
   }
 
   function resetSessionState(){
+    rampFailStreak = 0;
+    rampEnding = false;
+    latestRawPower = null; latestCadence = null;
     running = false;
     clearInterval(tickHandle);
     tickHandle = null;
