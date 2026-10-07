@@ -46,7 +46,7 @@
       <li><b>Account information</b> — your name, email address, and profile photo if you sign in with Google; or your email address and a securely hashed password if you create an account directly (we never store or see your actual password — it's hashed using industry-standard methods before it ever reaches our database).</li>
       <li><b>Training data</b> — your FTP (Functional Threshold Power), workouts you build or save, and training plans you follow.</li>
       <li><b>Ride and session data</b> — power, heart rate, cadence, and timing data recorded during a live session via Bluetooth-connected devices (a trainer, heart rate strap), and completed strength sessions.</li>
-      <li><b>Subscription and payment status</b> — whether your subscription is active, via Stripe. We do not see or store your card details — Stripe handles payment directly and securely.</li>
+      <li><b>Subscription and payment status</b> — whether your subscription is active, via Stripe (web) or Google Play (Android app). We do not see or store your card details — Stripe or Google handles payment directly and securely. For Google Play we store the purchase token and expiry date to verify your subscription.</li>
       <li><b>Third-party connections</b> — if you choose to connect Strava, we store the access tokens needed to upload rides on your behalf.</li>
       <li><b>Marketing preference</b> — whether you've opted in to receive occasional emails from us, and when you gave or withdrew that choice. You can change this any time in Settings.</li>
     </ul>
@@ -66,7 +66,8 @@
       <li><b>Supabase</b> — our database and authentication provider, which stores your account and training data securely.</li>
       <li><b>Google</b> — used only if you sign in with Google; we receive your name, email, and photo, nothing else.</li>
       <li><b>Resend</b> — our email delivery provider, used to send account emails (password resets, confirmations) and, only with your consent, marketing emails.</li>
-      <li><b>Stripe</b> — processes payments directly; we never handle your card details ourselves.</li>
+      <li><b>Stripe</b> — processes web payments directly; we never handle your card details ourselves.</li>
+      <li><b>Google Play</b> — processes payments made in the Android app, and verifies purchases with us.</li>
       <li><b>Strava</b> — only if you connect your account, solely to upload the rides you choose to export.</li>
     </ul>
     <p>We do not sell your data, and we do not share it with anyone for advertising purposes.</p>

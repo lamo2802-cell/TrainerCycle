@@ -503,9 +503,11 @@ const supabase = createSupabaseClient();
     msg.textContent = '';
     btn.disabled = true;
 
-    const { data: sub } = await supabase.from('subscriptions').select('status').eq('user_id', user.id).maybeSingle();
+    const { data: sub } = await supabase.from('subscriptions').select('status, billing_provider').eq('user_id', user.id).maybeSingle();
     if (sub && (sub.status === 'active' || sub.status === 'trialing')){
-      msg.textContent = 'You have an active subscription — cancel it first using "Manage Subscription" above, then come back to delete your account.';
+      msg.textContent = sub.billing_provider === 'google_play'
+        ? 'You have an active Google Play subscription — cancel it first using "Manage in Google Play" above, then come back to delete your account.'
+        : 'You have an active subscription — cancel it first using "Manage Subscription" above, then come back to delete your account.';
       btn.disabled = false;
       return;
     }
