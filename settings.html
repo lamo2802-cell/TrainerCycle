@@ -385,6 +385,7 @@ const supabase = createSupabaseClient();
     const msg = document.getElementById('stravaMsg');
     if (strava === 'connected') msg.textContent = 'Strava connected!';
     else if (strava === 'denied') msg.textContent = 'Strava connection was cancelled.';
+    else if (strava === 'noscope') msg.textContent = 'Strava connected without permission to upload. Press Connect again and make sure "Upload your activities from TrainerCycle to Strava" stays ticked on Strava\'s page.';
     else if (strava === 'error') msg.textContent = 'Something went wrong connecting Strava — try again.';
     if (strava) window.history.replaceState({}, '', window.location.pathname);
   })();
