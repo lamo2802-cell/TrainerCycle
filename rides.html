@@ -469,10 +469,19 @@ const supabase = createSupabaseClient();
       if (error || (data && data.error)){
         btn.textContent = 'Failed';
         if (!silent){
-          const isNotConnected = data && data.error === 'Strava not connected';
-          const errText = data && data.error ? JSON.stringify(data.error) : '';
-          const isForbidden = /Authorization Error|activity:write|"field":"activity:write"|forbidden/i.test(errText) || (error && /403|non-2xx/i.test(error.message || '') && !isNotConnected && !errText);
-          alert(isNotConnected ? 'Connect Strava first from the Settings page.' : isForbidden ? 'Strava didn\'t allow the upload. Go to Settings, press Disconnect under Strava, then Connect again and keep "Upload your activities" ticked. If you have more than one Strava account, make sure you are logged in to the right one.' : ('Strava upload failed: ' + (data && data.error ? JSON.stringify(data.error) : (error ? error.message : 'unknown error'))));
+          // On a non-2xx reply supabase-js gives us the raw Response in error.context - read Strava's reason from it.
+          let body = data;
+          try { if (!body && error && error.context && typeof error.context.json === 'function') body = await error.context.json(); } catch(_){}
+          const errObj = body && body.error;
+          const errText = errObj ? (typeof errObj === 'string' ? errObj : JSON.stringify(errObj)) : '';
+          const appInactive = /"code":"Inactive"/.test(errText);
+          const needsReconnect = /Authorization Error|activity:write/i.test(errText);
+          let msg;
+          if (errText === 'Strava not connected') msg = 'Connect Strava first from the Settings page.';
+          else if (appInactive) msg = 'Strava is currently blocking uploads from TrainerCycle (this is on our side of the Strava connection, not your account). Your ride is saved. Please try again later - we are sorting it out.';
+          else if (needsReconnect) msg = 'Strava didn\'t allow the upload. Go to Settings, press Disconnect under Strava, then Connect again and keep "Upload your activities" ticked. If you have more than one Strava account, make sure you are logged in to the right one.';
+          else msg = 'Strava upload failed: ' + (errText || (error ? error.message : 'unknown error'));
+          alert(msg);
         }
         setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
       } else {
