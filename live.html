@@ -1381,14 +1381,66 @@ const supabase = createSupabaseClient();
 
   document.getElementById('skipBtn').addEventListener('click', ()=>{ advanceStep(); });
 
-  async function saveCompletedRide(completed){
-    if (!log.length) return;
-    const startedAt = sessionStart ? new Date(sessionStart).toISOString() : new Date(Date.now() - activeElapsedSec*1000).toISOString();
-    const powers = log.map(r=>Number(r.power)).filter(n=>!isNaN(n));
-    const hrs = log.map(r=>Number(r.hr)).filter(n=>!isNaN(n));
-    const cadences = log.map(r=>Number(r.cadence)).filter(n=>!isNaN(n));
+  // ---- crash-proof autosave ----
+  // The ride lives only in memory until it's saved, so if the browser is killed mid-ride (e.g. Android
+  // freeing memory on a low-end tablet) everything was lost. We keep a copy in localStorage every few
+  // seconds and offer to recover it next time Live Ride opens. Charts/ride behaviour are untouched.
+  const autosaveKey = 'tc_unsaved_ride_' + user.id;
+  function autosaveRide(){
+    try {
+      if (!sessionStart || !log.length) return;
+      localStorage.setItem(autosaveKey, JSON.stringify({
+        savedAt: Date.now(),
+        startedAt: new Date(sessionStart).toISOString(),
+        activeElapsedSec,
+        workoutName: currentWorkoutMeta.name,
+        category: currentWorkoutMeta.category,
+        log
+      }));
+    } catch(e){ /* storage full/unavailable — best effort */ }
+  }
+  function clearAutosave(){ try { localStorage.removeItem(autosaveKey); } catch(e){} }
+  setInterval(autosaveRide, 15000);
+  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') autosaveRide(); });
+  window.addEventListener('pagehide', autosaveRide);
+
+  async function insertRideWithRetry(record){
+    for (let attempt=0; attempt<3; attempt++){
+      try {
+        const { error } = await supabase.from('completed_rides').insert(record);
+        if (!error) return true;
+        console.error('Ride save failed (attempt '+(attempt+1)+'):', error);
+      } catch(e){ console.error('Ride save threw (attempt '+(attempt+1)+'):', e); }
+      await new Promise(r=>setTimeout(r, 1500));
+    }
+    return false;
+  }
+
+  async function recoverUnsavedRide(){
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null'); } catch(e){ saved = null; }
+    if (!saved || !Array.isArray(saved.log) || !saved.log.length){ clearAutosave(); return; }
+    const mins = Math.round((saved.activeElapsedSec||0)/60);
+    const when = new Date(saved.startedAt).toLocaleString();
+    if (confirm('We found an unsaved ride from ' + when + ' (' + (saved.workoutName||'Free Ride') + ', ' + mins + ' min) — it looks like the app closed mid-ride.\n\nSave it to your ride history now?')){
+      const rec = await saveCompletedRide(false, saved);
+      if (rec) window.location.href = 'rides.html?summary=' + encodeURIComponent(rec.id);
+    } else if (confirm('Discard that unsaved ride? This can\'t be undone.')){
+      clearAutosave();
+    }
+  }
+
+  async function saveCompletedRide(completed, recovered){
+    const rideLog = recovered ? recovered.log : log;
+    const elapsedSec = recovered ? recovered.activeElapsedSec : activeElapsedSec;
+    const meta = recovered ? { name: recovered.workoutName, category: recovered.category } : currentWorkoutMeta;
+    if (!rideLog.length) return;
+    const startedAt = recovered ? recovered.startedAt : (sessionStart ? new Date(sessionStart).toISOString() : new Date(Date.now() - elapsedSec*1000).toISOString());
+    const powers = rideLog.map(r=>Number(r.power)).filter(n=>!isNaN(n));
+    const hrs = rideLog.map(r=>Number(r.hr)).filter(n=>!isNaN(n));
+    const cadences = rideLog.map(r=>Number(r.cadence)).filter(n=>!isNaN(n));
     const avgPower = powers.length ? Math.round(powers.reduce((a,b)=>a+b,0)/powers.length) : null;
-    const sumP4t = log.reduce((a,r)=>{ const p=Number(r.power); return isNaN(p)?a:a+Math.pow(p,4); },0);
+    const sumP4t = rideLog.reduce((a,r)=>{ const p=Number(r.power); return isNaN(p)?a:a+Math.pow(p,4); },0);
     const np = powers.length ? Math.round(Math.pow(sumP4t/powers.length, 0.25)) : null;
     const IF = (np!=null && ftp>0) ? Math.round((np/ftp)*100)/100 : null;
     const avgHr = hrs.length ? Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length) : null;
@@ -1397,18 +1449,24 @@ const supabase = createSupabaseClient();
 
     const record = {
       id: 'ride_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
-      workout_name: currentWorkoutMeta.name,
-      category: currentWorkoutMeta.category,
+      workout_name: meta.name,
+      category: meta.category,
       started_at: startedAt,
-      duration_sec: activeElapsedSec,
+      duration_sec: elapsedSec,
       avg_power: avgPower, np, intensity_factor: IF,
       avg_hr: avgHr, max_hr: maxHr, avg_cadence: avgCadence,
       completed: !!completed,
-      samples: log,
+      samples: rideLog,
       user_id: user.id
     };
-    try { await supabase.from('completed_rides').insert(record); }
-    catch(e){ /* best effort — ride data stays exportable via CSV either way */ }
+    const ok = await insertRideWithRetry(record);
+    if (!ok){
+      // Keep the local autosave so nothing is lost, and tell the rider instead of failing silently.
+      autosaveRide();
+      alert('Your ride couldn\'t be saved to your account (check your connection). It\'s kept safely on this device — reopen Live Ride and you\'ll be offered the chance to save it again.');
+      return null;
+    }
+    clearAutosave();
     return record;
   }
 
@@ -1507,6 +1565,7 @@ const supabase = createSupabaseClient();
   }
 
   function discardSession(){
+    clearAutosave();
     resetSessionState();
     log = [];
     activeElapsedSec = 0;
@@ -1654,6 +1713,7 @@ const supabase = createSupabaseClient();
   });
   renderStepReadout();
   updateStartAvailability();
+  setTimeout(recoverUnsavedRide, 1500); // after FTP has loaded, offer to save a ride lost to a crash/close
 
   // redraw charts when the viewport changes (rotation, window resize) so they keep filling their container
   let resizeTimer = null;
