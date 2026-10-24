@@ -4,7 +4,7 @@
   "description": "Structured indoor cycling and strength training, built around your FTP.",
   "start_url": "/index.html",
   "scope": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#10141A",
   "theme_color": "#10141A",
   "orientation": "any",
