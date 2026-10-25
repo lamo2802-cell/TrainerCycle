@@ -537,7 +537,7 @@ import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=2';
 import { applySwaps } from './adapt.js?v=1';
-import { addRuns } from './run.js?v=1';
+import { addRuns } from './run.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -768,9 +768,9 @@ const supabase = createSupabaseClient();
   let riderLevels = null;
   async function loadRiderLevels(){
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source').eq('user_id', user.id);
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run' && r.source !== 'strava'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){

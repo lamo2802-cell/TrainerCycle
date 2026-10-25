@@ -182,7 +182,8 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
 // ---- Strava run import ----
 // Pulls new runs from Strava (at most every 30 minutes unless forced). Resolves with
 // { imported: [rows], needsReconnect } and never throws: import is a background nicety.
-export async function syncStravaRuns(supabase, userId, { force = false } = {}){
+// Pulls in runs and outside rides from Strava (the strava-import function skips anything already here).
+export async function syncStrava(supabase, userId, { force = false } = {}){
   const key = 'tc_strava_sync_' + userId;
   try { if (!force && Date.now() - Number(localStorage.getItem(key) || 0) < 30*60000) return { imported: [], skipped: true }; } catch(_){}
   try {
@@ -193,11 +194,14 @@ export async function syncStravaRuns(supabase, userId, { force = false } = {}){
   } catch(_){ return { imported: [] }; }
 }
 
+export const syncStravaRuns = syncStrava;
+
 // Marks planned run sessions done by imported runs on the same day. sessions: from planSessions(),
 // with isRun/done set. Returns how many were linked.
 export async function linkRunsToPlan(supabase, runs, sessions, planId){
   let n = 0;
   for (const r of runs){
+    if (r.sport !== 'run') continue;
     const day = localIso(new Date(r.started_at));
     const s = sessions.find(x => x.isRun && !x.done && x.date === day);
     if (!s) continue;

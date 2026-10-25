@@ -183,6 +183,20 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="panel-title">Threshold heart rate</div>
+      <div class="panel-desc">The heart rate you could hold for about an hour on the bike. Rides from Strava with heart rate but no power use it to work out TSS. Leave it empty and we'll estimate it from the highest heart rate we've seen.</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="lthrDisplay">—</span>
+        <span class="ftp-unit">bpm</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="number" id="lthrInput" placeholder="e.g. 165" min="100" max="220" step="1">
+        <button class="primary" id="lthrSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="lthrMsg"></div>
+    </div>
+
     </div>
 
     <div class="set-group-title">Riding</div>
@@ -214,7 +228,7 @@
     <div class="set-group">
     <div class="panel">
       <div class="panel-title">Strava</div>
-      <div class="panel-desc">Upload your rides to Strava in one tap, and bring your runs in automatically so they count in your training load.</div>
+      <div class="panel-desc">Upload your rides to Strava in one tap, and bring in your runs and rides from other apps or outdoors automatically, so they count in your training load. Rides recorded here aren't brought back in twice.</div>
       <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
       <button id="stravaConnectBtn" style="background:none; border:none; padding:0; width:auto; cursor:pointer;">
         <img src="strava-connect-button.svg" alt="Connect with Strava" style="height:48px; width:auto; display:block;">
@@ -263,7 +277,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=17';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=1';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -342,6 +356,32 @@ const supabase = createSupabaseClient();
     savePace(v);
   });
 
+  async function loadLthr(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key','threshold_hr').eq('user_id', user.id).maybeSingle();
+      const v = data && data.value && Number(data.value.v);
+      document.getElementById('lthrDisplay').textContent = v ? v : 'Auto';
+      if (v) document.getElementById('lthrInput').value = v;
+    } catch(e){}
+  }
+  document.getElementById('lthrSaveBtn').addEventListener('click', async ()=>{
+    const raw = document.getElementById('lthrInput').value.trim();
+    const v = raw === '' ? null : Math.round(Number(raw));
+    const msg = document.getElementById('lthrMsg');
+    if (v !== null && !(v >= 100 && v <= 220)){ msg.textContent = 'Enter a heart rate between 100 and 220, or leave it empty.'; return; }
+    try {
+      const q = v === null
+        ? supabase.from('settings').delete().eq('user_id', user.id).eq('key', 'threshold_hr')
+        : supabase.from('settings').upsert({ user_id:user.id, key:'threshold_hr', value:{v}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      const { error } = await q;
+      if (error) throw error;
+      document.getElementById('lthrDisplay').textContent = v ?? 'Auto';
+      msg.textContent = v === null ? 'Cleared. We\'ll estimate it.' : 'Saved. New imports will use it.';
+    } catch(e){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  });
+  loadLthr();
+
   async function loadWeight(){
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle();
@@ -409,10 +449,10 @@ const supabase = createSupabaseClient();
         dot.classList.add('on');
         const name = [data.athlete_firstname, data.athlete_lastname].filter(Boolean).join(' ');
         const canImport = /activity:read/.test(data.scope || '');
-        statusEl.textContent = (name ? ('Connected as ' + name) : 'Connected') + (canImport ? ' · runs import automatically' : '');
+        statusEl.textContent = (name ? ('Connected as ' + name) : 'Connected') + (canImport ? ' · rides and runs import automatically' : '');
         // Connected before run import existed: offer to connect again so we can read runs.
         connectBtn.style.display = canImport ? 'none' : '';
-        if (!canImport) document.getElementById('stravaMsg').textContent = 'Connect again to import your runs. Keep "View data about your activities" ticked on Strava\'s page.';
+        if (!canImport) document.getElementById('stravaMsg').textContent = 'Connect again to import your outdoor rides and runs. Keep "View data about your activities" ticked on Strava\'s page.';
         disconnectBtn.style.display = 'block';
       } else {
         statusEl.textContent = 'Not connected';

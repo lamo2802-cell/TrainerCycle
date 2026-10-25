@@ -90,6 +90,8 @@
   .ride-row .mini.run{ display:flex; align-items:center; gap:6px; color:#C084FC; font-size:12px; font-family:var(--mono); }
   .ride-row .mini.run svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tag.run{ color:#C084FC; border-color:rgba(192,132,252,.5); }
+  .tag.strava{ color:#FC6A2C; border-color:rgba(252,106,44,.5); }
+  .ride-row .mini.ext{ color:var(--text-dim); }
   .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button{ border:none; border-radius:0; background:var(--panel-2); padding:8px 14px; }
   .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
@@ -115,7 +117,7 @@
   .tag.plan{ color:var(--accent); }
   @media (max-width:640px){
     .ride-row{ grid-template-columns:4px minmax(0,1fr) auto; }
-    .ride-row .mini{ display:none; }
+    .ride-row .mini, .ride-row .mini.run{ display:none; }
     .ride-row .st span:nth-child(3){ display:none; }
     .summary .val{ font-size:20px; }
   }
@@ -291,7 +293,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=2';
-import { openRunLog, fmtPace, fmtKm } from './run.js?v=1';
+import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
@@ -347,7 +349,7 @@ const supabase = createSupabaseClient();
   async function loadRides(){
     try {
       const [rRes, wRes] = await Promise.all([
-        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,sport,distance_m,elevation_m,source')
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,sport,distance_m,elevation_m,source,external_id')
           .order('started_at',{ascending:false}).limit(200),
         supabase.from('workouts').select('id,name,steps,category')
       ]);
@@ -361,6 +363,15 @@ const supabase = createSupabaseClient();
       return;
     }
     renderList();
+    // New rides and runs from Strava arrive in the background.
+    supabase.from('strava_connections').select('scope').eq('user_id', user.id).maybeSingle().then(async ({ data })=>{
+      if (!data || !/activity:read/.test(data.scope || '')) return;
+      const res = await syncStrava(supabase, user.id);
+      const fresh = res.imported.filter(r => !rides.some(x => x.id === r.id));
+      if (!fresh.length) return;
+      rides = rides.concat(fresh).sort((a,b)=> a.started_at < b.started_at ? 1 : -1);
+      renderList();
+    }, ()=>{});
     const q = new URLSearchParams(window.location.search);
     const summaryId = q.get('summary'), rideId = q.get('ride');
     if (summaryId){
@@ -407,6 +418,26 @@ const supabase = createSupabaseClient();
       + '</div>'
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
+  // Rides brought in from Strava (outdoors or other apps) only have totals, no second-by-second data.
+  function isImported(r){ return r.source === 'strava'; }
+  function importedRideHtml(r){
+    const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
+    const speed = r.distance_m && r.duration_sec ? (r.distance_m/1000/(r.duration_sec/3600)).toFixed(1) : null;
+    const kj = r.avg_power!=null ? Math.round(r.avg_power*r.duration_sec/1000) : null;
+    const how = r.np ? 'from your power and FTP' : r.avg_hr ? 'from your heart rate against your threshold heart rate (set it in Settings)' : 'as a steady endurance ride, since there was no power or heart rate';
+    return '<button class="back" data-back>‹ Rides</button>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag strava">From Strava</span></h1>'
+      + '<div class="when">'+fmtDate(r.started_at)+'</div></div>'
+      + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="ride">Delete ride</button></div></div>'
+      + '<div class="d-stats">'
+      + stat(fmtDur(r.duration_sec),'Duration') + stat(r.distance_m ? fmtKm(r.distance_m) : null,'Distance (km)') + stat(speed,'Speed (km/h)')
+      + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
+      + (r.np ? stat(r.np,'NP (W)') + stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : '')
+      + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
+      + '</div>'
+      + '<div class="panel empty-note">Brought in from Strava. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Outside rides don\'t change your levels or power bests.</div>';
+  }
+  const BIKE_ICON = '<svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M14 5h2"/></svg>';
   const RUN_ICON = '<svg viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 3v5M7 12l3-4 4 1 3 4 3 1M10 8l-1 5"/></svg>';
   function runRowHtml(r){
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
@@ -450,10 +481,11 @@ const supabase = createSupabaseClient();
       return '<div class="week-head"><span class="t">'+title+'</span><span class="s">'+counts+' · '+fmtHm(time)+' · '+tss+' TSS</span></div>'
         + g.rides.map(r=>{
           if (isRun(r)) return runRowHtml(r);
-          const pct = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
+          const pct0 = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
+          const pct = pct0 == null && isImported(r) ? 70 : pct0;
           return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
-            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
-            + miniProfile(r)
+            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(isImported(r) ? '<span class="tag strava">Strava</span>' : '')+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+            + (isImported(r) ? '<span class="mini run ext">'+BIKE_ICON+(r.distance_m ? fmtKm(r.distance_m)+' km' : '')+'</span>' : miniProfile(r))
             + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
             + '</button>';
         }).join('');
@@ -465,10 +497,20 @@ const supabase = createSupabaseClient();
   });
   document.getElementById('detailView').addEventListener('click', async e=>{
     const b = e.target.closest('[data-del-run]'); if (!b) return;
-    const ok = await ask('This removes it from your history and training load.', { title:'Delete this run?', ok:'Delete', danger:true });
+    const what = b.dataset.what || 'run';
+    const ok = await ask('This removes it from your history and training load.', { title:'Delete this '+what+'?', ok:'Delete', danger:true });
     if (!ok) return;
+    const gone = rides.find(x => x.id === b.dataset.delRun) || detailCache[b.dataset.delRun];
     const { error } = await supabase.from('completed_rides').delete().eq('id', b.dataset.delRun);
-    if (error){ notify('Check your connection and try again.', 'Couldn\'t delete that run'); return; }
+    if (error){ notify('Check your connection and try again.', 'Couldn\'t delete that '+what); return; }
+    // Remember deleted Strava imports so the next sync doesn't bring them back.
+    if (gone && gone.external_id){
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key','strava_import_ignored').eq('user_id', user.id).maybeSingle();
+        const list = ((data && data.value && data.value.v) || []).concat(gone.external_id).slice(-200);
+        await supabase.from('settings').upsert({ user_id:user.id, key:'strava_import_ignored', value:{v:list}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      } catch(_){}
+    }
     rides = rides.filter(x => x.id !== b.dataset.delRun); delete detailCache[b.dataset.delRun];
     history.pushState({}, '', location.pathname); showList();
   });
@@ -549,6 +591,7 @@ const supabase = createSupabaseClient();
       detailCache[id] = ride;
     }
     if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); return; }
+    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
@@ -672,7 +715,7 @@ const supabase = createSupabaseClient();
     const w = workoutFor(ride);
     const rideFtp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
     const wl = w ? workoutLevel(w, rideFtp) : null;
-    const { byRide } = computeLevels(rides.filter(x => !isRun(x)), workoutFor, rideFtp);
+    const { byRide } = computeLevels(rides.filter(x => !isRun(x) && x.source !== 'strava'), workoutFor, rideFtp);
     const change = byRide[ride.id];
     const asked = ride.feel != null;
     if (!wl && asked && !prompt) return '';

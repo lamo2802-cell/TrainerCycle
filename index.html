@@ -348,7 +348,7 @@ import { notify } from './sheet.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
-import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStravaRuns, linkRunsToPlan } from './run.js?v=1';
+import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan } from './run.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -431,7 +431,7 @@ const supabase = createSupabaseClient();
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
         supabase.from('strength_workouts').select('id,name'),
-        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index,completed,workout_id,feel,power_bests,sport,distance_m')
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index,completed,workout_id,feel,power_bests,sport,distance_m,source')
           .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
         supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key','getting_started_dismissed').eq('user_id', user.id).maybeSingle(),
@@ -459,7 +459,7 @@ const supabase = createSupabaseClient();
     const ftpW = ftp || 200;
     const workoutsByName = {};
     Object.values(workouts).forEach(w=>{ if (w.steps && !workoutsByName[w.name]) workoutsByName[w.name] = w; });
-    const { levels, byRide } = computeLevels(rides.filter(r => r.sport !== 'run'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
+    const { levels, byRide } = computeLevels(rides.filter(r => r.sport !== 'run' && r.source !== 'strava'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
     const ridesByDate = new Map();
     rides.forEach(r=>{ const d = isoDate(new Date(r.started_at)); if (!ridesByDate.has(d)) ridesByDate.set(d, []); ridesByDate.get(d).push(r); });
     const sessions = plan ? planSessions(plan, follow.startedAt, follow.moves).map(s=>{
@@ -572,6 +572,7 @@ const supabase = createSupabaseClient();
         + '<div class="done-badge">✓ Done for today</div><div class="hero-name">'+esc(r.workout_name)+'</div>'
         + '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'
           + (r.sport === 'run' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span><span><b>'+fmtPace(r.duration_sec/(r.distance_m/1000))+'</b>/km</span>' : '')
+          + (r.sport !== 'run' && r.source === 'strava' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
           + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+(r.sport !== 'run' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
         + (nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
         + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : 'See ride')+'</a></div></div>';
@@ -668,7 +669,7 @@ const supabase = createSupabaseClient();
       catch(e){ b.disabled = false; notify('Check your connection and try again.', 'Couldn\'t undo that'); }
     }));
     // Bring in new runs from Strava in the background, then redraw if any arrived.
-    if (stravaOn) syncStravaRuns(supabase, user.id).then(async res=>{
+    if (stravaOn) syncStrava(supabase, user.id).then(async res=>{
       if (res.imported.length){
         if (plan) await linkRunsToPlan(supabase, res.imported, sessions, plan.id);
         renderToday(user);
@@ -677,7 +678,7 @@ const supabase = createSupabaseClient();
         if (hidden || el.querySelector('.strava-card')) return;
         const card = document.createElement('div');
         card.className = 't-panel setup-card strava-card';
-        card.innerHTML = '<div><b>Bring your runs in from Strava</b><p>Connect Strava again and your runs will count in your Fitness and Form automatically.</p></div>'
+        card.innerHTML = '<div><b>Bring your rides and runs in from Strava</b><p>Connect Strava again and your outdoor rides and runs will count in your Fitness and Form automatically.</p></div>'
           + '<div class="hero-actions" style="margin:0;"><a class="t-btn primary" href="settings.html">Connect again</a><button class="t-btn" data-strava-hide>Not now</button></div>';
         el.querySelector('.today-hello').after(card);
         card.querySelector('[data-strava-hide]').addEventListener('click', ()=>{ card.remove(); try { localStorage.setItem('tc_strava_reconnect_hide', '1'); } catch(_){} });
