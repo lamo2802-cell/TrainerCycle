@@ -20,7 +20,7 @@
     --z-vo2:#F08A3C; --z-anaerobic:#E5484D; --z-neuro:#B14AED;
   }
   *{box-sizing:border-box;}
-  :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
+  :root{ --topbar-h: calc(104px + env(safe-area-inset-top, 0px)); }
   body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
   .app{ position:relative; min-height:100vh; min-height:var(--app-h, 100vh); }
   .sidebar{
@@ -35,7 +35,7 @@
     z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
   }
   .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
-  .main{ padding:calc(96px + env(safe-area-inset-top, 0px)) 28px 24px; max-width:min(1700px, 97vw); margin:0 auto; }
+  .main{ padding:calc(120px + env(safe-area-inset-top, 0px)) 28px 24px; max-width:min(1700px, 97vw); margin:0 auto; }
   .top-bar{
     position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:50;
     display:flex; align-items:center; padding:0 14px; padding-top:env(safe-area-inset-top, 0px);
@@ -50,7 +50,7 @@
   .icon-btn:hover{ border-color:var(--accent); }
   html.standalone #fullscreenToggle{ display:none; }
   .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
-  .top-logo{ height:60px; width:auto; border-radius:8px; display:block; }
+  .top-logo{ height:84px; width:auto; border-radius:8px; display:block; }
   .top-bar-spacer{ flex:1; }
   h1{ font-size:19px; margin:0; letter-spacing:-0.01em; }
   .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
@@ -90,22 +90,19 @@
      the max-height:600px tier below, so that tier never fired here and a little scroll crept back
      in. Trim the same spacing, just less aggressively, to close that gap. */
   @media (max-height:900px) and (orientation:landscape){
-    .main{ padding:calc(64px + env(safe-area-inset-top, 0px)) 18px 8px; }
-    :root{ --topbar-h: calc(56px + env(safe-area-inset-top, 0px)); }
-    .top-logo{ height:46px; }
+    .main{ padding:calc(92px + env(safe-area-inset-top, 0px)) 18px 8px; }
+    :root{ --topbar-h: calc(84px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:70px; }
     .dash{ gap:8px; margin-bottom:8px; }
     .metric{ padding:7px 10px; }
     .metric .val{ font-size:clamp(24px, 5.5vw, 44px); }
     .metric .lbl{ margin-top:2px; font-size:clamp(11px, 2.4vw, 15px); }
     .metric .sub-val{ margin-top:1px; }
-    .step-readout{ margin-bottom:3px; }
-    .step-progress{ margin:3px 0 6px; height:8px; }
-    .next-step{ margin-bottom:6px; }
+    .ride-bar{ margin-bottom:6px; }
     .auto-pause-banner{ padding:8px 12px; margin:-6px 0 10px; }
     .start-hint{ margin-bottom:5px; }
     .chart-panel.flex-chart{ padding:7px 12px; margin-bottom:6px; }
-    .chart-panel-title{ margin-bottom:3px; }
-    .chart-legend{ margin-bottom:3px; }
+    .chart-head{ margin-bottom:3px; }
     .controls{ padding:6px 0 2px; margin-bottom:0; }
     .controls button{ padding:11px 14px; font-size:14px; }
   }
@@ -114,19 +111,27 @@
      progress, two charts, controls) and not much vertical room, so tighten everything up rather
      than relying on flex-shrink alone to make it fit without scrolling. */
   @media (max-height:600px){
-    .main{ padding-top:calc(58px + env(safe-area-inset-top, 0px)); }
-    :root{ --topbar-h: calc(52px + env(safe-area-inset-top, 0px)); }
-    .top-logo{ height:44px; }
+    .main{ padding-top:calc(68px + env(safe-area-inset-top, 0px)); }
+    :root{ --topbar-h: calc(62px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:52px; }
     .dash{ gap:6px; margin-bottom:6px; }
     .metric{ padding:6px 8px; }
     .metric .val{ font-size:clamp(26px, 6.5vw, 46px); }
     .metric .lbl{ font-size:13px; margin-top:1px; }
-    .step-readout{ margin-bottom:3px; font-size:12px; }
-    .step-progress{ margin:2px 0 5px; height:6px; }
-    .next-step{ margin-bottom:5px; font-size:11px; }
+    .ride-bar{ margin-bottom:5px; }
+    .ride-bar-step > b{ font-size:14px; }
+    .ride-bar-meta{ font-size:11px; }
+    .next-pill{ padding:5px 10px; }
+    .next-body{ font-size:14px; }
+    .next-in{ font-size:15px; }
+    .chart-panel.flex-chart{ min-height:70px; }
+    .chart-legend{ display:none; }
+    .controls .lbl-long{ display:none; }
+    .controls .lbl-short{ display:inline; }
     .chart-panel.flex-chart{ padding:5px 8px; margin-bottom:5px; }
-    .chart-panel-title{ margin-bottom:2px; font-size:10px; }
-    .chart-legend{ margin-bottom:2px; font-size:10px; gap:10px; }
+    .chart-head{ margin-bottom:2px; }
+    .chart-panel-title{ font-size:10px; }
+    .chart-legend{ font-size:10px; gap:10px; }
     .chart-click-info{ margin-top:2px; font-size:10px; }
     .controls{ padding:5px 0 2px; }
     .controls button{ padding:9px 10px; font-size:13px; }
@@ -142,24 +147,45 @@
   .dot.on{ background:var(--accent); }
   .dot.err{ background:var(--danger); }
 
-  .dash{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
-  .dash.time-dash .val{ font-size:22px; }
-  .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:clamp(30px, 7.5vw, 60px); font-weight:600; }
-  .metric .lbl{ font-size:clamp(13px, 3vw, 17px); color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:3px; }
-  .metric .sub-val{ font-family:var(--mono); font-size:clamp(10px, 2.2vw, 13px); color:var(--text-dim); margin-top:2px; }
-  .dash{ gap:clamp(8px, 2vw, 20px); margin-bottom:16px; }
+  /* Tablet/laptop: one row of six numbers (TrainerRoad-style); the full-ride chart takes the rest. */
+  .dash{ display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:clamp(8px, 1.2vw, 14px); margin-bottom:12px; }
+  .metric{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 8px; text-align:center; min-width:0; }
+  .metric .val{ font-family:var(--mono); font-size:clamp(26px, 4.3vw, 64px); font-weight:600; line-height:1.05; white-space:nowrap; }
+  .metric .lbl{ font-size:clamp(11px, 1.3vw, 14px); color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
+  .metric .sub-val{ font-family:var(--mono); font-size:clamp(10px, 1.1vw, 13px); color:var(--text-dim); margin-top:2px; }
+  .metric.elapsed .val{ font-size:clamp(22px, 3.4vw, 50px); }
   .metric.power .val{ color:var(--accent); }
   .metric.target .val{ color:var(--text-dim); }
+  .power-target{ display:none; }
 
-  .step-progress{ background:var(--panel-2); border-radius:6px; height:10px; overflow:hidden; margin:4px 0 18px; }
-  .step-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .3s linear; }
+  .auto-pause-banner{ background:rgba(232,185,61,0.12); border:1px solid var(--z-threshold); color:#E8B93D; border-radius:8px; padding:10px 14px; font-size:13px; margin:0 0 12px; }
 
-  .next-step{ font-size:12.5px; color:var(--text-dim); margin-bottom:18px; }
-  .auto-pause-banner{ background:rgba(232,185,61,0.12); border:1px solid var(--z-threshold); color:#E8B93D; border-radius:8px; padding:10px 14px; font-size:13px; margin:-10px 0 18px; }
-  .next-step b{ color:var(--text); }
+  /* Current step on the left, a quiet "Next" pill on the right. */
+  .ride-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .ride-bar-step{ display:flex; flex-direction:column; min-width:0; }
+  .ride-bar-step > b{ font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ride-bar-meta{ font-size:12.5px; color:var(--text-dim); font-family:var(--mono); }
+  .ride-bar-meta b{ color:var(--text); font-weight:600; }
+  .next-pill{
+    --next-c: var(--text-dim);
+    display:flex; align-items:center; gap:10px; min-width:0;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:9px 16px;
+    transition:border-color .3s ease, background-color .3s ease;
+  }
+  .next-dot{ width:11px; height:11px; border-radius:50%; background:var(--next-c); flex-shrink:0; }
+  .next-tag{ font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
+  .next-body{ font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .next-body b{ font-weight:700; }
+  .next-watts{ font-family:var(--mono); font-weight:800; font-size:1.2em; }
+  .next-dur{ color:var(--text-dim); }
+  .next-in{ font-family:var(--mono); font-size:18px; font-weight:600; white-space:nowrap; margin-left:auto; padding-left:8px; }
+  /* Heads-up for the last few seconds of a step: the pill takes on the next zone's colour. */
+  .next-pill.soon{ border-color:var(--next-c); background:color-mix(in srgb, var(--next-c) 16%, var(--panel-2)); }
+  .next-pill.soon .next-in{ font-weight:800; }
 
-  .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .chart-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+  .chart-panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  .chart-expand-btn{ display:none; width:auto; margin:0; padding:6px 12px; font-size:12px; }
   .chart-click-info{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:8px; }
   .chart-click-info b{ color:var(--text); }
 
@@ -170,19 +196,14 @@
     padding:12px 0 6px; z-index:10; border-top:1px solid var(--line);
   }
   .controls button{ width:auto; flex:1; margin-bottom:0; padding:16px 14px; font-size:16px; font-weight:600; }
-  @media (max-width:480px){
-    .controls{ flex-wrap:wrap; }
-    .controls button{ flex:1 1 30%; min-width:0; padding:12px 4px; font-size:12.5px; }
-  }
+  .lbl-short{ display:none; }
 
   .chart-panel{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:16px; }
-  .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
+  .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); }
   .chart-legend span{ display:flex; align-items:center; gap:5px; }
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
-  #overviewChart, #stepChart{ width:100%; display:block; }
+  #overviewChart{ width:100%; display:block; }
 
-  .step-readout{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; color:var(--text-dim); margin-bottom:8px; }
-  .step-readout b{ color:var(--text); font-weight:600; }
 
   .unsupported{ background:rgba(229,72,77,.1); border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:14px; font-size:13px; margin-bottom:20px; }
   a{ color:var(--accent); text-decoration:none; font-size:12.5px; }
@@ -193,6 +214,51 @@
   .celebrate-title{ font-size:clamp(28px,6vw,48px); font-weight:700; color:var(--accent); margin-bottom:10px; }
   .celebrate-subtitle{ font-size:14px; color:var(--text-dim); margin-bottom:26px; font-family:var(--mono); }
   .celebrate-content button{ width:auto; padding:12px 32px; font-size:15px; }
+
+  /* ---- Phone (portrait): numbers first. A big power box, a row of four stats, the Next pill,
+     and the full-ride chart as a short strip that can be expanded. ---- */
+  @media (max-width:600px){
+    :root{ --topbar-h: calc(88px + env(safe-area-inset-top, 0px)); }
+    .top-logo{ height:66px; }
+    .main{ padding:calc(100px + env(safe-area-inset-top, 0px)) 14px 10px; }
+    .live-layout{ gap:10px; }
+    .dash{ grid-template-columns:repeat(4, minmax(0, 1fr)); grid-template-rows:minmax(0, 1fr) auto; gap:8px; margin-bottom:10px; flex:1 1 auto; min-height:0; }
+    .metric{ padding:8px 4px; border-radius:12px; display:flex; flex-direction:column; justify-content:center; }
+    .metric .val{ font-size:clamp(22px, 8vw, 34px); }
+    .metric .lbl{ font-size:10.5px; }
+    .metric.elapsed .val{ font-size:clamp(18px, 6vw, 26px); }
+    .metric.elapsed .sub-val{ display:none; }
+    .metric.power{ grid-column:1 / -1; padding:12px; }
+    .metric.power .val{ font-size:clamp(72px, 30vw, 128px); line-height:.95; }
+    .metric.power .lbl{ font-size:13px; text-transform:none; letter-spacing:0; }
+    .power-target{ display:block; font-size:14px; color:var(--text-dim); margin-top:4px; }
+    .power-target b{ color:var(--text); font-family:var(--mono); }
+    .metric.target{ display:none; }
+    .ride-bar{ flex-direction:column; align-items:stretch; gap:6px; margin-bottom:10px; }
+    .ride-bar-step{ flex-direction:row; align-items:baseline; justify-content:space-between; gap:8px; }
+    .ride-bar-step > b{ font-size:14px; }
+    .ride-bar-meta{ font-size:11.5px; }
+    .next-pill{ padding:11px 12px; gap:8px; }
+    .next-body{ font-size:15px; flex:1; }
+    .next-in{ font-size:16px; }
+    .chart-panel.flex-chart{ flex:0 0 112px; padding:8px 10px; margin-bottom:8px; }
+    .chart-panel.flex-chart.expanded{ flex:1 1 auto; }
+    .live-main:has(.chart-panel.expanded) .dash{ flex:0 0 auto; }
+    .live-main:has(.chart-panel.expanded) .metric.power .val{ font-size:clamp(44px, 16vw, 64px); }
+    /* before the ride starts the setup panel shares the screen, so keep the power box compact */
+    .live-layout:not(.riding-active) .dash{ flex:0 0 auto; grid-template-rows:auto auto; }
+    .live-layout:not(.riding-active) .metric.power .val{ font-size:48px; }
+    .live-layout:not(.riding-active) .chart-panel.flex-chart{ flex:1 1 112px; }
+    .chart-head{ margin-bottom:4px; }
+    .chart-legend{ display:none; }
+    .chart-expand-btn{ display:block; padding:4px 10px; }
+    .chart-click-info{ display:none; }
+    .chart-panel.expanded .chart-click-info{ display:block; }
+    .controls{ gap:6px; padding:8px 0 4px; }
+    .controls button{ flex:1 1 0; min-width:0; padding:13px 2px; font-size:13px; }
+    .controls .lbl-long{ display:none; }
+    .controls .lbl-short{ display:inline; }
+  }
 </style>
 <script>
   (function(){
@@ -268,28 +334,42 @@
         <div id="unsupportedNote"></div>
 
         <div class="dash">
-          <div class="metric power"><div class="val" id="mPower">—</div><div class="lbl">Watts <span id="mWattsPerKg" style="opacity:.7;"></span></div></div>
-          <div class="metric"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval Time Remaining</div></div>
-          <div class="metric"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
+          <div class="metric power">
+            <div class="val" id="mPower">—</div>
+            <div class="lbl">Watts <span id="mWattsPerKg" style="opacity:.7;"></span></div>
+            <div class="power-target">Target <b id="mTargetInline">—</b> W</div>
+          </div>
           <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
-          <div class="metric"><div class="val" id="mWorkoutTime">0:00</div><div class="sub-val" id="mWorkoutTotal"></div><div class="lbl">Elapsed Time</div></div>
-          <div class="metric"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
+          <div class="metric interval"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval</div></div>
+          <div class="metric hr"><div class="val" id="mHr">—</div><div class="lbl">Heart Rate</div></div>
+          <div class="metric cadence"><div class="val" id="mCadence">—</div><div class="lbl">Cadence</div></div>
+          <div class="metric elapsed"><div class="val" id="mWorkoutTime">0:00</div><div class="sub-val" id="mWorkoutTotal"></div><div class="lbl">Elapsed</div></div>
         </div>
 
-        <div class="step-readout">
-          <span>Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="stepNote">—</b></span>
-          <span><b id="stepElapsed">0:00</b> / <span id="stepDur">0:00</span> · <b id="totalRemaining">—</b> remaining</span>
-        </div>
-        <div class="step-progress"><div class="step-progress-fill" id="stepProgressFill"></div></div>
-        <div class="next-step" id="nextStepInfo">—</div>
         <div class="auto-pause-banner" id="stageAutoPause" style="display:none;">⏸ Auto-paused — no pedaling detected. Start pedaling to resume automatically.</div>
 
-        <div class="chart-panel flex-chart">
-          <div class="chart-panel-title">Workout overview</div>
-          <div class="chart-legend">
-            <span><i style="background:var(--accent)"></i>Power</span>
-            <span><i style="background:var(--danger)"></i>Heart rate</span>
-            <span><i style="background:var(--text-dim); opacity:.5;"></i>Workout profile</span>
+        <div class="ride-bar">
+          <div class="ride-bar-step">
+            <b id="stepNote">—</b>
+            <span class="ride-bar-meta">Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="totalRemaining">—</b> to go</span>
+          </div>
+          <div class="next-pill" id="nextPill">
+            <span class="next-dot" id="nextDot"></span>
+            <span class="next-tag">Next</span>
+            <span class="next-body" id="nextStepInfo">—</span>
+            <span class="next-in" id="nextIn"></span>
+          </div>
+        </div>
+
+        <div class="chart-panel flex-chart" id="overviewPanel">
+          <div class="chart-head">
+            <div class="chart-panel-title">Full ride</div>
+            <div class="chart-legend">
+              <span><i style="background:var(--accent)"></i>Power</span>
+              <span><i style="background:var(--danger)"></i>Heart rate</span>
+              <span><i style="background:var(--text-dim); opacity:.5;"></i>Workout profile</span>
+            </div>
+            <button class="chart-expand-btn" id="chartExpandBtn" aria-expanded="false">Expand</button>
           </div>
           <div class="chart-canvas-wrap">
             <canvas id="overviewChart" width="760" height="150" style="cursor:crosshair;"></canvas>
@@ -297,24 +377,12 @@
           <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
         </div>
 
-        <div class="chart-panel flex-chart">
-          <div class="chart-panel-title">Current step (zoomed)</div>
-          <div class="chart-legend">
-            <span><i style="background:var(--accent)"></i>Power</span>
-            <span><i style="background:var(--danger)"></i>Heart rate</span>
-            <span><i style="background:var(--text-dim); opacity:.5;"></i>Target band</span>
-          </div>
-          <div class="chart-canvas-wrap">
-            <canvas id="stepChart" width="760" height="120"></canvas>
-          </div>
-        </div>
-
         <div class="start-hint" id="startHint">Open the menu (☰) and choose a workout to begin.</div>
         <div class="controls">
           <button class="primary" id="startBtn" disabled>Start</button>
           <button id="pauseBtn" disabled>Pause</button>
-          <button id="bailBtn" disabled>Bail to recovery</button>
-          <button id="skipBtn" disabled>Skip step</button>
+          <button id="bailBtn" disabled><span class="lbl-long">Bail to recovery</span><span class="lbl-short">Bail</span></button>
+          <button id="skipBtn" disabled><span class="lbl-long">Skip step</span><span class="lbl-short">Skip</span></button>
           <button class="danger" id="stopBtn" disabled>Stop</button>
         </div>
       </div>
@@ -553,7 +621,7 @@ const supabase = createSupabaseClient();
     stepIndex = -1; stepElapsed = 0;
     renderStepReadout();
     drawOverviewChart();
-    drawStepChart();
+   
     updateStartAvailability();
   }
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
@@ -565,11 +633,9 @@ const supabase = createSupabaseClient();
     document.getElementById('stepIdx').textContent = flatSteps.length ? (stepIndex+1) : '–';
     document.getElementById('stepTotal').textContent = flatSteps.length || '–';
     document.getElementById('stepNote').textContent = step ? ((step.note || '—') + (bailActive ? ' (bailed → recovery)' : '')) : (flatSteps.length ? 'Ready' : 'Free ride');
-    document.getElementById('stepElapsed').textContent = fmtDur(stepElapsed);
-    document.getElementById('stepDur').textContent = step ? fmtDur(step.duration) : '0:00';
     const target = currentTargetWatts();
     document.getElementById('mTarget').textContent = target!=null ? target : '—';
-    document.getElementById('stepProgressFill').style.width = (step && step.duration) ? Math.min(100,(stepElapsed/step.duration)*100)+'%' : '0%';
+    document.getElementById('mTargetInline').textContent = target!=null ? target : '—';
 
     let remaining = 0;
     const totalPlanned = flatSteps.length ? flatSteps.reduce((a,s)=>a+(s.duration||0),0) : null;
@@ -587,24 +653,44 @@ const supabase = createSupabaseClient();
       : (totalPlanned!=null ? ('of ' + fmtDur(totalPlanned)) : '');
     document.getElementById('mIntervalTime').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '0:00';
 
+    renderNextPill(step);
+  }
+
+  // The "Next" pill: what's coming, kept quiet (neutral panel + small zone dot) until the last
+  // NEXT_HEADS_UP_SEC seconds of the current step, when it picks up the next zone's colour.
+  const NEXT_HEADS_UP_SEC = 10;
+  function renderNextPill(step){
+    const pill = document.getElementById('nextPill');
     const nextEl = document.getElementById('nextStepInfo');
+    const inEl = document.getElementById('nextIn');
+    const dot = document.getElementById('nextDot');
+    const stepLeft = step ? Math.max(0, step.duration - stepElapsed) : null;
+    let next = null, body = '';
     if (!flatSteps.length){
-      nextEl.innerHTML = 'Free ride — no workout selected.';
+      body = 'Free ride — no workout selected.';
+    } else if (stepIndex < 0){
+      next = flatSteps[0];
+    } else if (flatSteps[stepIndex+1]){
+      next = flatSteps[stepIndex+1];
+    } else if (isOpenEndedRamp()){
+      next = nextRampStep();
+      if (next) next = Object.assign({}, next, { note: 'Ramp +' + RAMP_EXTEND_STEP_PCT + '%' });
     } else {
-      const next = flatSteps[stepIndex+1];
-      if (next){
-        const nt = targetWatts(next);
-        nextEl.innerHTML = 'Next: <b>' + (next.note||'Step '+(stepIndex+2)) + '</b> · ' + fmtDur(next.duration) + (nt!=null ? ' · ~'+nt+'W' : '');
-      } else if (isOpenEndedRamp() && stepIndex > -1){
-        const more = nextRampStep();
-        const nt = more ? targetWatts(more) : null;
-        nextEl.innerHTML = 'Next: <b>Ramp</b> · +' + RAMP_EXTEND_STEP_PCT + '%' + (nt!=null ? ' · ~'+nt+'W' : '') + ' — keeps going until you can\'t hold it.';
-      } else if (stepIndex+1 >= flatSteps.length && stepIndex > -1){
-        nextEl.innerHTML = 'Last step — cool down and stop when ready.';
-      } else {
-        nextEl.innerHTML = 'Ready to start · ' + flatSteps.length + ' steps.';
-      }
+      body = 'Last step — cool down and stop when ready.';
     }
+    if (next){
+      const nt = targetWatts(next);
+      body = '<b>' + escapeHtmlLive(next.note || ('Step ' + (stepIndex+2))) + '</b>' +
+        (nt!=null ? ' <span class="next-watts">' + nt + '</span> W' : '') +
+        ' <span class="next-dur">· ' + fmtDur(next.duration) + '</span>';
+    }
+    nextEl.innerHTML = body;
+    const showIn = next && stepIndex >= 0 && stepLeft!=null;
+    inEl.textContent = showIn ? ('in ' + fmtDur(stepLeft)) : '';
+    const color = next ? zoneColor(effectivePct(next)) : 'var(--text-dim)';
+    pill.style.setProperty('--next-c', color);
+    dot.style.display = next ? '' : 'none';
+    pill.classList.toggle('soon', !!(showIn && running && stepLeft <= NEXT_HEADS_UP_SEC));
   }
 
   // ---- Bluetooth: trainer (FTMS) ----
@@ -1026,7 +1112,7 @@ const supabase = createSupabaseClient();
     if (running){
       logSample(parsed);
       drawOverviewChart();
-      drawStepChart();
+     
     }
   }
 
@@ -1065,7 +1151,8 @@ const supabase = createSupabaseClient();
       // background: full workout profile, vivid — matching the Workouts library's chart style.
       // Bar HEIGHT scales with intensity (a skyline profile), not just color — same technique as the mini chart.
       let x = 0;
-      flatSteps.forEach(s=>{
+      let nextBlock = null;
+      flatSteps.forEach((s, i)=>{
         const seg = ((s.duration||0)/totalPlanned)*w;
         const pct = effectivePct(s);
         const tw = targetWatts(s);
@@ -1073,8 +1160,21 @@ const supabase = createSupabaseClient();
                    : (pct!=null ? Math.max(h*0.08, Math.min(h*0.95, (pct/160)*h)) : h*0.25);
         ctx.fillStyle = zoneColorRGBA(pct, 0.85);
         ctx.fillRect(x, h-barH, seg, barH);
+        if (i === stepIndex+1) nextBlock = { x, seg, barH, tw };
         x += seg;
       });
+      // outline the next block and label its target, so "what's coming" reads straight off the chart
+      if (nextBlock){
+        ctx.strokeStyle = '#E7ECF2'; ctx.lineWidth = 2;
+        ctx.strokeRect(nextBlock.x+1, h-nextBlock.barH+1, Math.max(2, nextBlock.seg-2), nextBlock.barH-1);
+        if (nextBlock.tw!=null && h > 90 && h-nextBlock.barH > 14){
+          ctx.font = '600 11px -apple-system,sans-serif';
+          ctx.fillStyle = '#E7ECF2';
+          const lbl = nextBlock.tw + 'W';
+          const lx = Math.min(w - ctx.measureText(lbl).width - 2, nextBlock.x + 3);
+          ctx.fillText(lbl, lx, h-nextBlock.barH-4);
+        }
+      }
       // progress cursor — bright line + marker dot + elapsed-time label
       const cx = Math.min(w, (activeElapsedSec/totalPlanned)*w);
       ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
@@ -1083,10 +1183,6 @@ const supabase = createSupabaseClient();
       ctx.beginPath(); ctx.arc(cx, 8, 4, 0, Math.PI*2); ctx.fill();
 
       ctx.font = '11px -apple-system,sans-serif';
-      ctx.fillStyle = 'rgba(16,20,26,0.85)';
-      const label = fmtDur(activeElapsedSec);
-      const labelX = cx < w-40 ? cx+6 : cx-34;
-      ctx.fillText(label, labelX, 20);
 
       // scale labels at bottom corners
       ctx.fillStyle = 'rgba(16,20,26,0.85)';
@@ -1121,6 +1217,17 @@ const supabase = createSupabaseClient();
     line((r,i)=>smoothedPower[i], maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
   }
 
+  // Phones show the full-ride chart as a short strip so the numbers get the room; this toggles it
+  // to full height (and back) without leaving the ride.
+  document.getElementById('chartExpandBtn').addEventListener('click', ()=>{
+    const panel = document.getElementById('overviewPanel');
+    const expanded = panel.classList.toggle('expanded');
+    const btn = document.getElementById('chartExpandBtn');
+    btn.textContent = expanded ? 'Collapse' : 'Expand';
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    setTimeout(drawOverviewChart, 30);
+  });
+
   document.getElementById('overviewChart').addEventListener('click', (e)=>{
     const canvas = document.getElementById('overviewChart');
     const rect = canvas.getBoundingClientRect();
@@ -1146,57 +1253,6 @@ const supabase = createSupabaseClient();
   });
   function escapeHtmlLive(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-  function drawStepChart(){
-    const canvas = document.getElementById('stepChart');
-    fitCanvasWidth(canvas);
-    const ctx = canvas.getContext('2d');
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    const step = flatSteps[stepIndex];
-    if (!step){ return; }
-    const dur = Math.max(step.duration||1, stepElapsed);
-
-    const band = targetWattsRange(step);
-    const samplesInStep = log.filter(r=>r.stepIdx===stepIndex);
-    const maxPower = Math.max(200, band?band.high:0, ...samplesInStep.map(r=>Number(r.power)||0)) * 1.2;
-    const maxHr = Math.max(160, ...samplesInStep.map(r=>Number(r.hr)||0)) * 1.1;
-
-    if (band){
-      const yLow = h - (band.low/maxPower)*h;
-      const yHigh = h - (band.high/maxPower)*h;
-      ctx.fillStyle = 'rgba(140,151,166,0.25)';
-      ctx.fillRect(0, yHigh, w, yLow-yHigh);
-    }
-    // cursor at current position in step
-    const cx = Math.min(w, (stepElapsed/dur)*w);
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(cx, 8, 4, 0, Math.PI*2); ctx.fill();
-
-    ctx.font = '11px -apple-system,sans-serif';
-    ctx.fillStyle = 'rgba(140,151,166,0.9)';
-    ctx.fillText('0:00', 4, h-6);
-    const durLabel = fmtDur(step.duration);
-    ctx.fillText(durLabel, w - ctx.measureText(durLabel).width - 4, h-6);
-
-    if (!samplesInStep.length) return;
-    function line(getVal, max, color){
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
-      samplesInStep.forEach((r,i)=>{
-        const x = Math.min(w, (r.stepElapsed/dur)*w);
-        const y = h - ((Number(getVal(r,i))||0)/max)*h;
-        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      });
-      ctx.stroke();
-    }
-    const smoothedStepPower = smoothedSeries(samplesInStep, 'stepElapsed');
-    line((r,i)=>r.hr, maxHr, 'rgba(229,72,77,0.9)');
-    line((r,i)=>smoothedStepPower[i], maxPower, '#45D6C4');
-  }
-
-  // Trailing-window average of power for chart display, computed from the raw log at draw time -
-  // matches the same smoothing window as the dash display, but never alters the stored log itself.
   function smoothedSeries(entries, timeKey){
     if (powerSmoothingSec <= 0) return entries.map(r => Number(r.power)||0);
     return entries.map((r,i)=>{
@@ -1238,7 +1294,7 @@ const supabase = createSupabaseClient();
   function setRidingActive(active){
     document.querySelector('.live-layout').classList.toggle('riding-active', active);
     // let the layout reflow before resizing charts into the newly available space
-    setTimeout(()=>{ drawOverviewChart(); drawStepChart(); }, 50);
+    setTimeout(()=>{ drawOverviewChart(); }, 50);
   }
 
   // ---- audio beep (Web Audio, no external file needed) ----
@@ -1313,7 +1369,7 @@ const supabase = createSupabaseClient();
     }
     renderStepReadout();
     drawOverviewChart();
-    drawStepChart();
+   
   }
 
   async function advanceStep(){
@@ -1354,7 +1410,7 @@ const supabase = createSupabaseClient();
     setRidingActive(true);
     if (freshStart){
       log = []; activeElapsedSec = 0;
-      drawOverviewChart(); drawStepChart();
+      drawOverviewChart();
     }
     if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
     if (!tickHandle) tickHandle = setInterval(tick, 1000);
@@ -1575,7 +1631,7 @@ const supabase = createSupabaseClient();
     updateStartAvailability();
     renderStepReadout();
     drawOverviewChart();
-    drawStepChart();
+   
   }
 
   document.getElementById('stopBtn').addEventListener('click', ()=>{
@@ -1703,7 +1759,7 @@ const supabase = createSupabaseClient();
     autoReconnectDevices();
   }
   loadData().then(()=>{
-    drawOverviewChart(); drawStepChart();
+    drawOverviewChart();
     const loadParam = new URLSearchParams(window.location.search).get('load');
     if (loadParam && library.find(x=>x.id===loadParam)){
       document.getElementById('workoutSelect').value = loadParam;
@@ -1719,7 +1775,7 @@ const supabase = createSupabaseClient();
   let resizeTimer = null;
   window.addEventListener('resize', ()=>{
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(()=>{ drawOverviewChart(); drawStepChart(); }, 150);
+    resizeTimer = setTimeout(()=>{ drawOverviewChart(); }, 150);
   });
 })();
 </script>
