@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TrainerCycle — TrainerRun</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app-nav.css?v=4">
+<script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
+<meta name="theme-color" content="#10141A">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+
+  .page-banner{
+    height:260px; border-radius:10px; margin-bottom:20px; background-size:cover; background-position:center 40%;
+    position:relative; overflow:hidden;
+  }
+  @media (max-width:600px){ .page-banner{ height:180px; } }
+  .page-banner::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,13,17,0) 0%, rgba(10,13,17,0) 65%, var(--bg) 100%);
+  }
+
+  :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ position:relative; min-height:100vh; }
+  .sidebar{
+    position:fixed; top:var(--topbar-h); left:0; bottom:0; width:340px; max-width:85vw;
+    background:var(--panel); border-right:1px solid var(--line);
+    padding:20px; overflow-y:auto; z-index:60;
+    transform:translateX(-100%); transition:transform .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
+  .sidebar-backdrop{
+    position:fixed; top:var(--topbar-h); left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
+  .main{ padding:calc(96px + env(safe-area-inset-top, 0px)) 28px 60px; max-width:820px; margin:0 auto; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:50;
+    display:flex; align-items:center; padding:0 14px; padding-top:env(safe-area-inset-top, 0px);
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:60px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:10px 10px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:16px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+
+  h1{ font-size:22px; margin:0 0 24px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:16px; }
+  .panel-title{ font-size:15px; font-weight:600; margin-bottom:4px; }
+  .panel-desc{ color:var(--text-dim); font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  .ftp-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .ftp-value{ font-family:var(--mono); font-size:32px; font-weight:600; color:var(--accent); }
+  .ftp-unit{ color:var(--text-dim); font-size:13px; }
+  input[type=number], input[type=text]{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:6px; padding:8px 10px; font-family:var(--mono); font-size:14px; width:140px;
+  }
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 14px; font-size:13.5px; cursor:pointer; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  .status-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-dim); margin-bottom:12px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
+  .dot.on{ background:var(--accent); }
+  .msg{ font-size:12.5px; margin-top:10px; color:var(--text-dim); }
+  .set-group-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.07em; font-weight:600; margin:26px 0 10px; }
+  h1 + .set-group-title{ margin-top:0; }
+  .set-group.two{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 16px; }
+  @media (max-width:760px){ .set-group.two{ grid-template-columns:1fr; } }
+  .panel-desc a{ color:var(--accent); }
+  .main{ max-width:920px; }
+  h1{ margin-bottom:6px; }
+  .page-sub{ color:var(--text-dim); font-size:13.5px; margin:0 0 22px; line-height:1.5; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .panel-head .panel-title{ margin:0; }
+  .kicker{ font-size:11px; color:#C084FC; text-transform:uppercase; letter-spacing:.07em; font-weight:700; margin-bottom:4px; }
+  .muted{ color:var(--text-dim); }
+  .row-btns{ display:flex; gap:8px; flex-wrap:wrap; }
+  a.btn-link{ text-decoration:none; }
+  .seg{ display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button{ flex:1 1 0; min-width:84px; padding:10px 8px; border-radius:8px; font-weight:600; }
+  .seg button.on{ border-color:#C084FC; background:rgba(192,132,252,.14); color:var(--text); }
+  .seg.small button{ min-width:0; flex:0 0 auto; padding:8px 14px; }
+  .field{ margin-bottom:16px; }
+  .field > label, .field-label{ display:block; font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:7px; }
+  .field-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; line-height:1.45; }
+  .days{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .days button{ padding:10px 0 8px; border-radius:8px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .days button small{ font-size:10px; font-weight:500; color:var(--text-dim); min-height:12px; }
+  .days button.on{ border-color:#C084FC; background:rgba(192,132,252,.14); }
+  .days button:disabled{ opacity:.45; cursor:not-allowed; }
+  .days button:disabled:hover{ border-color:var(--line); }
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  @media (max-width:600px){ .two-col{ grid-template-columns:1fr; } }
+  select, input[type=date]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font:inherit; font-size:14px; width:100%; color-scheme:dark; }
+  .opt-list{ display:grid; gap:6px; }
+  .opt{ text-align:left; padding:10px 12px; border-radius:9px; width:100%; }
+  .opt b{ display:block; font-size:13.5px; } .opt span{ font-size:12px; color:var(--text-dim); }
+  .opt.on{ border-color:#C084FC; background:rgba(192,132,252,.1); }
+  .preview{ background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:14px; margin:4px 0 16px; }
+  .preview .pv-stats{ display:flex; flex-wrap:wrap; gap:8px 22px; font-size:12.5px; color:var(--text-dim); margin-bottom:10px; }
+  .preview .pv-stats b{ display:block; color:var(--text); font-family:var(--mono); font-size:16px; }
+  .vol{ width:100%; height:auto; display:block; }
+  .vol-legend{ display:flex; flex-wrap:wrap; gap:12px; font-size:11.5px; color:var(--text-dim); margin-top:6px; }
+  .vol-legend i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .err{ color:#FF8A8D; font-size:12.5px; min-height:16px; }
+  .plan-top{ display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+  .countdown{ text-align:center; min-width:84px; padding:10px 12px; border-radius:10px; background:rgba(192,132,252,.12); border:1px solid rgba(192,132,252,.35); }
+  .countdown b{ display:block; font-family:var(--mono); font-size:30px; color:#C084FC; line-height:1.05; }
+  .countdown span{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+  .plan-top .pt-body{ flex:1; min-width:200px; }
+  .plan-top .pt-name{ font-size:18px; font-weight:700; }
+  .plan-top .pt-sub{ font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.5; } .pt-sub b{ color:var(--text); font-family:var(--mono); }
+  .week-note{ font-size:13px; color:var(--text); line-height:1.5; background:var(--panel-2); border-left:3px solid #C084FC; border-radius:0 8px 8px 0; padding:10px 12px; margin:14px 0; }
+  details.wk{ border:1px solid var(--line); border-radius:10px; margin-bottom:8px; background:var(--panel-2); }
+  details.wk[open]{ background:transparent; }
+  details.wk summary{ list-style:none; cursor:pointer; padding:11px 14px; display:flex; align-items:center; gap:10px; font-size:13.5px; }
+  details.wk summary::-webkit-details-marker{ display:none; }
+  details.wk summary .wn{ font-weight:700; min-width:62px; }
+  details.wk summary .ph{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 8px; border-radius:20px; }
+  details.wk summary .wd{ color:var(--text-dim); flex:1; }
+  details.wk summary .wm{ font-family:var(--mono); color:var(--text-dim); font-size:12.5px; }
+  details.wk summary .now{ font-size:11px; font-weight:700; color:var(--accent); }
+  .wk-body{ padding:0 14px 12px; }
+  .wk-body .note{ font-size:12.5px; color:var(--text-dim); margin:0 0 10px; line-height:1.5; }
+  .sess{ display:grid; grid-template-columns:76px minmax(0,1fr) auto; gap:12px; align-items:start; padding:10px 0; border-top:1px solid var(--line); }
+  .sess .sd{ font-size:12.5px; color:var(--text-dim); font-family:var(--mono); padding-top:2px; }
+  .sess .sd b{ display:block; color:var(--text); font-family:var(--sans); }
+  .sess .sn{ font-weight:600; font-size:14px; } .sess .sn small{ font-weight:500; color:var(--text-dim); margin-left:6px; font-family:var(--mono); font-size:12px; }
+  .sess .sx{ font-size:12.5px; color:var(--text-dim); line-height:1.5; margin-top:3px; }
+  .sess .ss{ font-size:12px; white-space:nowrap; padding-top:2px; }
+  .sess .ss.done{ color:var(--accent); font-weight:600; } .sess .ss.miss{ color:#E5484D; }
+  .sess .ss button{ padding:6px 12px; }
+  .sess.race .sn{ color:#C084FC; }
+  @media (max-width:520px){ .sess{ grid-template-columns:52px minmax(0,1fr); } .sess .ss{ grid-column:2; } }
+  .zones{ width:100%; border-collapse:collapse; font-size:13px; }
+  .zones td{ padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; }
+  .zones td.zn{ white-space:nowrap; font-weight:600; } .zones td.zn i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; }
+  .zones td.zp{ font-family:var(--mono); white-space:nowrap; }
+  .zones td.zf{ color:var(--text-dim); font-size:12.5px; }
+  @media (max-width:520px){ .zones td.zf{ display:none; } }
+  .pace-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .pace-row input{ width:120px; }
+  .suggest{ border:1px solid var(--accent); background:rgba(69,214,196,.07); border-radius:9px; padding:10px 12px; font-size:13px; margin:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .suggest span{ flex:1; min-width:200px; }
+  .preds{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+  .pred{ background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .pred .k{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  .pred .v{ font-family:var(--mono); font-size:20px; font-weight:600; margin:4px 0 2px; }
+  .pred .s{ font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+  .pred.goal{ border-color:rgba(192,132,252,.6); }
+  .recent a{ display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px solid var(--line); color:var(--text); text-decoration:none; font-size:13.5px; }
+  .recent a:hover .rn{ color:var(--accent); }
+  .recent .rm{ font-family:var(--mono); color:var(--text-dim); font-size:12.5px; white-space:nowrap; }
+  @media (max-width:600px){ .recent a{ flex-direction:column; gap:3px; } }
+  .grid2{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 16px; }
+  @media (max-width:760px){ .grid2{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+
+<div class="app sidebar-collapsed">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">TrainerRun</p>
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Today</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="trainerrun.html" class="active">TrainerRun</a>
+        <a href="calendar.html">Calendar</a>
+        <a href="builder.html">Workouts</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
+        <a href="settings.html">Settings</a>
+        <a href="help.html">How to Use</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1>TrainerRun</h1>
+    <p class="page-sub">Race plans, your pace zones and predicted times. Runs count in your Fitness and Form alongside your rides.</p>
+
+    <div class="panel" id="planPanel"><div class="sk-stack" aria-label="Loading"><div class="sk sk-card"></div></div></div>
+
+    <div class="grid2">
+      <div class="panel" id="pacePanel"></div>
+      <div class="panel" id="predPanel"></div>
+    </div>
+    <div class="panel" id="runsPanel"></div>
+  </div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
+import { notify, ask } from './sheet.js?v=2';
+import { isoDate, todayIso, addDays, parseIso, daysBetween, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=3';
+import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=3';
+import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
+  paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=1';
+import { applySwaps } from './adapt.js?v=2';
+import { loadHolidays, applyHolidays } from './holidays.js?v=1';
+const supabase = createSupabaseClient();
+
+(async function(){
+  const user = await requireAuth(supabase);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
+  await requireSubscription(supabase, user);
+
+  const PHASE = { base:['Base','#4C8BF5'], build:['Build','#3DBE7A'], peak:['Peak','#F08A3C'], taper:['Taper','#E8B93D'], race:['Race','#C084FC'] };
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const longDate = iso => parseIso(iso).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+  const fmtMins = m => m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '') : m+' min';
+  const upsert = (key, v) => supabase.from('settings').upsert({ user_id:user.id, key, value:{ v }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+
+  let follow, cyclingRow = null, pace = null, paceDismissed = null, runs = [], holidays = [], doneDays = new Map();
+  let editing = null; // the builder form while it's open
+
+  async function load(){
+    const [st, setRes, rRes, hol] = await Promise.all([
+      loadFollowState(supabase, user.id),
+      supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY]),
+      supabase.from('completed_rides').select('id,workout_name,started_at,duration_sec,distance_m,tss,run_bests,plan_id,plan_day_index,source')
+        .eq('user_id', user.id).eq('sport', 'run').gte('started_at', new Date(Date.now() - 400*86400000).toISOString()).order('started_at', { ascending:false }),
+      loadHolidays(supabase, user.id),
+    ]);
+    follow = st;
+    (setRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) pace = Number(r.value && r.value.v) || null; else paceDismissed = Number(r.value && r.value.v) || null; });
+    setRunPace(pace);
+    runs = rRes.data || [];
+    holidays = hol || [];
+    cyclingRow = follow.runOnly ? null : await loadPlanRow(supabase, follow);
+    doneDays = follow.planId && follow.startedAt ? await loadDoneDays(supabase, user.id, follow.planId, follow.startedAt) : new Map();
+  }
+
+  // Days the followed cycling plan rides on (any week), which runs can't share.
+  function rideDays(){
+    const out = new Set();
+    if (!cyclingRow) return out;
+    (cyclingRow.weeks || []).forEach(w => (w.days || []).forEach((d, i) => { if (d && d.type === 'workout') out.add(i); }));
+    return out;
+  }
+
+  // ---- plan panel ----
+  function followedSessions(){
+    const base = composeFollowed(cyclingRow, follow, follow.runPlan).plan;
+    if (!base) return [];
+    const plan = applyHolidays(applySwaps(base, follow.swaps), follow.startedAt, follow.moves, holidays);
+    return planSessions(plan, follow.startedAt, follow.moves).filter(s => s.dayObj.workoutType === 'run');
+  }
+  function volumeSvg(plan, currentIdx){
+    const mins = plan.weeks.map(w => w.days.reduce((a, d) => a + (d.workoutId ? (runSession(d.workoutId) || {}).mins || 0 : 0), 0));
+    const W = 600, H = 92, gap = 4, bw = (W - gap*(mins.length-1)) / mins.length, max = Math.max(...mins, 1);
+    return '<svg class="vol" viewBox="0 0 '+W+' '+(H+16)+'" role="img" aria-label="Weekly running time">'
+      + plan.weeks.map((w, i) => { const h = Math.max(3, mins[i]/max*H), x = i*(bw+gap);
+        return '<rect x="'+x.toFixed(1)+'" y="'+(H-h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+PHASE[w.phase][1]+'" opacity="'+(w.deload ? .55 : i === currentIdx ? 1 : .85)+'"><title>Week '+(i+1)+': '+fmtMins(mins[i])+'</title></rect>'
+          + (i === currentIdx ? '<rect x="'+x.toFixed(1)+'" y="'+(H+5)+'" width="'+bw.toFixed(1)+'" height="3" rx="1.5" fill="#45D6C4"/>' : ''); }).join('')
+      + '</svg><div class="vol-legend">'+Object.values(PHASE).map(([n,c]) => '<span><i style="background:'+c+'"></i>'+n+'</span>').join('')+'<span><i style="background:#8C97A6; opacity:.55"></i>Lighter week</span></div>';
+  }
+  function renderPlan(){
+    const el = document.getElementById('planPanel');
+    if (editing){ renderBuilder(el); return; }
+    const cfg = follow.runPlan, plan = cfg ? buildRunPlan(cfg) : null;
+    if (!plan){
+      el.innerHTML = '<div class="kicker">Race plan</div><div class="panel-title">Train for a race</div>'
+        + '<div class="panel-desc">Pick a 5K, 10K, half or marathon and its date. You get a plan that builds week by week: easy runs, one or two key sessions with your own paces, a long run, lighter weeks, and a taper into race day.'
+        + (cyclingRow ? ' Runs go on the rest days of '+esc(cyclingRow.name)+'.' : ' Follow a cycling plan too and the runs fit around your rides.')+'</div>'
+        + '<div class="seg" id="quickGoal">'+Object.entries(RUN_GOALS).map(([k, g]) => '<button data-goal="'+k+'">'+g.label+'</button>').join('')+'</div>';
+      el.querySelectorAll('[data-goal]').forEach(b => b.onclick = () => openBuilder({ goal:b.dataset.goal }));
+      return;
+    }
+    const g = RUN_GOALS[cfg.goal], today = todayIso();
+    const toGo = daysBetween(today, cfg.raceDate);
+    const cur = Math.max(0, Math.min(plan.weeks.length-1, Math.floor(daysBetween(plan.start, today) / 7)));
+    const started = today >= plan.start;
+    const pred = predictTime(cfg.goal, pace);
+    const sessions = followedSessions();
+    const byDate = new Map(sessions.map(s => [s.date, s]));
+    const ranOn = new Set(runs.map(r => { const d = new Date(r.started_at); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }));
+    let html = '<div class="panel-head"><div class="kicker">Race plan</div><div class="row-btns"><button id="editPlanBtn">Edit plan</button><button id="stopPlanBtn">Stop plan</button></div></div>'
+      + '<div class="plan-top"><div class="countdown"><b>'+(toGo > 0 ? toGo : toGo === 0 ? '0' : '✓')+'</b><span>'+(toGo > 1 ? 'days to go' : toGo === 1 ? 'day to go' : toGo === 0 ? 'race day' : 'raced')+'</span></div>'
+      + '<div class="pt-body"><div class="pt-name">'+esc(g.label)+' · '+longDate(cfg.raceDate)+'</div>'
+      + '<div class="pt-sub">'+(started ? 'Week '+(cur+1)+' of '+plan.weeks.length+' · '+PHASE[plan.weeks[cur].phase][0] : 'Starts '+longDate(plan.start)+' · '+plan.weeks.length+' weeks')
+      + ' · runs on '+daysLabel(cfg.days)+(cfg.days.some(d => rideDays().has(d)) ? ' (runs on ride days move to free days)' : '')+'<br>'+(pred ? 'Predicted <b>'+fmtDuration(pred)+'</b> at <b>'+fmtPace(goalPace(cfg.goal, pace))+'</b> /km' : 'Set your threshold pace below to see your predicted time and paces')+'</div></div></div>'
+      + (started && plan.weeks[cur] ? '<div class="week-note">'+esc(plan.weeks[cur].note)+'</div>' : '')
+      + volumeSvg(plan, started ? cur : -1) + '<div style="height:14px"></div>';
+    plan.weeks.forEach((w, i) => {
+      const wStart = addDays(plan.start, i*7);
+      let totalMins = 0;
+      const rows = w.days.map((d, di) => {
+        const date = addDays(wStart, di);
+        const s = byDate.get(date);
+        if (!s && !d.workoutId) return '';
+        const id = s ? s.dayObj.workoutId : d.workoutId;
+        const rs = runSession(id); if (!rs) return '';
+        totalMins += rs.mins;
+        const done = s && doneDays.has(s.dayIndex) || ranOn.has(date);
+        const status = done ? '<span class="ss done">✓ Done</span>'
+          : !s ? '<span class="ss muted">Not on your plan</span>'
+          : date < today ? '<span class="ss miss">Missed</span>'
+          : date <= addDays(today, 0) ? '<span class="ss"><button class="primary" data-log="'+s.dayIndex+'" data-date="'+date+'" data-workout="'+esc(id)+'">Log run</button></span>'
+          : '<span class="ss muted">'+(date === addDays(today, 1) ? 'Tomorrow' : '')+'</span>';
+        return '<div class="sess'+(rs.kind === 'race' ? ' race' : '')+'"><div class="sd"><b>'+DAY_NAMES[di]+'</b>'+parseIso(date).getDate()+' '+parseIso(date).toLocaleString('en-GB',{ month:'short' })+'</div>'
+          + '<div><div class="sn">'+esc(rs.name)+'<small>'+fmtMins(rs.mins)+' · '+rs.tss+' TSS</small></div><div class="sx">'+esc(rs.text)+(s && s.dayObj.holiday ? ' Easy version while you\'re on holiday.' : '')+'</div></div>'+status+'</div>';
+      }).join('');
+      const [pn, pc] = PHASE[w.phase];
+      html += '<details class="wk"'+(started ? (i === cur ? ' open' : '') : (i === 0 ? ' open' : ''))+'><summary><span class="wn">Week '+(i+1)+'</span>'
+        + '<span class="ph" style="color:'+pc+'; background:'+pc+'22">'+(w.deload ? 'Lighter' : pn)+'</span>'
+        + '<span class="wd">'+longDate(wStart)+'</span>'+(started && i === cur ? '<span class="now">This week</span>' : '')+'<span class="wm">'+fmtMins(totalMins)+'</span></summary>'
+        + '<div class="wk-body"><p class="note">'+esc(w.note)+'</p>'+rows+'</div></details>';
+    });
+    el.innerHTML = html;
+    el.querySelector('#editPlanBtn').onclick = () => openBuilder(Object.assign({}, cfg));
+    el.querySelector('#stopPlanBtn').onclick = stopPlan;
+    el.querySelectorAll('[data-log]').forEach(b => b.onclick = async () => {
+      const saved = await openRunLog(supabase, user.id, { session:{ dayIndex:Number(b.dataset.log), date:b.dataset.date, workoutId:b.dataset.workout }, planId: follow.planId });
+      if (saved){ runs.unshift(saved); doneDays.set(Number(b.dataset.log), saved); renderAll(); }
+    });
+  }
+
+  // ---- plan builder ----
+  function defaults(over){
+    const goal = over.goal || 'half', g = RUN_GOALS[goal];
+    const busy = rideDays();
+    const pick = [1, 3, 6, 5, 0, 2, 4].filter(d => !busy.has(d)).slice(0, 3).sort((a,b)=>a-b);
+    let race = addDays(todayIso(), g.weeks*7);
+    race = addDays(race, (7 - parseIso(race).getDay()) % 7); // a Sunday
+    return Object.assign({ goal, raceDate: race, days: pick.length ? pick : [1,3,6], longDay: pick.includes(6) ? 6 : pick[pick.length-1], level:'regular', build:'steady', hard:1 }, over);
+  }
+  function openBuilder(cfg){ editing = defaults(cfg); renderPlan(); document.getElementById('planPanel').scrollIntoView({ behavior:'smooth', block:'start' }); }
+  function renderBuilder(el){
+    const f = editing, busy = rideDays();
+    const g = RUN_GOALS[f.goal];
+    if (!f.days.includes(f.longDay)) f.longDay = f.days[f.days.length-1];
+    const plan = buildRunPlan(f);
+    const dates = runPlanDates(f);
+    let err = '';
+    if (!f.days.length) err = 'Pick at least one day to run.';
+    else if (f.raceDate <= todayIso()) err = 'Pick a race date in the future.';
+    else if (dates.weeks < 4) err = 'That\'s under 4 weeks away. Pick a later race, or a shorter distance.';
+    let preview = '';
+    if (plan && !err){
+      const mins = plan.weeks.map(w => w.days.reduce((a, d) => a + (d.workoutId ? runSession(d.workoutId).mins : 0), 0));
+      const longest = Math.max(...plan.weeks.map(w => w.days.reduce((a, d) => d.workoutId && d.workoutId.endsWith('-long') ? Math.max(a, runSession(d.workoutId).mins) : a, 0)));
+      preview = '<div class="preview"><div class="pv-stats"><span><b>'+plan.weeks.length+' weeks</b>from '+longDate(plan.start)+'</span><span><b>'+fmtMins(Math.max(...mins))+'</b>biggest week</span><span><b>'+fmtMins(longest)+'</b>longest run</span>'
+        + (pace ? '<span><b>'+fmtDuration(predictTime(f.goal, pace))+'</b>predicted today</span>' : '')+'</div>'+volumeSvg(plan, -1)
+        + (dates.weeks < g.weeks ? '<div class="field-hint">Shorter than the '+g.weeks+' weeks we\'d suggest for a '+g.label+', so it builds faster.</div>' : '')+'</div>';
+    }
+    el.innerHTML = '<div class="kicker">Race plan</div><div class="panel-title">'+(follow.runPlan ? 'Edit your plan' : 'Build your plan')+'</div><div class="panel-desc">Your plan updates as you change these.</div>'
+      + '<div class="field"><span class="field-label">Race</span><div class="seg" id="fGoal">'+Object.entries(RUN_GOALS).map(([k, x]) => '<button data-v="'+k+'" class="'+(k === f.goal ? 'on' : '')+'">'+x.label+'</button>').join('')+'</div></div>'
+      + '<div class="two-col"><div class="field"><label for="fDate">Race date</label><input type="date" id="fDate" min="'+addDays(todayIso(), 14)+'" value="'+f.raceDate+'"></div>'
+      + '<div class="field"><label for="fLong">Long run day</label><select id="fLong">'+f.days.map(d => '<option value="'+d+'"'+(d === f.longDay ? ' selected' : '')+'>'+['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][d]+'</option>').join('')+'</select></div></div>'
+      + '<div class="field"><span class="field-label">Days you run</span><div class="days" id="fDays">'+DAY_NAMES.map((n, i) => '<button data-v="'+i+'" class="'+(f.days.includes(i) ? 'on' : '')+'"'+(busy.has(i) ? ' disabled' : '')+'>'+n+'<small>'+(busy.has(i) ? 'Ride' : '')+'</small></button>').join('')+'</div>'
+      + '<div class="field-hint">'+(busy.size ? 'Days your cycling plan rides on are kept for the bike. ' : '')+'Three or four days suits most people. Race day is always included.</div></div>'
+      + '<div class="field"><span class="field-label">Experience</span><div class="opt-list" id="fLevel">'+RUN_LEVELS.map(l => '<button class="opt'+(l.id === f.level ? ' on' : '')+'" data-v="'+l.id+'"><b>'+l.label+'</b><span>'+l.text+'</span></button>').join('')+'</div></div>'
+      + '<div class="two-col"><div class="field"><span class="field-label">How fast to build</span><div class="seg small" id="fBuild">'+RUN_BUILDS.map(b => '<button data-v="'+b.id+'" class="'+(b.id === f.build ? 'on' : '')+'">'+b.label+'</button>').join('')+'</div></div>'
+      + '<div class="field"><span class="field-label">Hard runs a week</span><div class="seg small" id="fHard">'+[1,2].map(n => '<button data-v="'+n+'" class="'+(n === f.hard ? 'on' : '')+'"'+(f.level === 'new' && n === 2 || f.days.length < 4 && n === 2 ? ' disabled' : '')+'>'+n+'</button>').join('')+'</div>'
+      + '<div class="field-hint">Two needs four run days and some experience.</div></div></div>'
+      + preview + '<div class="err" id="fErr">'+err+'</div>'
+      + '<div class="row-btns"><button class="primary" id="fSave"'+(err ? ' disabled' : '')+'>'+(follow.runPlan ? 'Save plan' : 'Start plan')+'</button><button id="fCancel">Cancel</button></div>';
+    const rerender = () => renderBuilder(el);
+    el.querySelectorAll('#fGoal [data-v]').forEach(b => b.onclick = () => { const was = RUN_GOALS[f.goal].weeks; f.goal = b.dataset.v;
+      if (!follow.runPlan || f.raceDate === defaults({ goal:Object.keys(RUN_GOALS).find(k => RUN_GOALS[k].weeks === was) }).raceDate) f.raceDate = defaults({ goal:f.goal }).raceDate; rerender(); });
+    el.querySelector('#fDate').onchange = e => { if (e.target.value){ f.raceDate = e.target.value; rerender(); } };
+    el.querySelector('#fLong').onchange = e => { f.longDay = Number(e.target.value); rerender(); };
+    el.querySelectorAll('#fDays [data-v]').forEach(b => b.onclick = () => { const d = Number(b.dataset.v);
+      f.days = f.days.includes(d) ? f.days.filter(x => x !== d) : f.days.concat(d).sort((a,b)=>a-b);
+      if (f.days.length < 4) f.hard = 1; rerender(); });
+    el.querySelectorAll('#fLevel [data-v]').forEach(b => b.onclick = () => { f.level = b.dataset.v; if (f.level === 'new') f.hard = 1; rerender(); });
+    el.querySelectorAll('#fBuild [data-v]').forEach(b => b.onclick = () => { f.build = b.dataset.v; rerender(); });
+    el.querySelectorAll('#fHard [data-v]').forEach(b => b.onclick = () => { f.hard = Number(b.dataset.v); rerender(); });
+    el.querySelector('#fCancel').onclick = () => { editing = null; renderPlan(); };
+    el.querySelector('#fSave').onclick = savePlan;
+  }
+  async function clearRunOnlyState(){
+    // A run plan on its own uses the plan move/swap/skip keys; they point at its old days once it changes.
+    if (!follow.runOnly && follow.runPlan || cyclingRow) return;
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves', 'active_plan_swaps', 'active_plan_cursor_day']);
+  }
+  async function savePlan(){
+    const btn = document.getElementById('fSave'); btn.disabled = true;
+    const f = editing;
+    const cfg = { goal:f.goal, raceDate:f.raceDate, start: runPlanDates(Object.assign({}, f, { start:null })).start, days:f.days, longDay:f.longDay, level:f.level, build:f.build, hard:f.hard };
+    try {
+      await clearRunOnlyState();
+      const { error } = await upsert(RUN_PLAN_KEY, cfg);
+      if (error) throw error;
+    } catch(e){ btn.disabled = false; notify('Check your connection and try again.', 'Couldn\'t save your plan'); return; }
+    editing = null;
+    await load(); renderAll();
+  }
+  async function stopPlan(){
+    const ok = await ask('Your logged runs stay in your history. Planned runs come off your calendar.', { title:'Stop your '+RUN_GOALS[follow.runPlan.goal].label+' plan?', ok:'Stop plan', danger:true });
+    if (!ok) return;
+    try {
+      await clearRunOnlyState();
+      const { error } = await supabase.from('settings').delete().eq('user_id', user.id).eq('key', RUN_PLAN_KEY);
+      if (error) throw error;
+    } catch(e){ notify('Check your connection and try again.', 'Couldn\'t stop the plan'); return; }
+    await load(); renderAll();
+  }
+
+  // ---- pace ----
+  function renderPace(){
+    const el = document.getElementById('pacePanel');
+    const est = paceFromRuns(runs);
+    const suggest = shouldSuggestPace(est, pace, paceDismissed);
+    el.innerHTML = '<div class="panel-title">Threshold pace & zones</div>'
+      + '<div class="panel-desc">The pace you could hold for about an hour. Every session\'s paces come from it.</div>'
+      + '<div class="ftp-row"><span class="ftp-value" style="color:#C084FC">'+(pace ? fmtPace(pace) : '—')+'</span><span class="ftp-unit">/km</span></div>'
+      + (suggest ? '<div class="suggest"><span>'+(pace ? 'Your runs say you\'re faster: ' : 'From your runs: ')+'<b>'+fmtPace(est.pace)+' /km</b>, from '+esc(est.basis)+'.</span><button class="primary" id="paceUse">Use it</button><button id="paceNo">Not now</button></div>' : '')
+      + '<div class="pace-row"><input type="text" id="paceIn" placeholder="e.g. 4:45" inputmode="numeric" value="'+(pace ? fmtPace(pace) : '')+'"><button id="paceSave">Save</button></div>'
+      + '<div class="pace-row"><input type="text" id="fiveIn" placeholder="5K, e.g. 22:30" inputmode="numeric"><button id="fiveBtn">From a 5K time</button></div>'
+      + '<div class="msg" id="paceMsg"></div>'
+      + (pace ? '<table class="zones" style="margin-top:10px">'+PACE_ZONES.map(z => { const p = zonePaces(z.id, pace);
+          return '<tr><td class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</td><td class="zp">'+fmtPace(p[0])+'–'+fmtPace(p[1])+'</td><td class="zf">'+esc(z.feel)+'</td></tr>'; }).join('')+'</table>' : '');
+    const save = async v => {
+      const { error } = await upsert(RUN_PACE_KEY, v);
+      if (error){ document.getElementById('paceMsg').textContent = 'Couldn\'t save. Check your connection and try again.'; return; }
+      pace = v; setRunPace(v); renderAll();
+    };
+    el.querySelector('#paceSave').onclick = () => { const v = parsePace(el.querySelector('#paceIn').value); if (!v){ el.querySelector('#paceMsg').textContent = 'Enter a pace per km like 4:45.'; return; } save(v); };
+    el.querySelector('#fiveBtn').onclick = () => { const t = parseDuration(el.querySelector('#fiveIn').value); const v = t && t >= 600 && t <= 3600 ? thresholdFrom5k(t) : null;
+      if (!v){ el.querySelector('#paceMsg').textContent = 'Enter your 5K time as minutes and seconds, like 22:30.'; return; } save(v); };
+    if (suggest){
+      el.querySelector('#paceUse').onclick = () => save(est.pace);
+      el.querySelector('#paceNo').onclick = async () => { paceDismissed = est.pace; renderPace(); try { await upsert(PACE_SUGGEST_DISMISSED_KEY, est.pace); } catch(_){} };
+    }
+  }
+  function renderPred(){
+    const el = document.getElementById('predPanel');
+    const goal = follow.runPlan && follow.runPlan.goal;
+    el.innerHTML = '<div class="panel-title">Predicted race times</div><div class="panel-desc">'+(pace ? 'From your threshold pace of '+fmtPace(pace)+' /km, if you\'re trained for the distance.' : 'Set your threshold pace to see these.')+'</div>'
+      + '<div class="preds">'+Object.entries(RUN_GOALS).map(([k, g]) => '<div class="pred'+(k === goal ? ' goal' : '')+'"><div class="k">'+g.label+'</div><div class="v">'+(pace ? fmtDuration(predictTime(k, pace)) : '—')+'</div><div class="s">'+(pace ? fmtPace(goalPace(k, pace))+' /km' : '')+'</div></div>').join('')+'</div>';
+  }
+  function renderRuns(){
+    const el = document.getElementById('runsPanel');
+    const recent = runs.slice(0, 6);
+    el.innerHTML = '<div class="panel-head"><div class="panel-title">Recent runs</div><div class="row-btns"><a class="btn-link" href="rides.html?view=records"><button>Records</button></a><button class="primary" id="logAny">+ Log a run</button></div></div>'
+      + (recent.length ? '<div class="recent">'+recent.map(r => '<a href="rides.html?ride='+encodeURIComponent(r.id)+'"><span class="rn">'+esc(r.workout_name)+' <span class="muted">· '+longDate(isoDate(new Date(r.started_at)))+'</span></span><span class="rm">'
+          + (r.distance_m ? fmtKm(r.distance_m)+' km · '+fmtPace(r.duration_sec/(r.distance_m/1000))+'/km · ' : '')+fmtMins(Math.round(r.duration_sec/60))+(r.tss != null ? ' · '+r.tss+' TSS' : '')+'</span></a>').join('')+'</div>'
+        : '<div class="panel-desc" style="margin:0">No runs yet. Log one here, or connect Strava in Settings and they come in by themselves.</div>');
+    el.querySelector('#logAny').onclick = async () => { const saved = await openRunLog(supabase, user.id); if (saved){ runs.unshift(saved); renderAll(); } };
+  }
+  function renderAll(){ renderPlan(); renderPace(); renderPred(); renderRuns(); }
+
+  try { await load(); renderAll(); }
+  catch(e){ document.getElementById('planPanel').innerHTML = '<div class="panel-desc">Couldn\'t load your running. Check your connection and refresh.</div>'; }
+  if (new URLSearchParams(location.search).get('build')) openBuilder({ goal: new URLSearchParams(location.search).get('build') });
+
+
+  // ---- sidebar collapse ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
+
+  // ---- fullscreen toggle ----
+  // ---- fullscreen toggle (not needed when already running as an installed app) ----
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  if (!document.documentElement.classList.contains('standalone')){
+    fullscreenToggle.addEventListener('click', ()=>{
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', ()=>{
+      fullscreenToggle.innerHTML = document.fullscreenElement ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+    });
+  }
+})();
+</script>
+</body>
+</html>

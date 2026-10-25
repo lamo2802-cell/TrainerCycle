@@ -90,6 +90,28 @@
   .ride-row .mini.run{ display:flex; align-items:center; gap:6px; color:#C084FC; font-size:12px; font-family:var(--mono); }
   .ride-row .mini.run svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tag.run{ color:#C084FC; border-color:rgba(192,132,252,.5); }
+  a.ghost-btn{ text-decoration:none; display:inline-flex; align-items:center; }
+  .rec-grid{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; margin-top:14px; }
+  @media (max-width:720px){ .rec-grid{ grid-template-columns:repeat(2, minmax(0,1fr)); } .rec-grid > :last-child{ grid-column:span 2; } }
+  .rec{ background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; text-align:left; color:var(--text); cursor:pointer; width:100%; margin:0; font:inherit; }
+  .rec:hover{ border-color:#3A4452; }
+  .rec .k{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  .rec .v{ font-family:var(--mono); font-size:22px; font-weight:600; margin:4px 0 2px; }
+  .rec .v small{ font-size:12px; color:var(--text-dim); font-weight:500; margin-left:3px; }
+  .rec .s{ font-size:11.5px; color:var(--text-dim); }
+  .rec .s b{ color:var(--text); font-weight:600; }
+  .rec-curve{ width:100%; height:auto; display:block; }
+  .rec-legend{ display:flex; gap:14px; font-size:11.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; }
+  .rec-legend i{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:5px; }
+  .run-recs{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  .run-recs td, .run-recs th{ padding:9px 6px; border-top:1px solid var(--line); text-align:left; }
+  .run-recs th{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; font-weight:500; border-top:0; }
+  .run-recs td.t{ font-family:var(--mono); font-weight:600; }
+  .run-recs td.p{ font-family:var(--mono); color:var(--text-dim); }
+  .run-recs tr[data-ride]{ cursor:pointer; } .run-recs tr[data-ride]:hover td{ background:var(--panel-2); }
+  @media (max-width:520px){ .run-recs .opt{ display:none; } }
+  .tag.strava{ color:#FC6A2C; border-color:rgba(252,106,44,.5); }
+  .ride-row .mini.ext{ color:var(--text-dim); }
   .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button{ border:none; border-radius:0; background:var(--panel-2); padding:8px 14px; }
   .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
@@ -115,7 +137,7 @@
   .tag.plan{ color:var(--accent); }
   @media (max-width:640px){
     .ride-row{ grid-template-columns:4px minmax(0,1fr) auto; }
-    .ride-row .mini{ display:none; }
+    .ride-row .mini, .ride-row .mini.run{ display:none; }
     .ride-row .st span:nth-child(3){ display:none; }
     .summary .val{ font-size:20px; }
   }
@@ -262,6 +284,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="trainerrun.html">TrainerRun</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -278,7 +301,7 @@
       <div class="page-banner" style="background-image:url('banner-rides.jpg');"></div>
       <div class="page-head">
         <h1>Rides</h1>
-        <div class="head-actions"><button class="ghost-btn" id="logRunBtn">+ Log a run</button>
+        <div class="head-actions"><a class="ghost-btn" id="recordsBtn" href="?view=records">Records</a><button class="ghost-btn" id="logRunBtn">+ Log a run</button>
         <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="rides">Rides</button><button data-f="runs">Runs</button><button data-f="partial">Partial</button></div></div>
       </div>
       <div class="summary" id="summary"></div>
@@ -291,7 +314,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=2';
-import { openRunLog, fmtPace, fmtKm } from './run.js?v=1';
+import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=3';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
@@ -347,7 +370,7 @@ const supabase = createSupabaseClient();
   async function loadRides(){
     try {
       const [rRes, wRes] = await Promise.all([
-        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,sport,distance_m,elevation_m,source')
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,run_bests,sport,distance_m,elevation_m,source,external_id')
           .order('started_at',{ascending:false}).limit(200),
         supabase.from('workouts').select('id,name,steps,category')
       ]);
@@ -361,9 +384,21 @@ const supabase = createSupabaseClient();
       return;
     }
     renderList();
+    // New rides and runs from Strava arrive in the background.
+    supabase.from('strava_connections').select('scope').eq('user_id', user.id).maybeSingle().then(async ({ data })=>{
+      if (!data || !/activity:read/.test(data.scope || '')) return;
+      const res = await syncStrava(supabase, user.id);
+      const fresh = res.imported.filter(r => !rides.some(x => x.id === r.id));
+      if (!fresh.length) return;
+      rides = rides.concat(fresh).sort((a,b)=> a.started_at < b.started_at ? 1 : -1);
+      renderList();
+      if (new URLSearchParams(location.search).get('view') === 'records') showRecords();
+    }, ()=>{});
     const q = new URLSearchParams(window.location.search);
     const summaryId = q.get('summary'), rideId = q.get('ride');
-    if (summaryId){
+    if (q.get('view') === 'records'){
+      await showRecords();
+    } else if (summaryId){
       history.replaceState({ ride: summaryId }, '', '?ride='+encodeURIComponent(summaryId));
       await showDetail(summaryId, { justSaved:true });
     } else if (rideId){
@@ -393,6 +428,19 @@ const supabase = createSupabaseClient();
   // ---- list: summary + rides grouped by week ----
   function isRun(r){ return r.sport === 'run'; }
   const FEEL_WORDS = ['', 'Easy', 'Moderate', 'Hard', 'Very hard', 'All out'];
+  // Best times within this run (from Strava), flagged when they're a record.
+  function runBestsHtml(r){
+    if (!r.run_bests) return '';
+    const rows = RUN_RECS.filter(([m]) => r.run_bests[m]);
+    if (!rows.length) return '';
+    const before = rides.filter(x => isRun(x) && x.id !== r.id && x.run_bests && x.started_at < r.started_at);
+    return '<div class="panel"><div class="panel-title"><span>Best efforts</span></div><div class="pb-chips" style="margin:0">'
+      + rows.map(([m, label])=>{
+        const t = r.run_bests[m], prev = Math.min(Infinity, ...before.map(x => Number(x.run_bests[m]) || Infinity));
+        const pb = before.length && t < prev;
+        return '<span class="'+(pb ? 'pb-chip' : 'tag')+'" style="margin:0">'+(pb ? 'New ' : '')+label+' '+fmtDur(t)+'</span>';
+      }).join('') + '</div></div>';
+  }
   function runDetailHtml(r){
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
@@ -405,8 +453,33 @@ const supabase = createSupabaseClient();
       + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
+  // Rides brought in from Strava (outdoors or other apps) only have totals, no second-by-second data.
+  function isImported(r){ return r.source === 'strava'; }
+  function importedPbs(r){
+    const pbs = newBests(r, rides.some(x=>x.id===r.id) ? rides : rides.concat([r]));
+    return pbs.length ? '<div class="pb-chips">'+pbs.map(b=>'<span class="pb-chip" title="Previous best '+b.prev+' W">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
+  }
+  function importedRideHtml(r){
+    const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
+    const speed = r.distance_m && r.duration_sec ? (r.distance_m/1000/(r.duration_sec/3600)).toFixed(1) : null;
+    const kj = r.avg_power!=null ? Math.round(r.avg_power*r.duration_sec/1000) : null;
+    const how = r.np ? 'from your power and FTP' : r.avg_hr ? 'from your heart rate against your threshold heart rate (set it in Settings)' : 'as a steady endurance ride, since there was no power or heart rate';
+    return '<button class="back" data-back>‹ Rides</button>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag strava">From Strava</span></h1>'
+      + '<div class="when">'+fmtDate(r.started_at)+'</div>'+importedPbs(r)+'</div>'
+      + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="ride">Delete ride</button></div></div>'
+      + '<div class="d-stats">'
+      + stat(fmtDur(r.duration_sec),'Duration') + stat(r.distance_m ? fmtKm(r.distance_m) : null,'Distance (km)') + stat(speed,'Speed (km/h)')
+      + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
+      + (r.np ? stat(r.np,'NP (W)') + stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : '')
+      + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
+      + '</div>'
+      + '<div class="panel empty-note">Brought in from Strava. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Outside rides don\'t change your workout levels.</div>';
+  }
+  const BIKE_ICON = '<svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M14 5h2"/></svg>';
   const RUN_ICON = '<svg viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 3v5M7 12l3-4 4 1 3 4 3 1M10 8l-1 5"/></svg>';
   function runRowHtml(r){
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
@@ -450,10 +523,11 @@ const supabase = createSupabaseClient();
       return '<div class="week-head"><span class="t">'+title+'</span><span class="s">'+counts+' · '+fmtHm(time)+' · '+tss+' TSS</span></div>'
         + g.rides.map(r=>{
           if (isRun(r)) return runRowHtml(r);
-          const pct = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
+          const pct0 = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
+          const pct = pct0 == null && isImported(r) ? 70 : pct0;
           return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
-            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
-            + miniProfile(r)
+            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(isImported(r) ? '<span class="tag strava">Strava</span>' : '')+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+            + (isImported(r) ? '<span class="mini run ext">'+BIKE_ICON+(r.distance_m ? fmtKm(r.distance_m)+' km' : '')+'</span>' : miniProfile(r))
             + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
             + '</button>';
         }).join('');
@@ -465,10 +539,20 @@ const supabase = createSupabaseClient();
   });
   document.getElementById('detailView').addEventListener('click', async e=>{
     const b = e.target.closest('[data-del-run]'); if (!b) return;
-    const ok = await ask('This removes it from your history and training load.', { title:'Delete this run?', ok:'Delete', danger:true });
+    const what = b.dataset.what || 'run';
+    const ok = await ask('This removes it from your history and training load.', { title:'Delete this '+what+'?', ok:'Delete', danger:true });
     if (!ok) return;
+    const gone = rides.find(x => x.id === b.dataset.delRun) || detailCache[b.dataset.delRun];
     const { error } = await supabase.from('completed_rides').delete().eq('id', b.dataset.delRun);
-    if (error){ notify('Check your connection and try again.', 'Couldn\'t delete that run'); return; }
+    if (error){ notify('Check your connection and try again.', 'Couldn\'t delete that '+what); return; }
+    // Remember deleted Strava imports so the next sync doesn't bring them back.
+    if (gone && gone.external_id){
+      try {
+        const { data } = await supabase.from('settings').select('value').eq('key','strava_import_ignored').eq('user_id', user.id).maybeSingle();
+        const list = ((data && data.value && data.value.v) || []).concat(gone.external_id).slice(-200);
+        await supabase.from('settings').upsert({ user_id:user.id, key:'strava_import_ignored', value:{v:list}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      } catch(_){}
+    }
     rides = rides.filter(x => x.id !== b.dataset.delRun); delete detailCache[b.dataset.delRun];
     history.pushState({}, '', location.pathname); showList();
   });
@@ -484,14 +568,97 @@ const supabase = createSupabaseClient();
     showDetail(row.dataset.ride);
   });
   window.addEventListener('popstate', ()=>{
-    const id = new URLSearchParams(location.search).get('ride');
-    if (id) showDetail(id); else showList();
+    const q = new URLSearchParams(location.search), id = q.get('ride');
+    if (id) showDetail(id); else if (q.get('view') === 'records') showRecords(); else showList();
   });
   function showList(){
     document.getElementById('detailView').style.display = 'none';
     document.getElementById('listView').style.display = '';
     current = null;
   }
+
+  // ---- records: best power over the key durations, best run times over the key distances ----
+  const REC_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600];
+  const REC_KEY = [5, 60, 300, 1200, 3600];
+  const RUN_RECS = [[400,'400 m'],[1000,'1K'],[1609,'1 mile'],[5000,'5K'],[10000,'10K'],[21097,'Half marathon'],[42195,'Marathon']];
+  let weightKg = null;
+  function bestsOver(list, key, durs, better){
+    const out = {};
+    for (const r of list){
+      const b = r[key]; if (!b) continue;
+      for (const d of durs){ const v = Number(b[d]); if (v > 0 && (!out[d] || better(v, out[d].v))) out[d] = { v, r }; }
+    }
+    return out;
+  }
+  function curveSvg(all, recent, width){
+    const pts = m => REC_DURS.filter(d => m[d]).map(d => ({ d, w:m[d].v }));
+    const a = pts(all), b = pts(recent);
+    if (a.length < 2) return '';
+    const W = Math.max(280, Math.round(width || 600)), H = W < 500 ? 170 : 200, pad = { l:40, r:10, t:10, b:22 };
+    const maxW = Math.ceil(Math.max(...a.map(p=>p.w)) * 1.1 / 100) * 100;
+    const x0 = Math.log(REC_DURS[0]), x1 = Math.log(REC_DURS[REC_DURS.length-1]);
+    const X = d => pad.l + (Math.log(d)-x0)/(x1-x0)*(W-pad.l-pad.r), Y = w => pad.t + (1-w/maxW)*(H-pad.t-pad.b);
+    const step = maxW > 800 ? 200 : 100;
+    let g = '';
+    for (let w = 0; w <= maxW; w += step) g += '<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+Y(w).toFixed(1)+'" y2="'+Y(w).toFixed(1)+'" stroke="#2A323D"/><text x="'+(pad.l-6)+'" y="'+(Y(w)+4).toFixed(1)+'" text-anchor="end">'+w+'</text>';
+    REC_KEY.forEach(d => { g += '<text x="'+X(d).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+pbLabel(d).replace(' ','')+'</text>'; });
+    const line = (p, col, dash) => p.length < 2 ? '' : '<polyline fill="none" stroke="'+col+'" stroke-width="2.2" stroke-linejoin="round"'+(dash ? ' stroke-dasharray="5 4"' : '')+' points="'+p.map(q=>X(q.d).toFixed(1)+','+Y(q.w).toFixed(1)).join(' ')+'"/>';
+    const dots = p => p.map(q=>'<circle cx="'+X(q.d).toFixed(1)+'" cy="'+Y(q.w).toFixed(1)+'" r="3" fill="#45D6C4" stroke="#171D25" stroke-width="2"/>').join('');
+    return '<svg class="rec-curve" viewBox="0 0 '+W+' '+H+'" style="font:11px var(--mono); fill:#8C97A6;">'+g+line(b, 'rgba(232,185,61,.85)', true)+line(a, '#45D6C4')+dots(a)+'</svg>';
+  }
+  function recordsHtml(width){
+    const ridesOnly = rides.filter(r => !isRun(r));
+    const since = new Date(Date.now() - 90*86400000).toISOString();
+    const all = bestsOver(ridesOnly, 'power_bests', REC_DURS, (a,b)=>a>b);
+    const recent = bestsOver(ridesOnly.filter(r => r.started_at >= since), 'power_bests', REC_DURS, (a,b)=>a>b);
+    const runs = bestsOver(rides.filter(isRun), 'run_bests', RUN_RECS.map(x=>x[0]), (a,b)=>a<b);
+    const shortDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' }); };
+    let html = '<button class="back" data-back>‹ Rides</button><div class="d-head"><div><h1>Records</h1><div class="when">Your best power and run times, from TrainerCycle and Strava.</div></div></div>';
+    html += '<div class="panel"><div class="panel-title"><span>Power bests</span><span class="rec-legend"><span><i style="background:#45D6C4"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span></div>';
+    if (!Object.keys(all).length){
+      html += '<div class="empty-note">Ride with a power meter and your best efforts will show here.</div>';
+    } else {
+      html += curveSvg(all, recent, width) + '<div class="rec-grid">' + REC_KEY.map(d=>{
+        const a = all[d], n = recent[d];
+        if (!a) return '<div class="rec" style="cursor:default"><div class="k">'+pbLabel(d)+'</div><div class="v">—</div></div>';
+        return '<button class="rec" data-ride="'+a.r.id+'"><div class="k">'+pbLabel(d)+'</div><div class="v">'+a.v+'<small>W</small></div>'
+          + '<div class="s">'+(weightKg ? '<b>'+(a.v/weightKg).toFixed(1)+'</b> W/kg · ' : '')+shortDate(a.r.started_at)+'</div>'
+          + '<div class="s">90 days: <b>'+(n ? n.v+' W' : '—')+'</b></div></button>';
+      }).join('') + '</div>';
+    }
+    html += '</div><div class="panel"><div class="panel-title"><span>Running bests</span></div>';
+    const runRows = RUN_RECS.filter(([m]) => runs[m]);
+    if (!runRows.length){
+      html += '<div class="empty-note">Best times come from your Strava runs. Connect Strava in Settings and they\'ll fill in after your next run.</div>';
+    } else {
+      html += '<table class="run-recs"><thead><tr><th>Distance</th><th>Time</th><th>Pace</th><th class="opt">Run</th><th>Date</th></tr></thead><tbody>'
+        + runRows.map(([m, label])=>{ const b = runs[m];
+          return '<tr data-ride="'+b.r.id+'"><td>'+label+'</td><td class="t">'+fmtDur(b.v)+'</td><td class="p">'+fmtPace(b.v/(m/1000))+'<span class="opt"> /km</span></td><td class="opt">'+escapeHtml(b.r.workout_name)+'</td><td>'+shortDate(b.r.started_at)+'</td></tr>'; }).join('')
+        + '</tbody></table>';
+    }
+    return html + '</div>';
+  }
+  async function showRecords(){
+    const el = document.getElementById('detailView');
+    document.getElementById('listView').style.display = 'none';
+    el.style.display = '';
+    window.scrollTo(0,0);
+    current = null;
+    if (weightKg == null){
+      try { const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle(); weightKg = (data && data.value && Number(data.value.v)) || 0; } catch(_){ weightKg = 0; }
+    }
+    el.innerHTML = recordsHtml(el.clientWidth - 34);
+  }
+  document.getElementById('recordsBtn').addEventListener('click', e=>{
+    e.preventDefault();
+    history.pushState({ view:'records' }, '', '?view=records');
+    showRecords();
+  });
+  document.getElementById('detailView').addEventListener('click', e=>{
+    const row = e.target.closest('.rec[data-ride], .run-recs [data-ride]'); if (!row) return;
+    history.pushState({ ride: row.dataset.ride }, '', '?ride='+encodeURIComponent(row.dataset.ride));
+    showDetail(row.dataset.ride);
+  });
 
   // ---- ride detail ----
   let current = null; // { ride, sec: per-second series, ftp }
@@ -549,6 +716,7 @@ const supabase = createSupabaseClient();
       detailCache[id] = ride;
     }
     if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); return; }
+    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
@@ -672,7 +840,7 @@ const supabase = createSupabaseClient();
     const w = workoutFor(ride);
     const rideFtp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
     const wl = w ? workoutLevel(w, rideFtp) : null;
-    const { byRide } = computeLevels(rides.filter(x => !isRun(x)), workoutFor, rideFtp);
+    const { byRide } = computeLevels(rides.filter(x => !isRun(x) && x.source !== 'strava'), workoutFor, rideFtp);
     const change = byRide[ride.id];
     const asked = ride.feel != null;
     if (!wl && asked && !prompt) return '';

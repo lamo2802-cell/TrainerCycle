@@ -58,11 +58,16 @@ export function nextSession(plan, startedAtIso, { cursorDay=0, moves=null, doneD
 }
 
 const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps','active_plan_runs'];
+// A race-goal run plan (settings key run_plan, see run-plans.js) is followed on its own when no cycling
+// plan is: planId is then 'run-plan' and the plan starts on the run plan's start date.
 export async function loadFollowState(supabase, userId){
-  const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS);
+  const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS.concat('run_plan'));
   const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
-  return { planId: v.active_plan_id || null, startedAt: v.active_plan_started_at || null,
-    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null };
+  const runPlan = v.run_plan && v.run_plan.goal ? v.run_plan : null;
+  const runOnly = !v.active_plan_id && !!runPlan;
+  return { planId: runOnly ? 'run-plan' : (v.active_plan_id || null), startedAt: runOnly ? runPlan.start : (v.active_plan_started_at || null),
+    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null,
+    runPlan, runOnly };
 }
 export const FOLLOW_SETTING_KEYS = FOLLOW_KEYS;
 

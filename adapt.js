@@ -4,11 +4,13 @@
 //   - an upcoming workout far above (or, when rides feel easy, below) their level in its zone
 //     can swap for a library workout of similar length that's a better fit
 //   - when they're very tired, the next hard session can swap for an endurance ride
+//   - when they're very tired or their last two runs felt hard, the next quality run can swap for an easy run
 // Accepted swaps live in settings key active_plan_swaps ({ dayIndex: workoutId }) and are
 // applied to the plan with applySwaps() before anything else reads it. Suggestions the rider
 // said no to are kept in plan_adapt_dismissed so they don't come back.
-import { addDays, parseIso } from './plan-schedule.js?v=2';
+import { addDays, parseIso } from './plan-schedule.js?v=3';
 import { workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
+import { runSession } from './run.js?v=3';
 
 export const SWAPS_KEY = 'active_plan_swaps';
 export const DISMISSED_KEY = 'plan_adapt_dismissed';
@@ -58,8 +60,9 @@ function dayName(iso, today){
 
 // sessions: from planSessions(), each with { dayIndex, date, dayObj, isStrength, done, skipped, name, steps, durationSec }.
 // rides: recent completed_rides; byRide/levels: from computeLevels(); form: today's CTL - ATL.
+// away(date): optional, true on holiday days, which a missed session is never moved onto.
 // Returns [{ id, kind, title, text, accept:{ type:'move'|'swap', dayIndex, date?, workoutId? }, acceptLabel }].
-export function findAdaptations({ sessions, rides, levels, byRide, library, ftp, today, form, dismissed, ridToday }){
+export function findAdaptations({ sessions, rides, levels, byRide, library, ftp, today, form, dismissed, ridToday, away }){
   const out = [];
   const no = new Set(dismissed || []);
   const live = sessions.filter(s => !s.skipped);
@@ -76,7 +79,7 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
     const id = 'miss:'+s.dayIndex+':'+s.date;
     if (no.has(id)) continue;
     let free = null;
-    for (let d = ridToday ? addDays(today, 1) : today; d <= weekEnd; d = addDays(d, 1)){ if (!busy.has(d)){ free = d; break; } }
+    for (let d = ridToday ? addDays(today, 1) : today; d <= weekEnd; d = addDays(d, 1)){ if (!busy.has(d) && !(away && away(d))){ free = d; break; } }
     if (!free) continue;
     out.push({ id, kind:'missed', title:'You missed '+possessive(dayName(s.date, today))+' '+s.name,
       text:'You have a free day '+dayName(free, today)+'. Move it there so the week still adds up.',
@@ -144,6 +147,24 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
       text: why+'. '+alt.w.name+' ('+z.short+' '+fmtLevel(alt.level)+', '+difficultyLabel(alt.level, rider).label+') is a better fit than '+z.short+' '+fmtLevel(wl.level)+'.',
       accept:{ type:'swap', dayIndex:s.dayIndex, workoutId:alt.w.id }, acceptLabel:'Swap to '+alt.w.name });
     levelTweaks++; zonesDone.add(wl.zone);
+  }
+
+  // 4. Runs: tired, or the last two runs felt very hard -> the next quality run in the next three days becomes an easy run.
+  const lastRuns = rides.filter(r => r.sport === 'run').sort((a,b)=> a.started_at < b.started_at ? -1 : 1).slice(-2);
+  const runsHard = lastRuns.length === 2 && lastRuns.every(r => r.feel != null && r.feel >= 4)
+    && Date.now() - new Date(lastRuns[1].started_at).getTime() < 7*86400000;
+  if ((form != null && form < -30) || runsHard){
+    const next = live.find(s => !s.done && s.date >= today && s.date <= addDays(today, 2) && s.dayObj.workoutType === 'run' && !s.dayObj.swappedFrom
+      && (runSession(s.dayObj.workoutId) || {}).kind === 'quality');
+    const id = next && 'run-tired:'+next.dayIndex;
+    if (next && !no.has(id)){
+      const rs = runSession(next.dayObj.workoutId);
+      const mins = rs.mins >= 45 ? 50 : rs.mins >= 35 ? 40 : 30;
+      const alt = runSession('run-easy-'+mins);
+      out.push({ id, kind:'tired', title: runsHard ? 'Your last two runs felt really hard' : 'You\'re carrying a lot of fatigue',
+        text:(runsHard ? 'Your legs may need a breather.' : 'Your form is '+Math.round(form)+'.')+' Swap '+dayName(next.date, today)+'\'s '+rs.name+' for an easy '+mins+' minute run and come back to the faster running fresher.',
+        accept:{ type:'swap', dayIndex:next.dayIndex, workoutId:'run-easy-'+mins }, acceptLabel:'Swap to '+alt.name+' '+mins+' min' });
+    }
   }
   return out;
 }

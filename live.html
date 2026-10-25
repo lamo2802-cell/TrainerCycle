@@ -371,6 +371,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="trainerrun.html">TrainerRun</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html" class="active">Live Ride</a>
@@ -535,9 +536,10 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubsc
 import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=2';
-import { applySwaps } from './adapt.js?v=1';
-import { addRuns } from './run.js?v=1';
+import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=3';
+import { applySwaps } from './adapt.js?v=2';
+import { loadHolidays, applyHolidays } from './holidays.js?v=1';
+import { addRuns } from './run.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -768,9 +770,9 @@ const supabase = createSupabaseClient();
   let riderLevels = null;
   async function loadRiderLevels(){
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source').eq('user_id', user.id);
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run' && r.source !== 'strava'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
@@ -832,7 +834,7 @@ const supabase = createSupabaseClient();
       if (!st.planId || !st.startedAt) return;
       const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', st.planId).maybeSingle();
       if (!plan) return;
-      activePlan = { plan: applySwaps(addRuns(plan, st.runs), st.swaps), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
+      activePlan = { plan: applyHolidays(applySwaps(addRuns(plan, st.runs), st.swaps), st.startedAt, st.moves, await loadHolidays(supabase, user.id)), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
     } catch(e){ activePlan = null; /* linking is a bonus; the ride still saves without it */ }
   }
   function findPlanSession(workoutId){

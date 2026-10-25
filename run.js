@@ -12,17 +12,78 @@ export const RUN_PLAN_KEY = 'active_plan_runs';
 // How hard a run felt -> intensity factor, used when pace can't be worked out.
 const FEEL_IF = { 1:0.68, 2:0.76, 3:0.85, 4:0.92, 5:1.0 };
 
-// Run sessions a plan can include. IF is the session's typical intensity, used for planned TSS.
+// Pace zones from threshold pace T (seconds per km). Each zone is a pace range as a multiple of T
+// (bigger = slower) and its typical intensity factor for planned TSS.
+export const PACE_ZONES = [
+  { id:'easy',      name:'Easy',      lo:1.22, hi:1.38, IF:0.72, color:'#4C8BF5', feel:'Conversational. You could talk in full sentences.' },
+  { id:'steady',    name:'Steady',    lo:1.10, hi:1.18, IF:0.83, color:'#3DBE7A', feel:'Comfortably firm: around marathon effort.' },
+  { id:'threshold', name:'Threshold', lo:0.98, hi:1.03, IF:1.00, color:'#E8B93D', feel:'Comfortably hard: what you could hold for about an hour.' },
+  { id:'interval',  name:'Interval',  lo:0.90, hi:0.95, IF:1.06, color:'#F08A3C', feel:'Hard: around 3K to 5K race effort.' },
+  { id:'fast',      name:'Fast',      lo:0.83, hi:0.88, IF:1.12, color:'#E5484D', feel:'Quick and relaxed: short reps and strides.' },
+];
+const ZONE_BY_ID = Object.fromEntries(PACE_ZONES.map(z => [z.id, z]));
+const RECOVERY = { jog:{ name:'jog', IF:0.62, mult:1.45 }, walk:{ name:'walk', IF:0.45, mult:2.2 } };
+const DEFAULT_PACE = 300; // 5:00/km, for estimating how long distance-based steps take when no threshold pace is set
+export function zonePaces(zoneId, T){ const z = ZONE_BY_ID[zoneId]; return z && T ? [Math.round(T*z.lo), Math.round(T*z.hi)] : null; }
+let runPace = null; // the rider's threshold pace, so session descriptions can show real paces
+export function setRunPace(T){ runPace = Number(T) || null; }
+
+// Run sessions are lists of steps: { mins | secs | km, zone, reps?, rec?:{ mins | secs, kind:'jog'|'walk' } }.
+// A race step uses zone 'race' with the race's IF. Built-in sessions below; run plans register more.
 export const RUN_SESSIONS = {
-  'run-easy-30':   { name:'Easy run',            mins:30, IF:0.72, kind:'easy',      text:'Conversational pace the whole way. You should be able to talk in full sentences.' },
-  'run-easy-40':   { name:'Easy run',            mins:40, IF:0.72, kind:'easy',      text:'Conversational pace the whole way. You should be able to talk in full sentences.' },
-  'run-strides-35':{ name:'Easy run + strides',  mins:35, IF:0.75, kind:'easy',      text:'30 min easy, then 6 × 20 s quick, relaxed strides with a full walk back between each.' },
-  'run-tempo-40':  { name:'Tempo run',           mins:40, IF:0.85, kind:'tempo',     text:'10 min easy, 3 × 6 min at threshold pace with 2 min jog between, then easy to finish.' },
-  'run-long-60':   { name:'Long run',            mins:60, IF:0.74, kind:'long',      text:'Steady and easy. Keep the effort low enough that the last 10 minutes feel as controlled as the first.' },
-  'run-long-75':   { name:'Long run',            mins:75, IF:0.74, kind:'long',      text:'Steady and easy. Keep the effort low enough that the last 10 minutes feel as controlled as the first.' },
+  'run-easy-30':   { name:'Easy run', kind:'easy', blurb:'Conversational pace the whole way.', steps:[{ mins:30, zone:'easy' }] },
+  'run-easy-40':   { name:'Easy run', kind:'easy', blurb:'Conversational pace the whole way.', steps:[{ mins:40, zone:'easy' }] },
+  'run-easy-50':   { name:'Easy run', kind:'easy', blurb:'Conversational pace the whole way.', steps:[{ mins:50, zone:'easy' }] },
+  'run-strides-35':{ name:'Easy run + strides', kind:'easy', blurb:'Strides are quick and relaxed, not sprints.', steps:[{ mins:30, zone:'easy' }, { reps:6, secs:20, zone:'fast', rec:{ secs:60, kind:'walk' } }] },
+  'run-tempo-40':  { name:'Tempo run', kind:'quality', steps:[{ mins:10, zone:'easy' }, { reps:3, mins:6, zone:'threshold', rec:{ mins:2, kind:'jog' } }, { mins:8, zone:'easy' }] },
+  'run-long-60':   { name:'Long run', kind:'long', blurb:'Keep it easy enough that the last 10 minutes feel as controlled as the first.', steps:[{ mins:60, zone:'easy' }] },
+  'run-long-75':   { name:'Long run', kind:'long', blurb:'Keep it easy enough that the last 10 minutes feel as controlled as the first.', steps:[{ mins:75, zone:'easy' }] },
 };
-export function runSession(id){ return RUN_SESSIONS[id] || null; }
-export function plannedRunTss(id){ const s = RUN_SESSIONS[id]; return s ? Math.round(s.mins/60 * s.IF*s.IF * 100) : null; }
+export function registerRunSession(id, spec){ RUN_SESSIONS[id] = spec; }
+
+function stepSecs(st, T){
+  const one = st.km ? st.km * (T || DEFAULT_PACE) * (st.zone === 'race' ? 1/(st.IF || 1) : (ZONE_BY_ID[st.zone] ? (ZONE_BY_ID[st.zone].lo + ZONE_BY_ID[st.zone].hi)/2 : 1.25))
+    : (st.mins || 0)*60 + (st.secs || 0);
+  const rec = st.rec ? (st.rec.mins || 0)*60 + (st.rec.secs || 0) : 0;
+  const n = st.reps || 1;
+  return { work: one*n, rec: rec*Math.max(0, n-1) };
+}
+// Duration (seconds) and planned TSS of a session, from its steps.
+export function runLoad(spec, T = runPace){
+  let secs = 0, tss = 0;
+  for (const st of spec.steps || []){
+    const { work, rec } = stepSecs(st, T);
+    const IF = st.zone === 'race' ? (st.IF || 1) : (ZONE_BY_ID[st.zone] || ZONE_BY_ID.easy).IF;
+    const rIF = st.rec ? RECOVERY[st.rec.kind || 'jog'].IF : 0;
+    secs += work + rec;
+    tss += work/3600 * IF*IF * 100 + rec/3600 * rIF*rIF * 100;
+  }
+  return { secs: Math.round(secs), tss: Math.round(tss), IF: secs ? Math.sqrt(tss / (secs/3600) / 100) : 0.72 };
+}
+const fmtLen = st => st.km ? (st.km >= 1 ? (Math.round(st.km*10)/10)+' km' : Math.round(st.km*1000)+' m') : st.mins ? st.mins+' min' : st.secs+' s';
+// "10 min easy (6:05-6:50/km), then 5 x 1 km at interval pace (4:16-4:30/km) with 2 min jog between"
+export function describeRun(spec, T = runPace){
+  const parts = (spec.steps || []).map(st => {
+    const p = st.zone === 'race' ? null : zonePaces(st.zone, T);
+    const zn = st.zone === 'race' ? 'race pace' : ZONE_BY_ID[st.zone] ? ZONE_BY_ID[st.zone].name.toLowerCase() : st.zone;
+    const pace = p ? ' ('+fmtPace(p[0])+'–'+fmtPace(p[1])+'/km)' : '';
+    if (st.reps){
+      const rec = st.rec ? ' with '+fmtLen(st.rec)+' '+RECOVERY[st.rec.kind || 'jog'].name+' between' : '';
+      return st.reps+' × '+fmtLen(st)+(st.zone === 'fast' && st.secs ? ' strides' : ' at '+zn+' pace')+pace+rec;
+    }
+    return fmtLen(st)+' '+(st.zone === 'race' ? 'at race pace' : zn)+pace;
+  });
+  const body = parts.length ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + (parts.length > 1 ? ', then ' + parts.slice(1).join(', then ') : '') + '.' : '';
+  return (spec.blurb ? spec.blurb + ' ' : '') + body;
+}
+// A session as pages use it: name, kind, mins, IF, text (with paces when a threshold pace is set), steps.
+export function runSession(id){
+  const s = RUN_SESSIONS[id];
+  if (!s) return null;
+  const load = runLoad(s);
+  return Object.assign({}, s, { id, mins: Math.round(load.secs/60), IF: load.IF, tss: load.tss, text: describeRun(s) });
+}
+export function plannedRunTss(id){ const s = runSession(id); return s ? s.tss : null; }
 
 // "4:45" / "4.45" / "445" -> 285 seconds. null if it doesn't look like a pace.
 export function parsePace(str){
@@ -182,7 +243,8 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
 // ---- Strava run import ----
 // Pulls new runs from Strava (at most every 30 minutes unless forced). Resolves with
 // { imported: [rows], needsReconnect } and never throws: import is a background nicety.
-export async function syncStravaRuns(supabase, userId, { force = false } = {}){
+// Pulls in runs and outside rides from Strava (the strava-import function skips anything already here).
+export async function syncStrava(supabase, userId, { force = false } = {}){
   const key = 'tc_strava_sync_' + userId;
   try { if (!force && Date.now() - Number(localStorage.getItem(key) || 0) < 30*60000) return { imported: [], skipped: true }; } catch(_){}
   try {
@@ -193,11 +255,14 @@ export async function syncStravaRuns(supabase, userId, { force = false } = {}){
   } catch(_){ return { imported: [] }; }
 }
 
+export const syncStravaRuns = syncStrava;
+
 // Marks planned run sessions done by imported runs on the same day. sessions: from planSessions(),
 // with isRun/done set. Returns how many were linked.
 export async function linkRunsToPlan(supabase, runs, sessions, planId){
   let n = 0;
   for (const r of runs){
+    if (r.sport !== 'run') continue;
     const day = localIso(new Date(r.started_at));
     const s = sessions.find(x => x.isRun && !x.done && x.date === day);
     if (!s) continue;
