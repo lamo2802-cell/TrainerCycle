@@ -226,6 +226,18 @@
   .last-ride .stats{ display:flex; gap:16px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim); }
   .last-ride .stats b{ color:var(--text); font-size:15px; display:block; }
 
+  .adapt-card{ border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); }
+  .adapt-item{ display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+  .adapt-item:first-of-type{ border-top:none; padding-top:2px; }
+  .adapt-ic{ flex:0 0 34px; height:34px; border-radius:10px; display:grid; place-items:center; background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--accent); }
+  .adapt-ic.easier, .adapt-ic.tired{ background:color-mix(in srgb, #4C8BF5 16%, transparent); color:#7FAEF8; }
+  .adapt-ic.harder{ background:color-mix(in srgb, #F08A3C 16%, transparent); color:#F5A66A; }
+  .adapt-ic svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .adapt-body{ flex:1; min-width:0; }
+  .adapt-body b{ font-size:14.5px; }
+  .adapt-body p{ margin:3px 0 10px; font-size:13px; color:var(--text-dim); line-height:1.45; }
+  .adapt-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .adapted-note{ font-size:12.5px; color:var(--accent); margin-top:4px; }
   .setup-card{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; border-color:var(--accent); }
   .setup-card b{ display:block; font-size:15px; margin-bottom:3px; }
   .setup-card p{ margin:0; color:var(--text-dim); font-size:13px; line-height:1.4; }
@@ -328,12 +340,13 @@
 
 <script type="module">
 import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=17';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss } from './plan-schedule.js?v=1';
-import { loadSeries, formLabel } from './training-load.js?v=1';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss } from './plan-schedule.js?v=2';
+import { loadSeries, formLabel } from './training-load.js?v=2';
 import { notify } from './sheet.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
+import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -358,6 +371,12 @@ const supabase = createSupabaseClient();
     threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)' };
   const ZONES = [[60,'#5A6472'],[76,'#4C8BF5'],[91,'#3DBE7A'],[106,'#E8B93D'],[121,'#F08A3C'],[151,'#E5484D'],[Infinity,'#B14AED']];
   function zoneHex(pct){ for (const [max,c] of ZONES) if (pct < max) return c; return '#B14AED'; }
+  const ADAPT_ICON = {
+    missed: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M10 15h6m-2-2 2 2-2 2"/></svg>',
+    easier: '<svg viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>',
+    harder: '<svg viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg>',
+    tired:  '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  };
   function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function fmtMins(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h '+(m%60 ? String(m%60).padStart(2,'0')+'m' : '') : m+' min'; }
   function flattenSteps(steps){ let out=[]; for (const s of steps||[]){ if (s.type==='repeat'){ for (let i=0;i<s.repetitions;i++) out=out.concat(flattenSteps(s.steps)); } else out.push(s); } return out; }
@@ -400,11 +419,11 @@ const supabase = createSupabaseClient();
     el.innerHTML = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div><div class="sk-stack"><div class="sk" style="height:230px"></div><div class="t-grid"><div class="sk" style="height:170px"></div><div class="sk" style="height:170px"></div></div></div>';
 
     const today = todayIso();
-    let ftpDismissed = null, gsDismissed = false, stravaOn = false;
+    let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
     let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {};
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
-      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes] = await Promise.all([
+      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes] = await Promise.all([
         supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
@@ -413,8 +432,10 @@ const supabase = createSupabaseClient();
           .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
         supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key','getting_started_dismissed').eq('user_id', user.id).maybeSingle(),
-        supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle()
+        supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
+        supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle()
       ]);
+      if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
       stravaOn = !!(stravaRes && stravaRes.data);
       if (dRes && dRes.data && dRes.data.value && typeof dRes.data.value.v === 'number') ftpDismissed = dRes.data.value.v;
@@ -425,7 +446,7 @@ const supabase = createSupabaseClient();
       rides = rRes.data || [];
       if (follow.planId && follow.startedAt){
         const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
-        plan = data || null;
+        plan = data ? applySwaps(data, follow.swaps) : null;
         if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
       }
     } catch(e){
@@ -444,6 +465,12 @@ const supabase = createSupabaseClient();
       return Object.assign(s, { name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : wk.category, isStrength, steps: wk.steps,
         durationSec: wk.duration_sec, tss: isStrength ? null : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
     }) : [];
+    const daily = new Map();
+    rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
+    const firstDay = rides.length ? isoDate(new Date(rides[0].started_at)) : today;
+    const series = loadSeries(daily, firstDay < today ? firstDay : today, today, today);
+    const now = series[series.length-1];
+    const form = Math.round(now.ctl - now.atl);
     const rideHref = s => s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
 
@@ -496,6 +523,17 @@ const supabase = createSupabaseClient();
     const todays = sessions.filter(s=>s.date === today && !s.skipped);
     const todoToday = todays.find(s=>!s.done);
     const ridTodayList = ridesByDate.get(today) || [];
+
+    // Adaptive plan tweaks: small changes to the plan the rider can take or leave.
+    const adaptations = plan ? findAdaptations({ sessions, rides, levels, byRide, library: Object.values(workouts).filter(w=>w.steps),
+      ftp: ftpW, today, form, dismissed: adaptDismissed, ridToday: ridTodayList.length > 0 }) : [];
+    if (adaptations.length){
+      html += '<div class="t-panel adapt-card"><div class="t-label"><span>Plan adjustments</span></div>'
+        + adaptations.map((a,i)=>'<div class="adapt-item" data-adapt-row="'+i+'"><span class="adapt-ic '+a.kind+'">'+ADAPT_ICON[a.kind]+'</span>'
+          + '<div class="adapt-body"><b>'+esc(a.title)+'</b><p>'+esc(a.text)+'</p>'
+          + '<div class="adapt-actions"><button class="t-btn primary sm" data-adapt-accept="'+i+'">'+esc(a.acceptLabel)+'</button><button class="t-btn sm" data-adapt-dismiss="'+i+'">No thanks</button></div></div></div>').join('')
+        + '</div>';
+    }
     const next = nextSession(plan || { weeks:[] }, follow && follow.startedAt || today, { cursorDay: follow ? follow.cursorDay : 0, moves: follow ? follow.moves : {}, doneDays });
     const nextS = next && sessions.find(s=>s.dayIndex === next.dayIndex);
     function levelChip(s){
@@ -516,6 +554,7 @@ const supabase = createSupabaseClient();
         + levelChip(s)
         + '</div>'
         + '<div class="hero-sub">'+esc(plan.name)+' · Week '+s.weekNum+(s.deload ? ' · Deload week' : '')+'</div>'
+        + (s.dayObj.swappedFrom ? '<div class="adapted-note">Adapted from '+esc((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
         + '<div class="hero-actions"><a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a></div></div>';
     }
@@ -564,12 +603,6 @@ const supabase = createSupabaseClient();
       + (streak >= 2 ? '<div class="streak"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1.2 2.6 2.3 2.8C11 8.6 11.2 5.6 12 3z"/></svg><b>'+streak+'-week streak</b><span>riding every week since '+streakSince+'</span></div>' : '')
       + '</div>';
 
-    const daily = new Map();
-    rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
-    const firstDay = rides.length ? isoDate(new Date(rides[0].started_at)) : today;
-    const series = loadSeries(daily, firstDay < today ? firstDay : today, today, today);
-    const now = series[series.length-1];
-    const form = Math.round(now.ctl - now.atl);
     html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="calendar.html">Chart →</a></div><div class="load-tiles">'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-count="'+Math.round(now.ctl)+'">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" data-count="'+Math.round(now.atl)+'">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
@@ -598,6 +631,24 @@ const supabase = createSupabaseClient();
       gsHide.closest('.gs-card').remove();
       try { await supabase.from('settings').upsert({ user_id:user.id, key:'getting_started_dismissed', value:{ v:true }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' }); } catch(_){}
     });
+    el.querySelectorAll('[data-adapt-accept]').forEach(b=> b.addEventListener('click', async ()=>{
+      const a = adaptations[Number(b.dataset.adaptAccept)];
+      b.disabled = true;
+      try { await acceptAdaptation(supabase, user.id, follow, a); renderToday(user); }
+      catch(e){ b.disabled = false; notify('Check your connection and try again.', 'Couldn\'t change your plan'); }
+    }));
+    el.querySelectorAll('[data-adapt-dismiss]').forEach(b=> b.addEventListener('click', async ()=>{
+      const a = adaptations[Number(b.dataset.adaptDismiss)];
+      const row = b.closest('.adapt-item'), card = b.closest('.adapt-card');
+      row.remove();
+      if (!card.querySelector('.adapt-item')) card.remove();
+      try { adaptDismissed = await dismissAdaptation(supabase, user.id, adaptDismissed, a.id); } catch(_){}
+    }));
+    el.querySelectorAll('[data-undo-swap]').forEach(b=> b.addEventListener('click', async ()=>{
+      b.disabled = true;
+      try { await undoSwap(supabase, user.id, follow, Number(b.dataset.undoSwap)); renderToday(user); }
+      catch(e){ b.disabled = false; notify('Check your connection and try again.', 'Couldn\'t undo that'); }
+    }));
     const acc = el.querySelector('[data-ftp-accept]'), dis = el.querySelector('[data-ftp-dismiss]');
     if (acc) acc.addEventListener('click', async ()=>{
       const v = Number(acc.dataset.ftpAccept);

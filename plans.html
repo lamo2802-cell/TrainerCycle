@@ -153,6 +153,7 @@
   .day-workout a{ color:var(--text); text-decoration:none; }
   .day-workout a:hover{ color:var(--accent); }
   .day-workout .tag{ color:var(--text-dim); font-size:11px; margin-left:6px; }
+  .day-workout .tag.adapted{ color:var(--accent); }
   .empty-note{ color:var(--text-dim); font-size:13px; }
   .ftp-prompt{
     display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
@@ -246,7 +247,8 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
-import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=1';
+import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=2';
+import { applySwaps } from './adapt.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -314,6 +316,7 @@ const supabase = createSupabaseClient();
   let activePlanStartedAt = null; // ISO date string, Monday of week 1
   let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
   let activePlanMoves = {}; // day-index -> 'YYYY-MM-DD' for sessions moved on the Calendar
+  let activePlanSwaps = {}; // day-index -> workout id for adaptive swaps the rider accepted on Today
   let sessionsFilter = '';
   let doneDays = new Map(); // day-index -> ride ({tss}) for the followed plan, from rides linked to it
 
@@ -330,7 +333,7 @@ const supabase = createSupabaseClient();
 
   // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
   function getNextSession(plan, startedAtIso, cursorDay){
-    const n = nextSession(plan, startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
+    const n = nextSession(applySwaps(plan, activePlanSwaps), startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
     if (!n) return null; // plan complete
     return Object.assign(n, { isToday: n.date === todayIso() });
   }
@@ -343,6 +346,7 @@ const supabase = createSupabaseClient();
     activePlanStartedAt = st.startedAt;
     activePlanCursorDay = st.cursorDay;
     activePlanMoves = st.moves;
+    activePlanSwaps = st.swaps;
     await loadDoneDays();
   }
 
@@ -369,8 +373,9 @@ const supabase = createSupabaseClient();
     document.querySelectorAll('.plan-weeks').forEach(c=>{ delete c.dataset.rendered; });
     activePlanCursorDay = 0;
     activePlanMoves = {};
+    activePlanSwaps = {};
     await loadDoneDays();
-    await supabase.from('settings').delete().eq('user_id', user.id).eq('key', 'active_plan_moves');
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves','active_plan_swaps']);
     await supabase.from('settings').upsert([
       { user_id:user.id, key:'active_plan_id', value:{v:planId}, updated_at:new Date().toISOString() },
       { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() },
@@ -384,6 +389,7 @@ const supabase = createSupabaseClient();
     activePlanStartedAt = null;
     activePlanCursorDay = 0;
     activePlanMoves = {};
+    activePlanSwaps = {};
     await supabase.from('settings').delete().eq('user_id', user.id).in('key', FOLLOW_SETTING_KEYS);
     render();
   }
@@ -552,6 +558,7 @@ const supabase = createSupabaseClient();
     const container = document.getElementById('weeks-'+plan.id);
     if (container.dataset.rendered) { container.style.display = container.style.display==='none' ? 'block' : 'none'; return; }
     const isActive = plan.id === activePlanId;
+    if (isActive) plan = applySwaps(plan, activePlanSwaps);
     container.innerHTML = (plan.weeks||[]).map((w, wi)=>{
       const days = (w.days||[]).map((d, di)=>{
         if (d.type === 'rest'){
@@ -574,6 +581,7 @@ const supabase = createSupabaseClient();
         return '<div class="day-row'+(doneRide ? ' done' : '')+'"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+href+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (movedTo && !doneRide ? '<span class="tag">moved to '+shortDate(movedTo)+'</span>' : '')
+          + (d.swappedFrom && !doneRide ? '<span class="tag adapted" title="Swapped from '+escapeHtml((workoutNames[d.swappedFrom]||{}).name||d.swappedFrom)+'">adapted</span>' : '')
           + (doneRide ? '<span class="done-tag">✓ Done'+(doneRide.tss ? ' · '+doneRide.tss+' TSS' : '')+'</span>' : '')
           + (durLabel ? '<span class="tag">'+durLabel+'</span>' : '')
           + (tag ? '<span class="tag">'+tag+'</span>' : '')

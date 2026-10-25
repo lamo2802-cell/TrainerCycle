@@ -2,7 +2,8 @@
 // A session's day index is days after the Monday the plan started (week*7 + weekday, Mon=0).
 // A session can be moved to another date (settings key active_plan_moves: { dayIndex: 'YYYY-MM-DD' }),
 // a ride saved with plan_day_index marks it done, and Skip (active_plan_cursor_day) drops every
-// session with a lower day index. Used by plans.html, calendar.html, builder.html and live.html.
+// session with a lower day index. Accepted adaptive swaps (active_plan_swaps) are applied to the plan
+// itself by applySwaps() in adapt.js. Used by plans.html, calendar.html, builder.html and live.html.
 
 export function isoDate(d){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
@@ -56,12 +57,12 @@ export function nextSession(plan, startedAtIso, { cursorDay=0, moves=null, doneD
   ) || null;
 }
 
-const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves'];
+const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps'];
 export async function loadFollowState(supabase, userId){
   const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS);
   const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
   return { planId: v.active_plan_id || null, startedAt: v.active_plan_started_at || null,
-    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {} };
+    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {} };
 }
 export const FOLLOW_SETTING_KEYS = FOLLOW_KEYS;
 
