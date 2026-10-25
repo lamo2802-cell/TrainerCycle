@@ -753,7 +753,7 @@ const supabase = createSupabaseClient();
       + (streak >= 2 ? '<div class="streak"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1.2 2.6 2.3 2.8C11 8.6 11.2 5.6 12 3z"/></svg><b>'+streak+'-week streak</b><span>training every week since '+streakSince+'</span></div>' : '')
       + '</div>';
 
-    html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="calendar.html">Chart →</a></div><div class="load-tiles">'
+    html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="rides.html?view=fitness">Chart →</a></div><div class="load-tiles">'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-count="'+Math.round(now.ctl)+'">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" data-count="'+Math.round(now.atl)+'">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val">'+(form>0?'+':'')+form+'</div><div class="note">'+formLabel(form)+'</div></div>'
