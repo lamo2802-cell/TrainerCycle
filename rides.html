@@ -244,6 +244,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=17';
+import { notify, ask } from './sheet.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -739,7 +740,7 @@ const supabase = createSupabaseClient();
           else if (appInactive) msg = 'Strava is currently blocking uploads from TrainerCycle (this is on our side of the Strava connection, not your account). Your ride is saved. Please try again later - we are sorting it out.';
           else if (needsReconnect) msg = 'Strava didn\'t allow the upload. Go to Settings, press Disconnect under Strava, then Connect again and keep "Upload your activities" ticked. If you have more than one Strava account, make sure you are logged in to the right one.';
           else msg = 'Strava upload failed: ' + (errText || (error ? error.message : 'unknown error'));
-          alert(msg);
+          notify(msg, 'Strava upload failed');
         }
         setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
       } else {
@@ -754,7 +755,7 @@ const supabase = createSupabaseClient();
       }
     } catch(err){
       btn.textContent = 'Failed';
-      if (!silent) alert('Strava upload failed: ' + err.message);
+      if (!silent) notify(err.message, 'Strava upload failed');
       setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
     }
   }

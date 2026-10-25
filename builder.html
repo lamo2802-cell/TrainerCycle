@@ -338,6 +338,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
+import { notify, ask } from './sheet.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 (async function(){
@@ -776,7 +777,7 @@ const supabase = createSupabaseClient();
   document.getElementById('libraryList').addEventListener('click', async (e)=>{
     const t = e.target;
     if (t.dataset.del !== undefined){
-      if (confirm('Delete this workout?')){
+      if (await ask('This removes it from your library. Rides you\'ve already done with it are kept.', { title:'Delete this workout?', ok:'Delete', danger:true })){
         await deleteWorkoutFromLibrary(t.dataset.del);
         renderFits();
         renderLibrary();

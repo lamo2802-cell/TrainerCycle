@@ -216,6 +216,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=17';
+import { notify, ask } from './sheet.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -673,7 +674,7 @@ const supabase = createSupabaseClient();
 
   document.getElementById('startBtn').addEventListener('click', async ()=>{
     if (!(await isSubscriptionActive(supabase, user))){
-      alert('Your subscription isn\'t active — head to Settings to resubscribe before starting a session.');
+      notify('Head to Settings to resubscribe before starting a session.', 'Your subscription isn\'t active');
       return;
     }
     running = true;
