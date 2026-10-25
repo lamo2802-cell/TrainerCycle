@@ -7,6 +7,8 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app-nav.css?v=1">
+<script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
@@ -188,7 +190,7 @@
     <div class="block">
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
-        <a href="index.html">Home</a>
+        <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
         <a href="calendar.html" class="active">Calendar</a>
         <a href="builder.html">Workouts</a>
@@ -254,8 +256,9 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=16';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=1';
+import { loadSeries, formLabel } from './training-load.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -329,7 +332,7 @@ const supabase = createSupabaseClient();
   }
 
   // ---- fitness (CTL / ATL / TSB) ----
-  const CTL_DAYS = 42, ATL_DAYS = 7, CHART_BACK = 90, CHART_AHEAD_MAX = 42;
+  const CHART_BACK = 90, CHART_AHEAD_MAX = 42;
   let fitSeries = []; // { date, tss, ctl, atl, tsb, future }
   function computeFitness(){
     const today = todayIso();
@@ -347,14 +350,7 @@ const supabase = createSupabaseClient();
     const firstRide = rides.length ? isoDate(new Date(rides[0].started_at)) : today;
     const start = firstRide < addDays(today, -CHART_BACK) ? firstRide : addDays(today, -CHART_BACK);
     const end = addDays(today, ahead);
-    let ctl = 0, atl = 0;
-    const out = [];
-    for (let d = start; d <= end; d = addDays(d, 1)){
-      const tss = daily.get(d) || 0;
-      ctl += (tss - ctl) / CTL_DAYS;
-      atl += (tss - atl) / ATL_DAYS;
-      out.push({ date:d, tss, ctl, atl, tsb: ctl - atl, future: d > today });
-    }
+    const out = loadSeries(daily, start, end, today);
     fitSeries = out.filter(p => p.date >= addDays(today, -CHART_BACK));
     document.getElementById('legendPlanned').style.display = ahead > 0 ? '' : 'none';
 
@@ -363,8 +359,7 @@ const supabase = createSupabaseClient();
     document.getElementById('tFatigue').textContent = Math.round(now.atl);
     const form = Math.round(now.ctl - now.atl);
     document.getElementById('tForm').textContent = (form > 0 ? '+' : '') + form;
-    document.getElementById('tFormNote').textContent =
-      form > 5 ? 'Fresh' : form >= -10 ? 'Neutral' : form >= -30 ? 'Building (tired)' : 'Very tired, ease off';
+    document.getElementById('tFormNote').textContent = formLabel(form);
 
     const wkStart = mondayOf(today);
     let wkDone = 0, wkPlanned = 0;

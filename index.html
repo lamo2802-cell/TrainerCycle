@@ -14,6 +14,8 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app-nav.css?v=1">
+<script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
@@ -98,36 +100,9 @@
   .hero{ width:100%; max-width:760px; border-radius:16px; overflow:hidden; border:1px solid var(--line); margin-bottom:36px; }
   .hero img{ width:100%; display:block; }
 
-  .cards{ display:grid; grid-template-columns:1fr; gap:14px; width:100%; max-width:760px; }
-  @media (min-width:620px){ .cards{ grid-template-columns:1fr 1fr; } }
-  @media (min-width:860px){ .cards{ grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); } }
-  .card{
-    background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:20px; text-decoration:none; color:var(--text); transition:border-color .15s ease;
-  }
-  .card:hover{ border-color:var(--accent); }
-  .card-title{ font-size:16px; font-weight:600; margin-bottom:6px; }
-  .card-desc{ font-size:12.5px; color:var(--text-dim); line-height:1.5; }
-  .card-accent{ color:var(--accent); font-size:12px; margin-top:10px; display:block; }
   .footer-links{ margin-top:40px; display:flex; gap:16px; font-size:12px; }
   .footer-links a{ color:var(--text-dim); text-decoration:none; }
   .footer-links a:hover{ color:var(--accent); }
-
-  .quickstart{
-    width:100%; max-width:760px; background:var(--panel); border:1px solid var(--line);
-    border-radius:12px; padding:20px 24px; margin-bottom:28px;
-  }
-  .quickstart-title{ font-size:11.5px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; font-weight:600; }
-  .quickstart-steps{ display:flex; flex-direction:column; gap:10px; }
-  .qs-step{ display:flex; align-items:baseline; gap:10px; font-size:13.5px; color:var(--text-dim); line-height:1.4; }
-  .qs-text{ flex:1; min-width:0; }
-  .qs-step a{ color:var(--text); }
-  .qs-num{
-    flex-shrink:0; width:20px; height:20px; border-radius:50%; background:var(--panel-2);
-    border:1px solid var(--line); color:var(--accent); font-size:11px; font-weight:700;
-    display:flex; align-items:center; justify-content:center;
-  }
-  @media (min-width:620px){ .quickstart-steps{ flex-direction:row; } .qs-step{ flex:1; } }
 
   .marketing-features{
     display:grid; grid-template-columns:1fr; gap:14px; width:100%; max-width:640px; margin-bottom:28px;
@@ -155,6 +130,70 @@
   }
   .signin-card button:disabled{ opacity:.5; cursor:not-allowed; }
   .signin-card .msg{ color:var(--text-dim); font-size:12px; margin-top:14px; min-height:16px; }
+
+  /* ---- Today (signed-in home) ---- */
+  :root{
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --z-recovery:#5A6472; --z-endurance:#4C8BF5; --z-tempo:#3DBE7A; --z-threshold:#E8B93D;
+    --z-vo2:#F08A3C; --z-anaerobic:#E5484D; --z-neuro:#B14AED;
+    --s-fitness:#239E90; --s-fatigue:#CC6A22; --s-form:#8A7BEB;
+  }
+  .today{ width:100%; max-width:860px; display:flex; flex-direction:column; gap:16px; }
+  .today-hello{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .today-hello h1{ font-size:26px; margin:0; letter-spacing:-.01em; }
+  .today-hello .date{ color:var(--text-dim); font-size:13.5px; }
+  .t-panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
+  .t-label{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .t-label a{ color:var(--accent); text-decoration:none; text-transform:none; letter-spacing:0; font-size:12.5px; }
+  .t-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 22px; border-radius:10px; font-weight:700; font-size:15px; text-decoration:none; border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
+  .t-btn.primary{ background:var(--accent); border-color:var(--accent); color:#08211E; }
+  .t-btn:hover{ filter:brightness(1.08); }
+
+  .hero-card{ border-color:color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  .hero-top{ display:flex; gap:18px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
+  .hero-name{ font-size:22px; font-weight:700; margin:2px 0 6px; }
+  .hero-meta{ display:flex; gap:18px; font-family:var(--mono); color:var(--text-dim); font-size:13px; flex-wrap:wrap; }
+  .hero-meta b{ color:var(--text); font-size:17px; margin-right:4px; }
+  .hero-sub{ color:var(--text-dim); font-size:13px; margin-top:6px; }
+  .hero-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .hero-profile{ display:block; width:100%; height:84px; margin-top:14px; border-radius:8px; background:var(--panel-2); }
+  .done-badge{ display:inline-flex; align-items:center; gap:6px; color:var(--accent); font-weight:700; font-size:13px; }
+
+  .t-grid{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:16px; }
+  @media (max-width:760px){ .t-grid{ grid-template-columns:1fr; } }
+
+  .week-strip{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .wd{ background:var(--panel-2); border-radius:10px; padding:8px 4px; text-align:center; text-decoration:none; color:var(--text); border:1px solid transparent; min-width:0; }
+  .wd.today{ border-color:var(--accent); }
+  .wd .l{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; }
+  .wd .n{ font-family:var(--mono); font-size:15px; font-weight:600; margin:2px 0 6px; }
+  .wd .m{ height:18px; display:flex; align-items:center; justify-content:center; gap:3px; }
+  .wd .dot{ width:9px; height:9px; border-radius:50%; }
+  .wd .tick{ color:var(--accent); font-weight:800; font-size:14px; }
+  .wd .miss{ width:9px; height:9px; border-radius:50%; border:1.5px solid var(--text-dim); opacity:.6; }
+  .wk-progress{ margin-top:14px; }
+  .wk-progress .bar{ height:8px; border-radius:4px; background:var(--panel-2); overflow:hidden; }
+  .wk-progress .bar i{ display:block; height:100%; background:var(--accent); border-radius:4px; }
+  .wk-progress .txt{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim); margin-top:6px; font-family:var(--mono); }
+  .wk-progress .txt b{ color:var(--text); }
+
+  .load-tiles{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; }
+  .load-tile{ background:var(--panel-2); border-radius:10px; padding:10px; }
+  .load-tile .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:5px; }
+  .load-tile .lbl i{ width:10px; height:3px; border-radius:2px; display:inline-block; }
+  .load-tile .val{ font-family:var(--mono); font-size:24px; font-weight:600; margin-top:2px; }
+  .load-tile .note{ font-size:11.5px; color:var(--text-dim); }
+
+  .last-ride{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; text-decoration:none; color:var(--text); }
+  .last-ride .nm{ font-weight:600; font-size:15px; }
+  .last-ride .when{ color:var(--text-dim); font-size:12.5px; margin-top:2px; }
+  .last-ride .stats{ display:flex; gap:16px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim); }
+  .last-ride .stats b{ color:var(--text); font-size:15px; display:block; }
+
+  .setup-card{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; border-color:var(--accent); }
+  .setup-card b{ display:block; font-size:15px; margin-bottom:3px; }
+  .setup-card p{ margin:0; color:var(--text-dim); font-size:13px; line-height:1.4; }
+  .t-empty{ color:var(--text-dim); font-size:13px; }
 </style>
 </head>
 <body>
@@ -169,6 +208,7 @@
   </div>
   <div class="splash-word">Trainer<span>Cycle</span></div>
 </div>
+<script>/* play the splash once per visit, not every time you come back to Today */try{if(sessionStorage.getItem('tc_splashed'))document.getElementById('splashScreen').classList.add('skip');else sessionStorage.setItem('tc_splashed','1');}catch(e){}</script>
 
 <div class="top-bar">
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
@@ -180,14 +220,14 @@
 <div class="app sidebar-collapsed">
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div class="sidebar">
-    <p class="sub" style="margin-top:0;">Home</p>
+    <p class="sub" style="margin-top:0;">Today</p>
     <div class="block" id="sidebarLoginBlock" style="display:none;">
       <button id="sidebarLoginBtn" style="width:100%; padding:10px; border-radius:6px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600; font-size:13.5px; cursor:pointer;">Log In</button>
     </div>
     <div class="block">
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
-        <a href="index.html" class="active">Home</a>
+        <a href="index.html" class="active">Today</a>
         <a href="plans.html">Training Plans</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
@@ -240,57 +280,7 @@
       </div>
     </div>
 
-    <div class="quickstart" id="quickstart" style="display:none;">
-      <div class="quickstart-title">Quick start</div>
-      <div class="quickstart-steps">
-        <div class="qs-step"><span class="qs-num">1</span><span class="qs-text">Connect your trainer in <a href="live.html">Live Ride</a> (or pair it once in <a href="settings.html">Settings</a>)</span></div>
-        <div class="qs-step"><span class="qs-num">2</span><span class="qs-text">Pick a workout from <a href="builder.html">Workouts</a> or a <a href="plans.html">Training Plan</a></span></div>
-        <div class="qs-step"><span class="qs-num">3</span><span class="qs-text">Hit Start and ride</span></div>
-      </div>
-    </div>
-
-    <div class="cards" id="cardsSection" style="display:none;">
-      <a class="card" href="plans.html">
-        <div class="card-title">Training Plans</div>
-        <div class="card-desc">Multi-week structured training plans — Sweet Spot, Threshold, Base Endurance, and a sharpening block ending in a ramp test.</div>
-        <span class="card-accent">Browse plans →</span>
-      </a>
-      <a class="card" href="calendar.html">
-        <div class="card-title">Calendar</div>
-        <div class="card-desc">See your plan laid out by day alongside the rides you've done, move sessions around your week, and track Fitness, Fatigue and Form.</div>
-        <span class="card-accent">Open calendar →</span>
-      </a>
-      <a class="card" href="builder.html">
-        <div class="card-title">Workouts</div>
-        <div class="card-desc">Build cycling workouts from steps and intervals, search the library, and see each one's profile at a glance.</div>
-        <span class="card-accent">Open workouts →</span>
-      </a>
-      <a class="card" href="live.html">
-        <div class="card-title">Live Ride</div>
-        <div class="card-desc">Connect your trainer and HR strap over Bluetooth, follow a workout with ERG control, and watch live power/HR charts as you ride.</div>
-        <span class="card-accent">Start a session →</span>
-      </a>
-      <a class="card" href="trainerstrength.html">
-        <div class="card-title">TrainerStrength</div>
-        <div class="card-desc">Follow a strength workout set by set, with the current exercise, target reps, and a position guide for each move.</div>
-        <span class="card-accent">Open TrainerStrength →</span>
-      </a>
-      <a class="card" href="rides.html">
-        <div class="card-title">Rides</div>
-        <div class="card-desc">Review completed sessions with power, HR, and Intensity Factor, and export any ride as a TCX file.</div>
-        <span class="card-accent">View rides →</span>
-      </a>
-      <a class="card" href="settings.html">
-        <div class="card-title">Settings</div>
-        <div class="card-desc">Set your FTP and weight, pair a trainer, connect Strava, and manage your subscription — all in one place.</div>
-        <span class="card-accent">Open settings →</span>
-      </a>
-      <a class="card" href="help.html">
-        <div class="card-title">How to Use</div>
-        <div class="card-desc">A full walkthrough — setting your FTP, building workouts, connecting your trainer, and everything in between.</div>
-        <span class="card-accent">Read the guide →</span>
-      </a>
-    </div>
+    <div class="today" id="todaySection" style="display:none;"></div>
 
     <div class="footer-links">
       <a href="privacy.html">Privacy Policy</a>
@@ -301,23 +291,202 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=16';
+import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=17';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss } from './plan-schedule.js?v=1';
+import { loadSeries, formLabel } from './training-load.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
   function showSignedOut(){
     document.getElementById('signinSection').style.display = 'flex';
     document.getElementById('signinSection').style.justifyContent = 'center';
-    document.getElementById('cardsSection').style.display = 'none';
     document.getElementById('sidebarLoginBlock').style.display = '';
   }
   async function showSignedIn(user){
     document.getElementById('signinSection').style.display = 'none';
-    document.getElementById('quickstart').style.display = '';
-    document.getElementById('cardsSection').style.display = '';
+    document.querySelectorAll('.brand, .tagline, .hero').forEach(el=>{ el.style.display = 'none'; });
+    document.getElementById('todaySection').style.display = '';
+    renderToday(user);
     document.getElementById('sidebarLoginBlock').style.display = 'none';
     renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
     await showSubscribeNudge(supabase, user);
+  }
+
+
+  // ---- Today screen ----
+  const ZONE_DOT = { recovery:'var(--z-recovery)', endurance:'var(--z-endurance)', tempo:'var(--z-tempo)', sweet_spot:'var(--z-threshold)',
+    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)' };
+  const ZONES = [[60,'#5A6472'],[76,'#4C8BF5'],[91,'#3DBE7A'],[106,'#E8B93D'],[121,'#F08A3C'],[151,'#E5484D'],[Infinity,'#B14AED']];
+  function zoneHex(pct){ for (const [max,c] of ZONES) if (pct < max) return c; return '#B14AED'; }
+  function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function fmtMins(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h '+(m%60 ? String(m%60).padStart(2,'0')+'m' : '') : m+' min'; }
+  function flattenSteps(steps){ let out=[]; for (const s of steps||[]){ if (s.type==='repeat'){ for (let i=0;i<s.repetitions;i++) out=out.concat(flattenSteps(s.steps)); } else out.push(s); } return out; }
+  // Zone-coloured skyline of a workout, bar height = intensity (same look as the plan/workout pages).
+  function profileSvg(steps, ftp){
+    const flat = flattenSteps(steps);
+    const total = flat.reduce((a,s)=>a+(s.duration||0),0) || 1;
+    let x = 0, maxPct = 120;
+    const pcts = flat.map(s=> s.targetType==='ftp_pct' ? (s.low+s.high)/2 : s.targetType==='watts' ? ((s.low+s.high)/2/ftp)*100 : 50);
+    pcts.forEach(p=>{ maxPct = Math.max(maxPct, p); });
+    const bars = flat.map((s,i)=>{
+      const w = (s.duration||0)/total*1000, h = Math.max(4, pcts[i]/maxPct*100);
+      const r = '<rect x="'+x.toFixed(1)+'" y="'+(100-h).toFixed(1)+'" width="'+Math.max(0.5,w-0.6).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+zoneHex(pcts[i])+'" rx="1.5"/>';
+      x += w; return r;
+    }).join('');
+    return '<svg class="hero-profile" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">'+bars+'</svg>';
+  }
+  function workoutIf(steps, ftp){
+    const flat = flattenSteps(steps); let dur=0, p4=0;
+    flat.forEach(s=>{ const d=s.duration||0; dur+=d; const w = s.targetType==='ftp_pct' ? ftp*(s.low+s.high)/200 : s.targetType==='watts' ? (s.low+s.high)/2 : null; if (w!=null) p4 += Math.pow(w,4)*d; });
+    return (dur && p4) ? Math.pow(p4/dur,0.25)/ftp : null;
+  }
+  function relDay(iso){
+    const n = daysBetween(iso, todayIso());
+    if (n === 0) return 'Today'; if (n === 1) return 'Yesterday'; if (n < 7) return n+' days ago';
+    return parseIso(iso).toLocaleDateString('en-GB',{ weekday:'short', day:'numeric', month:'short' });
+  }
+  function dayLabel(iso){
+    const n = daysBetween(todayIso(), iso);
+    if (n === 0) return 'Today'; if (n === 1) return 'Tomorrow';
+    return parseIso(iso).toLocaleDateString('en-GB',{ weekday:'long', day:'numeric', month:'short' });
+  }
+
+  async function renderToday(user){
+    const el = document.getElementById('todaySection');
+    const hour = new Date().getHours();
+    const first = ((user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '').split(' ')[0];
+    const hello = (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening') + (first ? ', '+esc(first) : '');
+    const dateStr = new Date().toLocaleDateString('en-GB',{ weekday:'long', day:'numeric', month:'long' });
+    el.innerHTML = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div><div class="t-panel t-empty">Loading your training…</div>';
+
+    const today = todayIso();
+    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {};
+    try {
+      const since = new Date(Date.now() - 400*86400000).toISOString();
+      const [ftpRes, st, wRes, sRes, rRes] = await Promise.all([
+        supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+        loadFollowState(supabase, user.id),
+        supabase.from('workouts').select('id,name,category,steps,duration_sec'),
+        supabase.from('strength_workouts').select('id,name'),
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index')
+          .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true })
+      ]);
+      if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
+      follow = st;
+      (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
+      (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength' }; });
+      rides = rRes.data || [];
+      if (follow.planId && follow.startedAt){
+        const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
+        plan = data || null;
+        if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
+      }
+    } catch(e){
+      el.querySelector('.t-empty').textContent = 'Couldn\'t load your training just now. Check your connection and refresh.';
+      return;
+    }
+    const ftpW = ftp || 200;
+    const ridesByDate = new Map();
+    rides.forEach(r=>{ const d = isoDate(new Date(r.started_at)); if (!ridesByDate.has(d)) ridesByDate.set(d, []); ridesByDate.get(d).push(r); });
+    const sessions = plan ? planSessions(plan, follow.startedAt, follow.moves).map(s=>{
+      const wk = workouts[s.dayObj.workoutId] || {};
+      const isStrength = s.dayObj.workoutType === 'strength';
+      return Object.assign(s, { name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : wk.category, isStrength, steps: wk.steps,
+        durationSec: wk.duration_sec, tss: isStrength ? null : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
+    }) : [];
+    const rideHref = s => s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
+      : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
+
+    let html = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div>';
+
+    // First-run nudge: without an FTP every target is a guess.
+    if (!ftp){
+      html += '<div class="t-panel setup-card"><div><b>Set your FTP first</b><p>Every workout target is a % of your FTP. A 20-minute Ramp Test finds it for you, or enter it in Settings if you already know it.</p></div>'
+        + '<div class="hero-actions" style="margin:0;"><a class="t-btn primary" href="live.html?load=prebuilt-ramp-test-25">Take a Ramp Test</a><a class="t-btn" href="settings.html">Enter FTP</a></div></div>';
+    }
+
+    // Hero: today's session, or what's next.
+    const todays = sessions.filter(s=>s.date === today && !s.skipped);
+    const todoToday = todays.find(s=>!s.done);
+    const ridTodayList = ridesByDate.get(today) || [];
+    const next = nextSession(plan || { weeks:[] }, follow && follow.startedAt || today, { cursorDay: follow ? follow.cursorDay : 0, moves: follow ? follow.moves : {}, doneDays });
+    const nextS = next && sessions.find(s=>s.dayIndex === next.dayIndex);
+    function sessionHero(s, heading){
+      const IF = !s.isStrength && s.steps ? workoutIf(s.steps, ftpW) : null;
+      return '<div class="t-panel hero-card"><div class="t-label"><span>'+heading+'</span><a href="calendar.html">Calendar →</a></div>'
+        + '<div class="hero-name">'+esc(s.name)+'</div>'
+        + '<div class="hero-meta">'
+        + (s.isStrength ? '<span><b>Strength</b></span>' : '')
+        + (s.durationSec ? '<span><b>'+fmtMins(s.durationSec)+'</b></span>' : '')
+        + (s.tss ? '<span><b>'+s.tss+'</b>TSS</span>' : '')
+        + (IF ? '<span><b>'+IF.toFixed(2)+'</b>IF</span>' : '')
+        + '</div>'
+        + '<div class="hero-sub">'+esc(plan.name)+' · Week '+s.weekNum+(s.deload ? ' · Deload week' : '')+'</div>'
+        + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
+        + '<div class="hero-actions"><a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a></div></div>';
+    }
+    if (todoToday){
+      html += sessionHero(todoToday, 'Today’s workout');
+    } else if (ridTodayList.length){
+      const r = ridTodayList[ridTodayList.length-1];
+      html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
+        + '<div class="done-badge">✓ Done for today</div><div class="hero-name">'+esc(r.workout_name)+'</div>'
+        + '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'+(r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+(r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
+        + (nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
+        + '<div class="hero-actions"><a class="t-btn" href="rides.html">See ride</a></div></div>';
+    } else if (plan && nextS){
+      html += sessionHero(nextS, 'Rest day · up next '+dayLabel(nextS.date));
+    } else if (plan){
+      html += '<div class="t-panel hero-card"><div class="t-label"><span>Plan complete</span></div><div class="hero-name">You finished '+esc(plan.name)+'</div>'
+        + '<div class="hero-sub">A Ramp Test now resets your targets for the next block.</div>'
+        + '<div class="hero-actions"><a class="t-btn primary" href="live.html?load=prebuilt-ramp-test-25">Take a Ramp Test</a><a class="t-btn" href="plans.html">Choose next plan</a></div></div>';
+    } else {
+      html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span></div><div class="hero-name">What are we riding?</div>'
+        + '<div class="hero-sub">Follow a plan and your sessions land here each day, or pick a workout that fits the time you have.</div>'
+        + '<div class="hero-actions"><a class="t-btn primary" href="builder.html">Find a workout</a><a class="t-btn" href="plans.html">Pick a plan</a></div></div>';
+    }
+
+    // This week + fitness side by side
+    const mon = addDays(today, -((parseIso(today).getDay()+6)%7));
+    let done = 0, planned = 0, cells = '';
+    for (let i=0;i<7;i++){
+      const d = addDays(mon, i);
+      const rs = ridesByDate.get(d) || [];
+      rs.forEach(r=>{ done += r.tss||0; });
+      const ss = sessions.filter(s=>s.date === d);
+      ss.forEach(s=>{ planned += s.tss||0; });
+      let marks = rs.length ? '<span class="tick">✓</span>' : '';
+      ss.filter(s=>!s.done).forEach(s=>{
+        marks += (d < today || s.skipped) ? '<span class="miss" title="Missed"></span>' : '<span class="dot" style="background:'+(ZONE_DOT[s.category]||'var(--text-dim)')+'"></span>';
+      });
+      cells += '<a class="wd'+(d===today ? ' today' : '')+'" href="calendar.html"><div class="l">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]+'</div><div class="n">'+parseIso(d).getDate()+'</div><div class="m">'+marks+'</div></a>';
+    }
+    const pct = planned ? Math.min(100, Math.round(done/planned*100)) : (done ? 100 : 0);
+    html += '<div class="t-grid"><div class="t-panel"><div class="t-label"><span>This week</span><a href="calendar.html">Calendar →</a></div>'
+      + '<div class="week-strip">'+cells+'</div>'
+      + '<div class="wk-progress"><div class="bar"><i style="width:'+pct+'%"></i></div><div class="txt"><span><b>'+done+'</b> TSS ridden</span><span>'+(planned ? planned+' planned' : 'no plan this week')+'</span></div></div></div>';
+
+    const daily = new Map();
+    rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
+    const firstDay = rides.length ? isoDate(new Date(rides[0].started_at)) : today;
+    const series = loadSeries(daily, firstDay < today ? firstDay : today, today, today);
+    const now = series[series.length-1];
+    const form = Math.round(now.ctl - now.atl);
+    html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="calendar.html">Chart →</a></div><div class="load-tiles">'
+      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
+      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
+      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val">'+(form>0?'+':'')+form+'</div><div class="note">'+formLabel(form)+'</div></div>'
+      + '</div></div></div>';
+
+    // Last ride
+    const last = rides[rides.length-1];
+    html += '<div class="t-panel"><div class="t-label"><span>Last ride</span><a href="rides.html">All rides →</a></div>'
+      + (last ? '<a class="last-ride" href="rides.html"><div><div class="nm">'+esc(last.workout_name)+'</div><div class="when">'+relDay(isoDate(new Date(last.started_at)))+'</div></div>'
+          + '<div class="stats"><span><b>'+fmtMins(last.duration_sec)+'</b>time</span>'+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')+(last.np!=null ? '<span><b>'+last.np+'</b>NP</span>' : '')+(last.intensity_factor!=null ? '<span><b>'+Number(last.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div></a>'
+        : '<div class="t-empty">No rides yet. Your first one will show up here.</div>')
+      + '</div>';
+
+    el.innerHTML = html;
   }
 
   document.getElementById('heroGetStartedBtn').addEventListener('click', async ()=>{
