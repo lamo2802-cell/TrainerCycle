@@ -98,6 +98,8 @@
   .pr-name{ font-size:clamp(22px, 3vw, 30px); font-weight:700; line-height:1.15; margin:3px 0 4px; overflow-wrap:anywhere; }
   .pr-meta{ font-size:13.5px; color:var(--text-dim); font-family:var(--mono); }
   .pr-meta b{ color:var(--text); font-weight:600; }
+  .lvl-chip{ display:inline-block; font-size:12px; font-weight:600; color:var(--text); padding:1px 7px; border-radius:6px; margin-left:4px; white-space:nowrap;
+    background:color-mix(in srgb, var(--zc) 18%, transparent); border:1px solid color-mix(in srgb, var(--zc) 55%, transparent); }
   .pr-pick{ width:300px; flex-shrink:0; }
   .pr-pick select{ padding:10px 11px; font-size:14px; }
   .pr-ftp{ font-size:12.5px; color:var(--text-dim); margin-top:6px; text-align:right; }
@@ -518,6 +520,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=17';
 import { notify, ask, showSheet } from './sheet.js?v=1';
+import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -740,6 +743,19 @@ const supabase = createSupabaseClient();
       + (tss!=null ? ' · TSS <b>'+tss+'</b>' : '')
       + (st.IF!=null ? ' · IF <b>'+st.IF.toFixed(2)+'</b>' : '')
       + (intervals ? ' · '+intervals+' hard '+(intervals===1?'interval':'intervals') : '');
+    const wl = workoutLevel(w, ftp);
+    if (wl){
+      const z = zoneInfo(wl.zone), d = riderLevels ? difficultyLabel(wl.level, riderLevels[wl.zone]) : null;
+      meta.innerHTML += ' <span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(wl.level)+(d ? ' · '+d.label : '')+'</span>';
+    }
+  }
+  let riderLevels = null;
+  async function loadRiderLevels(){
+    try {
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor').eq('user_id', user.id);
+      const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
+      riderLevels = computeLevels(data||[], r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+    } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
     const w = library.find(x=>x.id===id);
@@ -1966,7 +1982,7 @@ const supabase = createSupabaseClient();
   } else {
     autoReconnectDevices();
   }
-  Promise.all([loadData(), loadActivePlanForLinking()]).then(()=>{
+  Promise.all([loadData().then(loadRiderLevels), loadActivePlanForLinking()]).then(()=>{
     drawOverviewChart();
     const loadParam = new URLSearchParams(window.location.search).get('load');
     if (loadParam && library.find(x=>x.id===loadParam)){
