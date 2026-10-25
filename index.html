@@ -426,7 +426,7 @@ import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL
 import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=1';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
-import { openExportSheet } from './export.js?v=1';
+import { openExportSheet } from './export.js?v=2';
 import { openWelcome } from './welcome.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
@@ -662,7 +662,7 @@ const supabase = createSupabaseClient();
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
-        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Send to device</button>' : '')+'</div></div>';
+        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Download file</button>' : '')+'</div></div>';
     }
     const awayNow = holidayOn(today, holidays);
     if (awayNow && !todoToday && !ridTodayList.length){
