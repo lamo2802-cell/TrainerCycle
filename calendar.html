@@ -275,6 +275,8 @@ import { applySwaps, undoSwap } from './adapt.js?v=2';
 import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
 import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=1';
+import { openExportSheet } from './export.js?v=1';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -291,7 +293,7 @@ const supabase = createSupabaseClient();
   function mondayOf(iso){ const d = parseIso(iso); return addDays(iso, -((d.getDay()+6)%7)); }
 
   // ---- data ----
-  let ftp = 250;
+  let ftp = 250, runPace = null;
   let follow = { planId:null, startedAt:null, cursorDay:0, moves:{} };
   let plan = null, planRaw = null;
   let doneDays = new Map();
@@ -310,7 +312,7 @@ const supabase = createSupabaseClient();
       supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index,sport,distance_m')
         .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true }),
       loadHolidays(supabase, user.id),
-      supabase.from('settings').select('value').eq('key', RUN_PACE_KEY).eq('user_id', user.id).maybeSingle().then(r => setRunPace(r.data && r.data.value && r.data.value.v), ()=>{})
+      supabase.from('settings').select('value').eq('key', RUN_PACE_KEY).eq('user_id', user.id).maybeSingle().then(r => { runPace = Number(r.data && r.data.value && r.data.value.v) || null; setRunPace(runPace); }, ()=>{})
     ]);
     holidays = hol;
     if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
@@ -336,6 +338,7 @@ const supabase = createSupabaseClient();
   function rebuildPlan(){
     const base = follow.startedAt ? composeFollowed(planRaw, follow, follow.runPlan).plan : null;
     plan = base ? applyHolidays(applySwaps(base, follow.swaps), follow.startedAt, follow.moves, holidays) : null;
+    syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftp));
   }
 
   // Planned sessions by effective date, with whether each is done/missed and its planned TSS.
@@ -677,13 +680,20 @@ const supabase = createSupabaseClient();
       + '</div>'
       + (s.dayObj.swappedFrom && !s.dayObj.holiday ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
       + (s.isRun ? '<p class="run-desc">'+escapeHtml(s.run.text)+'</p>' : '')
-      + '<div class="actions"><button id="sheetCloseBtn">Close</button>'+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
+      + '<div class="actions"><button id="sheetCloseBtn">Close</button>'
+        +(!s.isStrength && (s.isRun || (workouts[s.dayObj.workoutId]||{}).steps) ? '<button id="exportBtn">Send to device</button>' : '')+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
         : '<a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a>')+'</div>';
     sheet.style.display = 'flex';
     document.getElementById('sheetCloseBtn').onclick = closeSheet;
     document.getElementById('moveSaveBtn').onclick = ()=>{
       const v = document.getElementById('moveDate').value;
       if (v){ closeSheet(); moveSession(s.dayIndex, v); }
+    };
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.onclick = ()=>{
+      closeSheet();
+      if (s.isRun) openExportSheet({ kind:'run', session:s.run, T:runPace });
+      else openExportSheet({ kind:'bike', workout:workouts[s.dayObj.workoutId], ftp });
     };
     const logRunBtn = document.getElementById('logRunBtn');
     if (logRunBtn) logRunBtn.onclick = async ()=>{

@@ -228,6 +228,19 @@
     <div class="set-group-title">Connections</div>
     <div class="set-group">
     <div class="panel">
+      <div class="panel-title">Calendar feed</div>
+      <div class="panel-desc">See your planned rides and runs in Google, Apple or Outlook Calendar, next to work and family. It updates when your plan changes.</div>
+      <div class="status-row"><span class="dot" id="feedDot"></span><span id="feedStatus">Checking…</span></div>
+      <div id="feedOn" style="display:none;">
+        <div class="ftp-row" style="margin-top:10px;"><input type="text" id="feedLink" readonly style="flex:1; min-width:0; font-family:var(--mono); font-size:12px;"><button id="feedCopy">Copy link</button></div>
+        <div class="panel-desc" style="font-size:12.5px; margin:10px 0 0;"><b>Google Calendar:</b> Other calendars → + → From URL, and paste the link. <b>iPhone or Mac:</b> <a id="feedWebcal" href="#">tap here</a>, or Settings → Calendar → Accounts → Add Subscribed Calendar. <b>Outlook:</b> Add calendar → Subscribe from web. Keep the link private: anyone with it can see your plan.</div>
+        <button id="feedOffBtn" style="margin-top:10px;">Turn off and delete the link</button>
+      </div>
+      <button id="feedOnBtn" class="primary" style="display:none; margin-top:10px;">Turn on calendar feed</button>
+      <div class="msg" id="feedMsg"></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Strava</div>
       <div class="panel-desc">Upload your rides to Strava in one tap, and bring in your runs and rides from other apps or outdoors automatically, so they count in your training load. Rides recorded here aren't brought back in twice.</div>
       <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
@@ -278,7 +291,13 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=17';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=3';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=3';
+import { ask } from './sheet.js?v=2';
+import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
+import { loadFollowState } from './plan-schedule.js?v=3';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=1';
+import { applySwaps } from './adapt.js?v=2';
+import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -683,6 +702,62 @@ const supabase = createSupabaseClient();
       btn.disabled = false;
     }
   });
+
+  // ---- calendar feed ----
+  async function renderFeed(){
+    const { data } = await supabase.from('settings').select('value').eq('user_id', user.id).eq('key', FEED_TOKEN_KEY).maybeSingle();
+    const token = data && data.value && data.value.v;
+    document.getElementById('feedDot').classList.toggle('on', !!token);
+    document.getElementById('feedStatus').textContent = token ? 'On' : 'Off';
+    document.getElementById('feedOn').style.display = token ? '' : 'none';
+    document.getElementById('feedOnBtn').style.display = token ? 'none' : '';
+    if (token){
+      const link = feedLink(token);
+      document.getElementById('feedLink').value = link;
+      document.getElementById('feedWebcal').href = link.replace(/^https:/, 'webcal:');
+    }
+  }
+  // Store the sessions now, so the calendar isn't empty until Today or Calendar are next opened.
+  async function storeFeedNow(){
+    const [follow, hol, wRes, sRes, fRes, pRes] = await Promise.all([loadFollowState(supabase, user.id), loadHolidays(supabase, user.id),
+      supabase.from('workouts').select('id,name,steps,duration_sec'), supabase.from('strength_workouts').select('id,name'),
+      supabase.from('settings').select('value').eq('user_id', user.id).eq('key', 'ftp').maybeSingle(),
+      supabase.from('settings').select('value').eq('user_id', user.id).eq('key', RUN_PACE_KEY).maybeSingle()]);
+    setRunPace(pRes.data && pRes.data.value && pRes.data.value.v);
+    const workouts = {};
+    (wRes.data || []).forEach(w => { workouts[w.id] = w; });
+    (sRes.data || []).forEach(w => { workouts[w.id] = { name:w.name }; });
+    let plan = null;
+    if (follow.planId && follow.startedAt){
+      const base = composeFollowed(await loadPlanRow(supabase, follow), follow, follow.runPlan).plan;
+      plan = base ? applyHolidays(applySwaps(base, follow.swaps), follow.startedAt, follow.moves, hol || []) : null;
+    }
+    await syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, (fRes.data && fRes.data.value && fRes.data.value.v) || 200), { force:true });
+  }
+  document.getElementById('feedOnBtn').addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    const msg = document.getElementById('feedMsg'); msg.textContent = '';
+    try {
+      const token = crypto.randomUUID().replace(/-/g, '');
+      const { error } = await supabase.from('settings').upsert({ user_id:user.id, key:FEED_TOKEN_KEY, value:{ v:token }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      if (error) throw error;
+      await storeFeedNow();
+      await renderFeed();
+    } catch(err){ msg.textContent = 'Couldn\'t turn it on. Check your connection and try again.'; }
+    btn.disabled = false;
+  });
+  document.getElementById('feedOffBtn').addEventListener('click', async () => {
+    if (!(await ask('Calendars subscribed to it stop updating and the link stops working.', { title:'Turn off the calendar feed?', ok:'Turn off', danger:true }))) return;
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', [FEED_TOKEN_KEY, FEED_KEY]);
+    try { localStorage.removeItem('tc_calfeed_' + user.id); } catch(_){}
+    renderFeed();
+  });
+  document.getElementById('feedCopy').addEventListener('click', async () => {
+    const v = document.getElementById('feedLink').value;
+    try { await navigator.clipboard.writeText(v); document.getElementById('feedMsg').textContent = 'Copied.'; }
+    catch(_){ document.getElementById('feedLink').select(); }
+  });
+  renderFeed();
 
   // ---- sidebar collapse ----
   const appRoot = document.querySelector('.app');

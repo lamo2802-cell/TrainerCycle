@@ -213,6 +213,14 @@
   .intensity-read b{ font-size:17px; }
   .intensity-val.changed{ color:var(--accent); }
   .intensity-read span{ font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  /* This interval only: make it longer, shorter or easier, and turn the spoken cues on/off. */
+  .step-ctl{ display:flex; align-items:center; gap:4px; flex-shrink:0;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:4px; }
+  .step-ctl[hidden]{ display:none; }
+  .step-ctl button{ width:auto; min-width:46px; height:40px; margin:0; padding:0 9px; font-size:13px; font-weight:600; border-radius:9px; font-family:var(--mono); }
+  .step-ctl button.on{ color:var(--accent); border-color:var(--accent); }
+  .step-ctl .sc-sep{ width:1px; align-self:stretch; background:var(--line); margin:4px 2px; }
+  .step-ctl svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:middle; }
   .next-dot{ width:11px; height:11px; border-radius:50%; background:var(--next-c); flex-shrink:0; }
   .next-tag{ font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
   .next-body{ font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
@@ -277,6 +285,9 @@
     .metric.target{ display:none; }
     .ride-bar{ flex-direction:column; align-items:stretch; gap:6px; margin-bottom:10px; }
     .ride-bar .intensity-ctl{ display:none !important; }
+    .step-ctl{ order:2; justify-content:space-between; }
+    .step-ctl button{ flex:1; min-width:0; height:36px; padding:0 4px; font-size:12.5px; }
+    .step-ctl .sc-sep{ display:none; }
     .pt-btn{ width:40px; height:40px; margin:0; padding:0; border-radius:50%; font-size:22px; line-height:1; font-weight:600; }
     .ride-bar-step{ flex-direction:row; align-items:baseline; justify-content:space-between; gap:8px; }
     .ride-bar-step > b{ font-size:14px; }
@@ -447,6 +458,13 @@ html select option{ background:#1D242D; color:#E7ECF2; }
             <button data-intensity="-1" aria-label="Lower intensity 1%">&minus;</button>
             <div class="intensity-read"><b class="intensity-val" title="Tap to reset to 100%">100%</b><span>Intensity</span></div>
             <button data-intensity="1" aria-label="Raise intensity 1%">+</button>
+          </div>
+          <div class="step-ctl" id="stepCtl" hidden>
+            <button data-step-time="-30" aria-label="Shorten this interval by 30 seconds" title="Shorten this interval">&minus;30s</button>
+            <button data-step-time="30" aria-label="Extend this interval by 30 seconds" title="Extend this interval">+30s</button>
+            <button id="stepEaseBtn" aria-label="Make this interval 5% easier" title="Make just this interval easier">Easier</button>
+            <span class="sc-sep"></span>
+            <button id="voiceBtn" aria-label="Spoken cues" title="Spoken cues before each change"></button>
           </div>
           <div class="next-pill" id="nextPill">
             <span class="next-dot" id="nextDot"></span>
@@ -694,7 +712,7 @@ const supabase = createSupabaseClient();
     if (step.targetType==='ftp_pct') w = ftp*(step.low+step.high)/200;
     else if (step.targetType==='watts') w = (step.low+step.high)/2;
     if (w==null) return null; // HR-based steps don't set an ERG target
-    return Math.round(w*intensityPct/100);
+    return Math.round(w*intensityPct/100*(step.ease||100)/100);
   }
   function currentTargetWatts(){
     const step = flatSteps[stepIndex];
@@ -873,6 +891,84 @@ const supabase = createSupabaseClient();
     document.getElementById('mIntervalTime').textContent = step ? fmtDur(Math.max(0, step.duration - stepElapsed)) : '0:00';
 
     renderNextPill(step);
+    renderStepCtl(step);
+  }
+
+  // ---- this interval only: longer, shorter, easier (TrainerRoad-style) ----
+  // Changes go on a copy of the current step, so repeats of the same interval later are untouched.
+  const STEP_MIN_LEFT = 10, EASE_STEP = 5, EASE_MIN = 70;
+  function renderStepCtl(step){
+    const el = document.getElementById('stepCtl');
+    const show = !!(running && step && !bailActive && currentWorkoutMeta.category !== 'test' && !inRampPhase());
+    el.hidden = !show;
+    if (!show) return;
+    el.querySelector('[data-step-time="-30"]').disabled = step.duration - stepElapsed <= STEP_MIN_LEFT;
+    const ease = document.getElementById('stepEaseBtn');
+    const pct = step.ease || 100;
+    ease.textContent = pct < 100 ? (pct - 100) + '%' : 'Easier';
+    ease.classList.toggle('on', pct < 100);
+    ease.disabled = pct <= EASE_MIN || targetWatts(step) == null;
+  }
+  function editCurrentStep(patch){
+    const step = flatSteps[stepIndex];
+    if (!step) return;
+    flatSteps[stepIndex] = Object.assign({}, step, patch);
+  }
+  document.querySelectorAll('[data-step-time]').forEach(b => b.addEventListener('click', ()=>{
+    const step = flatSteps[stepIndex];
+    if (!step) return;
+    const d = Number(b.dataset.stepTime);
+    editCurrentStep({ duration: Math.max(stepElapsed + STEP_MIN_LEFT, step.duration + d) });
+    renderStepReadout(); drawOverviewChart();
+  }));
+  document.getElementById('stepEaseBtn').addEventListener('click', async ()=>{
+    const step = flatSteps[stepIndex];
+    if (!step) return;
+    editCurrentStep({ ease: Math.max(EASE_MIN, (step.ease || 100) - EASE_STEP) });
+    renderStepReadout(); drawOverviewChart();
+    const w = currentTargetWatts();
+    if (w != null) await setTargetPower(w);
+  });
+
+  // ---- spoken cues: what's next, said 10 seconds before each change ----
+  const VOICE_KEY = 'tc_voice_cues';
+  let voiceOn = true;
+  try { voiceOn = localStorage.getItem(VOICE_KEY) !== '0'; } catch(e){}
+  const canSpeak = 'speechSynthesis' in window;
+  function renderVoiceBtn(){
+    const b = document.getElementById('voiceBtn');
+    b.style.display = canSpeak ? '' : 'none';
+    b.classList.toggle('on', voiceOn);
+    b.setAttribute('aria-pressed', voiceOn ? 'true' : 'false');
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/>'
+      + (voiceOn ? '<path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>' : '<path d="M17 9l5 6M22 9l-5 6"/>') + '</svg>';
+  }
+  document.getElementById('voiceBtn').addEventListener('click', ()=>{
+    voiceOn = !voiceOn;
+    try { localStorage.setItem(VOICE_KEY, voiceOn ? '1' : '0'); } catch(e){}
+    if (!voiceOn && canSpeak) speechSynthesis.cancel();
+    renderVoiceBtn();
+  });
+  renderVoiceBtn();
+  function speak(text){
+    if (!voiceOn || !canSpeak) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-GB'; u.rate = 1.05;
+      speechSynthesis.speak(u);
+    } catch(e){}
+  }
+  function spokenDur(sec){
+    const m = Math.floor(sec/60), s = Math.round(sec%60);
+    const mm = m ? m + (m === 1 ? ' minute' : ' minutes') : '', ss = s ? s + ' seconds' : '';
+    return [mm, ss].filter(Boolean).join(' ') || '0 seconds';
+  }
+  function announceNext(){
+    const next = flatSteps[stepIndex+1];
+    if (!next){ speak('Last ' + NEXT_HEADS_UP_SEC + ' seconds. Nearly done.'); return; }
+    const w = targetWatts(next);
+    speak('In ' + NEXT_HEADS_UP_SEC + ' seconds, ' + (next.note ? next.note + ', ' : '') + spokenDur(next.duration) + (w != null ? ' at ' + w + ' watts.' : '.'));
   }
 
   // The "Next" pill: what's coming, kept quiet (neutral panel + small zone dot) until the last
@@ -1576,6 +1672,7 @@ const supabase = createSupabaseClient();
     if (step){
       const remaining = step.duration - stepElapsed;
       if (remaining > 0 && remaining <= 3) beep(880, 120); // 3-2-1 warning before the interval changes
+      if (remaining === NEXT_HEADS_UP_SEC && step.duration > NEXT_HEADS_UP_SEC + 5 && !inRampPhase()) announceNext();
       if (stepElapsed >= step.duration) advanceStep();
     }
     if (inRampPhase() && !rampEnding){
