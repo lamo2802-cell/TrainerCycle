@@ -300,6 +300,7 @@
       <nav class="page-nav">
         <a href="index.html">Home</a>
         <a href="plans.html">Training Plans</a>
+        <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html" class="active">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
@@ -457,6 +458,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=16';
+import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -685,8 +687,8 @@ const supabase = createSupabaseClient();
   // ---- link this ride to the followed plan ----
   // A ride counts towards a plan session when it was launched from that session (plans.html passes
   // ?plan=&day=), or when the chosen workout is the next not-yet-done session in the followed plan
-  // within the coming week. Same calendar rules as plans.html (day 0 = the Monday the plan started).
-  let activePlan = null; // { id, weeks, startedAt, cursorDay, doneDays:Set }
+  // within the coming week. Same calendar rules as plans.html (see plan-schedule.js).
+  let activePlan = null; // { plan, state, doneDays }
   let explicitPlanLink = null;
   {
     const q = new URLSearchParams(window.location.search);
@@ -695,32 +697,21 @@ const supabase = createSupabaseClient();
   }
   async function loadActivePlanForLinking(){
     try {
-      const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
-      const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
-      if (!v.active_plan_id || !v.active_plan_started_at) return;
-      const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', v.active_plan_id).maybeSingle();
+      const st = await loadFollowState(supabase, user.id);
+      if (!st.planId || !st.startedAt) return;
+      const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', st.planId).maybeSingle();
       if (!plan) return;
-      const { data: done } = await supabase.from('completed_rides').select('plan_day_index')
-        .eq('user_id', user.id).eq('plan_id', plan.id).gte('started_at', v.active_plan_started_at);
-      activePlan = { id: plan.id, weeks: plan.weeks||[], startedAt: v.active_plan_started_at, cursorDay: v.active_plan_cursor_day||0,
-        doneDays: new Set((done||[]).map(r=>r.plan_day_index).filter(n=>n!=null)) };
+      activePlan = { plan, state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
     } catch(e){ activePlan = null; /* linking is a bonus; the ride still saves without it */ }
   }
   function findPlanSession(workoutId){
     if (explicitPlanLink && explicitPlanLink.workoutId === workoutId) return { planId: explicitPlanLink.planId, dayIndex: explicitPlanLink.dayIndex };
     if (!activePlan) return null;
-    const start = new Date(activePlan.startedAt); start.setHours(0,0,0,0);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const daysSinceStart = Math.max(0, Math.round((today - start)/86400000));
-    const from = Math.max(daysSinceStart, activePlan.cursorDay);
-    const last = Math.min(activePlan.weeks.length*7, from + 7);
-    for (let d = from; d < last; d++){
-      const day = ((activePlan.weeks[Math.floor(d/7)]||{}).days||[])[d%7];
-      if (day && day.type === 'workout' && day.workoutType !== 'strength' && !activePlan.doneDays.has(d)){
-        return day.workoutId === workoutId ? { planId: activePlan.id, dayIndex: d } : null;
-      }
-    }
-    return null;
+    const { plan, state, doneDays } = activePlan;
+    const weekAhead = addDays(todayIso(), 7);
+    const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
+      filter: s => s.dayObj.workoutType !== 'strength' });
+    return (next && next.date < weekAhead && next.dayObj.workoutId === workoutId) ? { planId: plan.id, dayIndex: next.dayIndex } : null;
   }
 
   function renderStepReadout(){

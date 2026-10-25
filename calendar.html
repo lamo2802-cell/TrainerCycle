@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TrainerCycle — Calendar</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10141A">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --z-recovery: #5A6472; --z-endurance: #4C8BF5; --z-tempo: #3DBE7A;
+    --z-threshold: #E8B93D; --z-vo2: #F08A3C; --z-anaerobic: #E5484D; --z-neuro: #B14AED;
+  }
+  *{box-sizing:border-box;}
+
+  .page-banner{
+    height:260px; border-radius:10px; margin-bottom:20px; background-size:cover; background-position:center 40%;
+    position:relative; overflow:hidden;
+  }
+  @media (max-width:600px){ .page-banner{ height:180px; } }
+  .page-banner::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,13,17,0) 0%, rgba(10,13,17,0) 65%, var(--bg) 100%);
+  }
+  :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ position:relative; min-height:100vh; }
+  .sidebar{
+    position:fixed; top:var(--topbar-h); left:0; bottom:0; width:340px; max-width:85vw;
+    background:var(--panel); border-right:1px solid var(--line);
+    padding:20px; overflow-y:auto; z-index:60;
+    transform:translateX(-100%); transition:transform .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
+  .sidebar-backdrop{
+    position:fixed; top:var(--topbar-h); left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
+  .main{ padding:calc(96px + env(safe-area-inset-top, 0px)) 28px 24px; max-width:min(1700px, 97vw); margin:0 auto; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:50;
+    display:flex; align-items:center; padding:0 14px; padding-top:env(safe-area-inset-top, 0px);
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:60px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:10px 10px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:16px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font-size:13px; cursor:pointer; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  button.primary:hover{ filter:brightness(1.08); }
+  a{ color:var(--accent); text-decoration:none; }
+
+  /* Series colours for the fitness chart, checked for colour-blind separation on the panel colour. */
+  :root{ --s-fitness:#239E90; --s-fatigue:#CC6A22; --s-form:#8A7BEB; }
+
+  .page-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .page-head h1{ font-size:24px; margin:0; }
+  .page-head .plan-line{ color:var(--text-dim); font-size:13px; margin-top:4px; }
+  .page-head .plan-line b{ color:var(--text); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:18px; }
+  .panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
+
+  /* ---- fitness ---- */
+  .fit-tiles{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+  .fit-tile{ background:var(--panel-2); border-radius:10px; padding:10px 12px; }
+  .fit-tile .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:6px; }
+  .fit-tile .lbl i{ width:10px; height:3px; border-radius:2px; display:inline-block; }
+  .fit-tile .val{ font-family:var(--mono); font-size:26px; font-weight:600; margin-top:2px; }
+  .fit-tile .note{ font-size:12px; color:var(--text-dim); }
+  @media (max-width:600px){
+    .fit-tiles{ grid-template-columns:repeat(2, minmax(0,1fr)); } .fit-tile .val{ font-size:22px; }
+    .fit-legend .series{ display:none; } /* the tiles and the line-end labels name each series */
+  }
+  .fit-legend{ display:flex; gap:16px; font-size:12px; color:var(--text-dim); flex-wrap:wrap; }
+  .fit-legend span{ display:flex; align-items:center; gap:6px; }
+  .fit-legend i{ width:14px; height:3px; border-radius:2px; display:inline-block; }
+  .fit-legend i.dash{ background:repeating-linear-gradient(90deg, var(--text-dim) 0 4px, transparent 4px 7px) !important; }
+  .chart-wrap{ position:relative; }
+  #fitChart{ width:100%; height:220px; display:block; touch-action:pan-y; }
+  .chart-tip{ position:absolute; top:0; pointer-events:none; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12px; white-space:nowrap; display:none; z-index:5; }
+  .chart-tip .d{ color:var(--text-dim); margin-bottom:4px; }
+  .chart-tip .r{ display:flex; align-items:center; gap:6px; font-family:var(--mono); }
+  .chart-tip .r i{ width:10px; height:3px; border-radius:2px; display:inline-block; }
+  .fit-explain{ font-size:12px; color:var(--text-dim); margin-top:10px; line-height:1.5; }
+
+  /* ---- calendar ---- */
+  .cal-bar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .cal-bar .cal-title{ font-size:17px; font-weight:600; margin-right:auto; }
+  .cal-bar button{ min-height:36px; }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button{ border:none; border-radius:0; background:var(--panel-2); }
+  .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
+  .cal-hint{ font-size:12px; color:var(--text-dim); margin:-4px 0 10px; }
+
+  .month{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)) 92px; gap:4px; }
+  .month .dow{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; padding:2px 6px; }
+  .day{ background:var(--panel-2); border:1px solid transparent; border-radius:8px; min-height:104px; padding:6px; display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .day.other{ opacity:.45; }
+  .day.today{ border-color:var(--accent); }
+  .day.drop-ok{ border-color:var(--accent); border-style:dashed; background:color-mix(in srgb, var(--accent) 10%, var(--panel-2)); }
+  .day .dnum{ font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+  .day.today .dnum{ color:var(--accent); font-weight:700; }
+  .wk-total{ border-radius:8px; padding:6px 8px; font-size:12px; color:var(--text-dim); display:flex; flex-direction:column; justify-content:center; gap:2px; font-family:var(--mono); }
+  .wk-total b{ color:var(--text); font-size:15px; }
+
+  .chip{ display:block; width:100%; text-align:left; border-radius:6px; padding:5px 7px; font-size:12px; line-height:1.3; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; min-width:0; }
+  .chip .nm{ display:flex; align-items:center; gap:5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chip .nm span{ overflow:hidden; text-overflow:ellipsis; }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .chip .mt{ color:var(--text-dim); font-family:var(--mono); font-size:11px; }
+  .chip.planned[draggable=true]{ cursor:grab; }
+  .chip.done{ border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+  .chip.done .tick{ color:var(--accent); }
+  .chip.missed{ opacity:.6; }
+  .chip.missed .nm span{ text-decoration:line-through; }
+  .chip.dragging{ opacity:.35; }
+
+  .week-list{ display:flex; flex-direction:column; gap:6px; }
+  .week-list .day{ min-height:0; flex-direction:row; align-items:flex-start; gap:10px; padding:10px; }
+  .week-list .day .dnum{ width:58px; flex-shrink:0; font-size:12.5px; padding-top:4px; }
+  .week-list .day .items{ flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .week-list .day .rest{ font-size:12.5px; color:var(--text-dim); font-style:italic; padding-top:4px; }
+  .week-list .chip{ padding:8px 10px; font-size:13px; }
+  .week-sum{ display:flex; gap:18px; font-size:12.5px; color:var(--text-dim); margin-bottom:10px; font-family:var(--mono); }
+  .week-sum b{ color:var(--text); }
+
+  @media (max-width:760px){
+    .month{ grid-template-columns:repeat(7, minmax(0,1fr)); gap:3px; }
+    .month .wk-total, .month .dow.wk{ display:none; }
+    .day{ min-height:64px; padding:4px; }
+    .month .chip{ padding:3px 4px; }
+    .month .chip .mt, .month .chip .nm span:not(.tick){ display:none; }
+    .cal-bar .cal-title{ flex-basis:100%; }
+  }
+
+  .sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:150; display:none; align-items:center; justify-content:center; padding:16px; }
+  .sheet{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; width:min(420px, 100%); }
+  .sheet h3{ margin:0 0 4px; font-size:17px; }
+  .sheet .sub2{ color:var(--text-dim); font-size:12.5px; margin-bottom:14px; }
+  .sheet .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .sheet input[type=date]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:8px 9px; font-size:14px; color-scheme:dark; }
+  .sheet button{ min-height:38px; padding:8px 14px; }
+  .sheet .actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
+  .empty-note{ color:var(--text-dim); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+</div>
+
+<div class="app sidebar-collapsed">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">Calendar</p>
+
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Home</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="calendar.html" class="active">Calendar</a>
+        <a href="builder.html">Workouts</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
+        <a href="settings.html">Settings</a>
+        <a href="help.html">How to Use</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="page-head">
+      <div>
+        <h1>Calendar</h1>
+        <div class="plan-line" id="planLine">Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel" id="fitPanel">
+      <div class="panel-title"><span>Fitness &amp; form</span>
+        <div class="fit-legend">
+          <span class="series"><i style="background:var(--s-fitness)"></i>Fitness</span>
+          <span class="series"><i style="background:var(--s-fatigue)"></i>Fatigue</span>
+          <span class="series"><i style="background:var(--s-form)"></i>Form</span>
+          <span id="legendPlanned" style="display:none;"><i class="dash"></i>If you ride the plan</span>
+        </div>
+      </div>
+      <div class="fit-tiles">
+        <div class="fit-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" id="tFitness">—</div><div class="note">42-day load</div></div>
+        <div class="fit-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" id="tFatigue">—</div><div class="note">7-day load</div></div>
+        <div class="fit-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val" id="tForm">—</div><div class="note" id="tFormNote">&nbsp;</div></div>
+        <div class="fit-tile"><div class="lbl">This week</div><div class="val" id="tWeek">—</div><div class="note" id="tWeekNote">TSS ridden</div></div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="fitChart"></canvas>
+        <div class="chart-tip" id="chartTip"></div>
+      </div>
+      <div class="fit-explain">Fitness is your average daily TSS over the last six weeks, Fatigue over the last week, and Form is Fitness minus Fatigue. Hard weeks push Form negative; a rest week lets it bounce back before a test or event.</div>
+    </div>
+
+    <div class="panel">
+      <div class="cal-bar">
+        <div class="cal-title" id="calTitle">—</div>
+        <div class="seg"><button id="viewWeek">Week</button><button id="viewMonth">Month</button></div>
+        <button id="calPrev" aria-label="Previous">‹</button>
+        <button id="calToday">Today</button>
+        <button id="calNext" aria-label="Next">›</button>
+      </div>
+      <div class="cal-hint" id="calHint"></div>
+      <div id="calBody"><div class="empty-note">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="sheetBackdrop">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h3 id="sheetTitle"></h3>
+    <div class="sub2" id="sheetSub"></div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=16';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=1';
+const supabase = createSupabaseClient();
+
+(async function(){
+  const user = await requireAuth(supabase);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
+  await requireSubscription(supabase, user);
+
+  const ZONE_COLOURS = { recovery:'var(--z-recovery)', endurance:'var(--z-endurance)', tempo:'var(--z-tempo)', sweet_spot:'var(--z-threshold)',
+    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)' };
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function fmtMins(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '') : m+'m'; }
+  function longDate(iso){ const d = parseIso(iso); return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }); }
+  function mondayOf(iso){ const d = parseIso(iso); return addDays(iso, -((d.getDay()+6)%7)); }
+
+  // ---- data ----
+  let ftp = 250;
+  let follow = { planId:null, startedAt:null, cursorDay:0, moves:{} };
+  let plan = null;
+  let doneDays = new Map();
+  const workouts = {};   // id -> { name, category, steps, duration_sec }
+  let rides = [];        // completed rides, newest window
+  const ridesByDate = new Map(); // 'YYYY-MM-DD' -> [ride]
+
+  async function loadAll(){
+    const sinceIso = new Date(Date.now() - 400*86400000).toISOString();
+    const [ftpRes, st, wRes, sRes, rRes] = await Promise.all([
+      supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+      loadFollowState(supabase, user.id),
+      supabase.from('workouts').select('id,name,category,steps,duration_sec'),
+      supabase.from('strength_workouts').select('id,name'),
+      supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index')
+        .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true })
+    ]);
+    if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
+    follow = st;
+    (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
+    (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength' }; });
+    rides = rRes.data || [];
+    rides.forEach(r=>{
+      const d = isoDate(new Date(r.started_at));
+      if (!ridesByDate.has(d)) ridesByDate.set(d, []);
+      ridesByDate.get(d).push(r);
+    });
+    if (follow.planId && follow.startedAt){
+      const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
+      plan = data || null;
+      if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
+    }
+  }
+
+  // Planned sessions by effective date, with whether each is done/missed and its planned TSS.
+  function sessionsByDate(){
+    const map = new Map();
+    if (!plan) return map;
+    const today = todayIso();
+    planSessions(plan, follow.startedAt, follow.moves).forEach(s=>{
+      const wk = workouts[s.dayObj.workoutId] || {};
+      const isStrength = s.dayObj.workoutType === 'strength';
+      const item = Object.assign({}, s, {
+        name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : wk.category,
+        isStrength, durationSec: wk.duration_sec || null,
+        tss: isStrength ? null : plannedTss(wk.steps, ftp),
+        done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay,
+      });
+      item.missed = !item.done && (item.date < today || item.skipped);
+      if (!map.has(s.date)) map.set(s.date, []);
+      map.get(s.date).push(item);
+    });
+    return map;
+  }
+
+  // ---- fitness (CTL / ATL / TSB) ----
+  const CTL_DAYS = 42, ATL_DAYS = 7, CHART_BACK = 90, CHART_AHEAD_MAX = 42;
+  let fitSeries = []; // { date, tss, ctl, atl, tsb, future }
+  function computeFitness(){
+    const today = todayIso();
+    const daily = new Map();
+    rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
+    // Project forward with the plan's not-yet-ridden sessions, so you can see where it takes you.
+    let ahead = 0;
+    if (plan){
+      sessionsByDate().forEach((items, date)=>{
+        if (date <= today) return;
+        items.forEach(it=>{ if (!it.done && !it.skipped && it.tss){ daily.set(date, (daily.get(date)||0) + it.tss); ahead = Math.max(ahead, daysBetween(today, date)); } });
+      });
+    }
+    ahead = Math.min(CHART_AHEAD_MAX, ahead);
+    const firstRide = rides.length ? isoDate(new Date(rides[0].started_at)) : today;
+    const start = firstRide < addDays(today, -CHART_BACK) ? firstRide : addDays(today, -CHART_BACK);
+    const end = addDays(today, ahead);
+    let ctl = 0, atl = 0;
+    const out = [];
+    for (let d = start; d <= end; d = addDays(d, 1)){
+      const tss = daily.get(d) || 0;
+      ctl += (tss - ctl) / CTL_DAYS;
+      atl += (tss - atl) / ATL_DAYS;
+      out.push({ date:d, tss, ctl, atl, tsb: ctl - atl, future: d > today });
+    }
+    fitSeries = out.filter(p => p.date >= addDays(today, -CHART_BACK));
+    document.getElementById('legendPlanned').style.display = ahead > 0 ? '' : 'none';
+
+    const now = out.find(p=>p.date === today) || out[out.length-1];
+    document.getElementById('tFitness').textContent = Math.round(now.ctl);
+    document.getElementById('tFatigue').textContent = Math.round(now.atl);
+    const form = Math.round(now.ctl - now.atl);
+    document.getElementById('tForm').textContent = (form > 0 ? '+' : '') + form;
+    document.getElementById('tFormNote').textContent =
+      form > 5 ? 'Fresh' : form >= -10 ? 'Neutral' : form >= -30 ? 'Building (tired)' : 'Very tired, ease off';
+
+    const wkStart = mondayOf(today);
+    let wkDone = 0, wkPlanned = 0;
+    for (let i=0;i<7;i++){
+      const d = addDays(wkStart, i);
+      (ridesByDate.get(d)||[]).forEach(r=>{ wkDone += r.tss||0; });
+    }
+    const byDate = sessionsByDate();
+    for (let i=0;i<7;i++) (byDate.get(addDays(wkStart, i))||[]).forEach(it=>{ wkPlanned += it.tss||0; });
+    document.getElementById('tWeek').textContent = wkDone;
+    document.getElementById('tWeekNote').textContent = wkPlanned ? ('of ' + wkPlanned + ' planned TSS') : 'TSS ridden';
+  }
+
+  const canvas = document.getElementById('fitChart');
+  const tip = document.getElementById('chartTip');
+  let chartGeom = null;
+  function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function drawFitChart(hoverIdx){
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = Math.round(W*dpr); canvas.height = Math.round(H*dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,W,H);
+    const pts = fitSeries;
+    if (pts.length < 2){ return; }
+    const pad = { l:34, r:52, t:10, b:22 };
+    let lo = 0, hi = 10;
+    pts.forEach(p=>{ hi = Math.max(hi, p.ctl, p.atl, p.tsb); lo = Math.min(lo, p.tsb); });
+    hi = Math.ceil(hi/10)*10; lo = Math.floor(lo/10)*10;
+    const x = i => pad.l + (W - pad.l - pad.r) * i / (pts.length - 1);
+    const y = v => pad.t + (H - pad.t - pad.b) * (hi - v) / (hi - lo || 1);
+    chartGeom = { x, pad, W, n: pts.length };
+
+    const dim = cssVar('--text-dim'), line = cssVar('--line');
+    ctx.font = '11px ' + cssVar('--mono');
+    // recessive grid
+    const step = (hi - lo) > 120 ? 40 : (hi - lo) > 60 ? 20 : 10;
+    ctx.fillStyle = dim; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let v = lo; v <= hi; v += step){
+      ctx.strokeStyle = v === 0 ? dim : line; ctx.globalAlpha = v === 0 ? .6 : 1; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.l, Math.round(y(v))+.5); ctx.lineTo(W - pad.r, Math.round(y(v))+.5); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillText(String(v), pad.l - 6, y(v));
+    }
+    // daily TSS as faint bars at the base
+    const maxT = Math.max(1, ...pts.map(p=>p.tss));
+    const bw = Math.max(1, (W - pad.l - pad.r) / pts.length - 1);
+    const base = y(lo), barH = (H - pad.t - pad.b) * 0.28;
+    pts.forEach((p,i)=>{ if (!p.tss) return;
+      ctx.fillStyle = dim; ctx.globalAlpha = p.future ? .12 : .22;
+      const h = barH * p.tss / maxT; ctx.fillRect(x(i) - bw/2, base - h, bw, h); });
+    ctx.globalAlpha = 1;
+    // month ticks
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = dim;
+    pts.forEach((p,i)=>{ if (p.date.endsWith('-01')){ ctx.fillText(parseIso(p.date).toLocaleString('en-GB',{month:'short'}), x(i), H - pad.b + 6); } });
+    // today marker
+    const ti = pts.findIndex(p=>p.future);
+    const todayI = ti === -1 ? pts.length - 1 : ti - 1;
+    ctx.strokeStyle = cssVar('--accent'); ctx.globalAlpha = .5; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(x(todayI)+.5, pad.t); ctx.lineTo(x(todayI)+.5, H - pad.b); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+    // series: solid up to today, dashed for the plan projection
+    const series = [['tsb','--s-form'],['atl','--s-fatigue'],['ctl','--s-fitness']];
+    series.forEach(([k, c])=>{
+      ctx.strokeStyle = cssVar(c); ctx.lineWidth = 2; ctx.lineJoin = 'round';
+      ctx.beginPath(); for (let i=0;i<=todayI;i++){ i ? ctx.lineTo(x(i), y(pts[i][k])) : ctx.moveTo(x(i), y(pts[i][k])); } ctx.stroke();
+      if (todayI < pts.length - 1){
+        ctx.setLineDash([5,4]); ctx.globalAlpha = .8;
+        ctx.beginPath(); for (let i=todayI;i<pts.length;i++){ i===todayI ? ctx.moveTo(x(i), y(pts[i][k])) : ctx.lineTo(x(i), y(pts[i][k])); } ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+    });
+    // direct labels at the right end, nudged apart so they never overlap
+    const last = pts[pts.length-1];
+    const labels = [['Fitness', last.ctl], ['Fatigue', last.atl], ['Form', last.tsb]].map(([t,v])=>({ t, v, yy: y(v) })).sort((a,b)=>a.yy-b.yy);
+    for (let i=1;i<labels.length;i++) if (labels[i].yy - labels[i-1].yy < 13) labels[i].yy = labels[i-1].yy + 13;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = cssVar('--text');
+    labels.forEach(l=> ctx.fillText(l.t, W - pad.r + 6, l.yy));
+    // hover crosshair
+    if (hoverIdx != null && pts[hoverIdx]){
+      const p = pts[hoverIdx];
+      ctx.strokeStyle = dim; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x(hoverIdx)+.5, pad.t); ctx.lineTo(x(hoverIdx)+.5, H - pad.b); ctx.stroke();
+      series.forEach(([k,c])=>{ ctx.fillStyle = cssVar(c); ctx.strokeStyle = cssVar('--panel'); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x(hoverIdx), y(p[k]), 4, 0, Math.PI*2); ctx.fill(); ctx.stroke(); });
+    }
+  }
+  function showTip(clientX){
+    if (!chartGeom) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const { pad, W, n } = chartGeom;
+    let i = Math.round((px - pad.l) / (W - pad.l - pad.r) * (n - 1));
+    i = Math.max(0, Math.min(n-1, i));
+    const p = fitSeries[i];
+    drawFitChart(i);
+    tip.innerHTML = '<div class="d">'+longDate(p.date)+(p.future ? ' · planned' : '')+'</div>'
+      + '<div class="r"><i style="background:var(--s-fitness)"></i>Fitness '+Math.round(p.ctl)+'</div>'
+      + '<div class="r"><i style="background:var(--s-fatigue)"></i>Fatigue '+Math.round(p.atl)+'</div>'
+      + '<div class="r"><i style="background:var(--s-form)"></i>Form '+Math.round(p.tsb)+'</div>'
+      + '<div class="r" style="color:var(--text-dim)">TSS '+Math.round(p.tss)+'</div>';
+    tip.style.display = 'block';
+    const tx = chartGeom.x(i);
+    tip.style.left = Math.min(W - tip.offsetWidth, Math.max(0, tx + 12 > W - tip.offsetWidth ? tx - tip.offsetWidth - 12 : tx + 12)) + 'px';
+  }
+  function hideTip(){ tip.style.display = 'none'; drawFitChart(); }
+  canvas.addEventListener('pointermove', e=> showTip(e.clientX));
+  canvas.addEventListener('pointerdown', e=> showTip(e.clientX));
+  canvas.addEventListener('pointerleave', hideTip);
+
+  // ---- calendar ----
+  let view = window.matchMedia('(max-width:760px)').matches ? 'week' : 'month';
+  let anchor = todayIso();
+
+  function chipHtml(item){
+    if (item.kind === 'ride'){
+      const r = item.ride;
+      return '<button class="chip done" data-ride="'+r.id+'">'
+        + '<div class="nm"><span class="tick">✓</span><span>'+escapeHtml(r.workout_name)+'</span></div>'
+        + '<div class="mt">'+fmtMins(r.duration_sec)+(r.tss!=null ? ' · '+r.tss+' TSS' : '')+'</div></button>';
+    }
+    const s = item.session;
+    const cls = s.missed ? 'missed' : '';
+    const draggable = !s.done;
+    return '<button class="chip planned '+cls+'" data-day="'+s.dayIndex+'"'+(draggable ? ' draggable="true"' : '')+'>'
+      + '<div class="nm"><i class="dot" style="background:'+(ZONE_COLOURS[s.category]||'var(--text-dim)')+'"></i><span>'+escapeHtml(s.name)+'</span></div>'
+      + '<div class="mt">'+(s.missed ? (s.skipped ? 'Skipped' : 'Missed') : (s.isStrength ? 'Strength' : ((s.durationSec ? fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : ''))))+'</div></button>';
+  }
+  // A day's items: rides first, then planned sessions that no ride has ticked off yet.
+  function itemsFor(date, byDate){
+    const out = (ridesByDate.get(date)||[]).map(r=>({ kind:'ride', ride:r }));
+    (byDate.get(date)||[]).forEach(s=>{ if (!s.done) out.push({ kind:'session', session:s }); });
+    return out;
+  }
+  function weekTotals(mon, byDate){
+    let done = 0, planned = 0, mins = 0;
+    for (let i=0;i<7;i++){
+      const d = addDays(mon, i);
+      (ridesByDate.get(d)||[]).forEach(r=>{ done += r.tss||0; mins += Math.round((r.duration_sec||0)/60); });
+      (byDate.get(d)||[]).forEach(s=>{ planned += s.tss||0; });
+    }
+    return { done, planned, mins };
+  }
+
+  function render(){
+    const byDate = sessionsByDate();
+    const today = todayIso();
+    document.getElementById('viewWeek').classList.toggle('on', view === 'week');
+    document.getElementById('viewMonth').classList.toggle('on', view === 'month');
+    document.getElementById('calHint').textContent = plan
+      ? (window.matchMedia('(pointer:fine)').matches ? 'Drag a planned session to another day to move it, or click it for options.' : 'Tap a planned session to ride it or move it to another day.')
+      : '';
+    const body = document.getElementById('calBody');
+    if (view === 'month'){
+      const a = parseIso(anchor);
+      const first = isoDate(new Date(a.getFullYear(), a.getMonth(), 1));
+      const lastDay = isoDate(new Date(a.getFullYear(), a.getMonth()+1, 0));
+      document.getElementById('calTitle').textContent = a.toLocaleString('en-GB', { month:'long', year:'numeric' });
+      let html = '<div class="month">' + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>'<div class="dow">'+d+'</div>').join('') + '<div class="dow wk">Week</div>';
+      for (let mon = mondayOf(first); mon <= lastDay; mon = addDays(mon, 7)){
+        for (let i=0;i<7;i++){
+          const d = addDays(mon, i);
+          const inMonth = d >= first && d <= lastDay;
+          html += '<div class="day'+(inMonth ? '' : ' other')+(d === today ? ' today' : '')+'" data-date="'+d+'">'
+            + '<div class="dnum">'+parseIso(d).getDate()+'</div>'
+            + itemsFor(d, byDate).map(chipHtml).join('') + '</div>';
+        }
+        const t = weekTotals(mon, byDate);
+        html += '<div class="wk-total"><b>'+t.done+'</b>'+(t.planned ? 'of '+t.planned+' TSS' : 'TSS')+'<span>'+fmtMins(t.mins*60)+'</span></div>';
+      }
+      body.innerHTML = html + '</div>';
+    } else {
+      const mon = mondayOf(anchor);
+      const sun = addDays(mon, 6);
+      document.getElementById('calTitle').textContent = longDate(mon) + ' – ' + longDate(sun);
+      const t = weekTotals(mon, byDate);
+      let html = '<div class="week-sum"><span>Ridden <b>'+t.done+'</b> TSS</span>'+(t.planned ? '<span>Planned <b>'+t.planned+'</b> TSS</span>' : '')+'<span>Time <b>'+fmtMins(t.mins*60)+'</b></span></div><div class="week-list">';
+      for (let i=0;i<7;i++){
+        const d = addDays(mon, i);
+        const items = itemsFor(d, byDate);
+        html += '<div class="day'+(d === today ? ' today' : '')+'" data-date="'+d+'">'
+          + '<div class="dnum">'+WEEKDAYS[parseIso(d).getDay()]+' '+parseIso(d).getDate()+'</div>'
+          + '<div class="items">'+(items.length ? items.map(chipHtml).join('') : '<div class="rest">Rest</div>')+'</div></div>';
+      }
+      body.innerHTML = html + '</div>';
+    }
+  }
+
+  function shift(dir){
+    if (view === 'month'){ const a = parseIso(anchor); anchor = isoDate(new Date(a.getFullYear(), a.getMonth()+dir, 1)); }
+    else anchor = addDays(anchor, 7*dir);
+    render();
+  }
+  document.getElementById('calPrev').addEventListener('click', ()=> shift(-1));
+  document.getElementById('calNext').addEventListener('click', ()=> shift(1));
+  document.getElementById('calToday').addEventListener('click', ()=>{ anchor = todayIso(); render(); });
+  document.getElementById('viewWeek').addEventListener('click', ()=>{ view = 'week'; render(); });
+  document.getElementById('viewMonth').addEventListener('click', ()=>{ view = 'month'; render(); });
+
+  // ---- moving sessions ----
+  function findSession(dayIndex){
+    return plan ? planSessions(plan, follow.startedAt, follow.moves).find(s=>s.dayIndex === dayIndex) : null;
+  }
+  async function moveSession(dayIndex, date){
+    const s = findSession(dayIndex);
+    if (!s) return;
+    const moves = Object.assign({}, follow.moves);
+    if (date === s.plannedDate) delete moves[dayIndex]; else moves[dayIndex] = date;
+    follow.moves = moves;
+    render(); computeFitness(); drawFitChart();
+    try { await saveMoves(supabase, user.id, moves); }
+    catch(e){ alert('Couldn\'t save that move (check your connection).'); }
+  }
+
+  const calBody = document.getElementById('calBody');
+  let dragDay = null;
+  calBody.addEventListener('dragstart', e=>{
+    const chip = e.target.closest('.chip.planned[draggable=true]');
+    if (!chip) return;
+    dragDay = Number(chip.dataset.day);
+    chip.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragDay));
+  });
+  calBody.addEventListener('dragend', e=>{
+    dragDay = null;
+    calBody.querySelectorAll('.dragging, .drop-ok').forEach(el=> el.classList.remove('dragging','drop-ok'));
+  });
+  calBody.addEventListener('dragover', e=>{
+    if (dragDay == null) return;
+    const cell = e.target.closest('.day[data-date]');
+    if (!cell || cell.dataset.date < todayIso()) return;
+    e.preventDefault();
+    calBody.querySelectorAll('.drop-ok').forEach(el=>{ if (el !== cell) el.classList.remove('drop-ok'); });
+    cell.classList.add('drop-ok');
+  });
+  calBody.addEventListener('drop', e=>{
+    const cell = e.target.closest('.day[data-date]');
+    if (dragDay == null || !cell) return;
+    e.preventDefault();
+    moveSession(dragDay, cell.dataset.date);
+  });
+
+  // ---- session / ride sheet ----
+  const sheet = document.getElementById('sheetBackdrop');
+  function closeSheet(){ sheet.style.display = 'none'; }
+  sheet.addEventListener('click', e=>{ if (e.target === sheet) closeSheet(); });
+  document.addEventListener('keydown', e=>{ if (e.key === 'Escape') closeSheet(); });
+  calBody.addEventListener('click', e=>{
+    const rideChip = e.target.closest('.chip.done');
+    if (rideChip){ window.location.href = 'rides.html'; return; }
+    const chip = e.target.closest('.chip.planned');
+    if (!chip) return;
+    const s = sessionsByDate().get(chip.closest('.day').dataset.date).find(x=>x.dayIndex === Number(chip.dataset.day));
+    if (!s) return;
+    document.getElementById('sheetTitle').textContent = s.name;
+    document.getElementById('sheetSub').textContent = 'Week '+s.weekNum+(s.deload ? ' · Deload' : '')+' · '+longDate(s.date)
+      + (s.moved ? ' (planned for '+longDate(s.plannedDate)+')' : '')
+      + (s.isStrength ? ' · Strength' : ((s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
+    const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
+      : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
+    const minDate = todayIso();
+    document.getElementById('sheetBody').innerHTML =
+        '<div class="row"><label for="moveDate" style="color:var(--text-dim); font-size:13px;">Move to</label>'
+      + '<input type="date" id="moveDate" min="'+minDate+'" value="'+(s.date >= minDate ? s.date : minDate)+'">'
+      + '<button id="moveSaveBtn">Move</button>'
+      + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
+      + '</div>'
+      + '<div class="actions"><button id="sheetCloseBtn">Close</button><a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a></div>';
+    sheet.style.display = 'flex';
+    document.getElementById('sheetCloseBtn').onclick = closeSheet;
+    document.getElementById('moveSaveBtn').onclick = ()=>{
+      const v = document.getElementById('moveDate').value;
+      if (v){ closeSheet(); moveSession(s.dayIndex, v); }
+    };
+    const resetBtn = document.getElementById('moveResetBtn');
+    if (resetBtn) resetBtn.onclick = ()=>{ closeSheet(); moveSession(s.dayIndex, s.plannedDate); };
+  });
+
+  // ---- sidebar drawer (overlay on all screen sizes) ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
+
+  // ---- fullscreen toggle (not needed when already running as an installed app) ----
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  if (!document.documentElement.classList.contains('standalone')){
+    fullscreenToggle.addEventListener('click', ()=>{
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', ()=>{
+      fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+    });
+  }
+
+  // ---- init ----
+  try {
+    await loadAll();
+  } catch(e){
+    document.getElementById('calBody').innerHTML = '<div class="empty-note">Could not load your calendar. Error: '+escapeHtml(e && e.message ? e.message : String(e))+'</div>';
+    return;
+  }
+  document.getElementById('planLine').innerHTML = plan
+    ? 'Following <b>'+escapeHtml(plan.name)+'</b> · '+(plan.weeks||[]).length+' weeks · <a href="plans.html">Plan details</a>'
+    : 'Not following a plan. <a href="plans.html">Pick one</a> to see it laid out here.';
+  computeFitness();
+  render();
+  drawFitChart();
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=> drawFitChart(), 150); });
+})();
+</script>
+</body>
+</html>

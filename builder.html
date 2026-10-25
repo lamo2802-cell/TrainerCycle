@@ -243,6 +243,7 @@
       <nav class="page-nav">
         <a href="index.html">Home</a>
         <a href="plans.html">Training Plans</a>
+        <a href="calendar.html">Calendar</a>
         <a href="builder.html" class="active">Workouts</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
@@ -335,6 +336,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=16';
+import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
@@ -620,23 +622,13 @@ const supabase = createSupabaseClient();
   async function renderPlanNudge(){
     const el = document.getElementById('planNudge');
     try {
-      const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
-      const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
-      if (!v.active_plan_id || !v.active_plan_started_at) return;
-      const { data: plan } = await supabase.from('training_plans').select('id,name,weeks').eq('id', v.active_plan_id).maybeSingle();
+      const st = await loadFollowState(supabase, user.id);
+      if (!st.planId || !st.startedAt) return;
+      const { data: plan } = await supabase.from('training_plans').select('id,name,weeks').eq('id', st.planId).maybeSingle();
       if (!plan) return;
-      const start = new Date(v.active_plan_started_at); start.setHours(0,0,0,0);
-      const today = new Date(); today.setHours(0,0,0,0);
-      const daysSinceStart = Math.max(0, Math.round((today - start)/86400000));
-      const weeks = plan.weeks || [];
-      const { data: done } = await supabase.from('completed_rides').select('plan_day_index')
-        .eq('user_id', user.id).eq('plan_id', plan.id).gte('started_at', v.active_plan_started_at);
-      const doneDays = new Set((done||[]).map(r=>r.plan_day_index));
-      let next = null;
-      for (let d = Math.max(daysSinceStart, v.active_plan_cursor_day||0); d < weeks.length*7; d++){
-        const day = ((weeks[Math.floor(d/7)]||{}).days||[])[d%7];
-        if (day && day.type === 'workout' && !doneDays.has(d)){ next = { day, isToday: d===daysSinceStart, dayIndex: d }; break; }
-      }
+      const doneDays = await loadDoneDays(supabase, user.id, plan.id, st.startedAt);
+      const s = nextSession(plan, st.startedAt, { cursorDay: st.cursorDay, moves: st.moves, doneDays });
+      const next = s ? { day: s.dayObj, isToday: s.date === todayIso(), dayIndex: s.dayIndex } : null;
       if (!next || next.day.workoutType === 'strength') return;
       const w = library.find(x=>x.id===next.day.workoutId);
       if (!w) return;
