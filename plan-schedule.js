@@ -57,12 +57,12 @@ export function nextSession(plan, startedAtIso, { cursorDay=0, moves=null, doneD
   ) || null;
 }
 
-const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps'];
+const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps','active_plan_runs'];
 export async function loadFollowState(supabase, userId){
   const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS);
   const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
   return { planId: v.active_plan_id || null, startedAt: v.active_plan_started_at || null,
-    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {} };
+    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null };
 }
 export const FOLLOW_SETTING_KEYS = FOLLOW_KEYS;
 

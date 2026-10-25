@@ -350,10 +350,11 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
-import { notify, ask } from './sheet.js?v=1';
+import { notify, ask } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=2';
 import { applySwaps } from './adapt.js?v=1';
+import { addRuns } from './run.js?v=1';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
@@ -416,10 +417,10 @@ const supabase = createSupabaseClient();
     }
     // Rider's progression levels, from ride history (used to label each workout Achievable, Productive…)
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport').eq('user_id', user.id);
       const byId = {}, byName = {};
       library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels(data||[], r => byId[r.workout_id] || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
     renderFtp();
     renderPicker();
@@ -659,11 +660,11 @@ const supabase = createSupabaseClient();
       if (!st.planId || !st.startedAt) return;
       const { data: planRow } = await supabase.from('training_plans').select('id,name,weeks').eq('id', st.planId).maybeSingle();
       if (!planRow) return;
-      const plan = applySwaps(planRow, st.swaps);
+      const plan = applySwaps(addRuns(planRow, st.runs), st.swaps);
       const doneDays = await loadDoneDays(supabase, user.id, plan.id, st.startedAt);
       const s = nextSession(plan, st.startedAt, { cursorDay: st.cursorDay, moves: st.moves, doneDays });
       const next = s ? { day: s.dayObj, isToday: s.date === todayIso(), dayIndex: s.dayIndex } : null;
-      if (!next || next.day.workoutType === 'strength') return;
+      if (!next || next.day.workoutType === 'strength' || next.day.workoutType === 'run') return;
       const w = library.find(x=>x.id===next.day.workoutId);
       if (!w) return;
       const mins = Math.round(computeStats(w.steps).totalDur/60);

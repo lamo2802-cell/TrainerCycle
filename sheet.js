@@ -11,6 +11,7 @@ const CSS = `
 .tc-sheet-back.on .tc-sheet{ transform:none; }
 .tc-sheet h3{ margin:0 0 8px; font-size:17px; font-weight:700; line-height:1.3; }
 .tc-sheet p{ margin:0 0 6px; font-size:14px; line-height:1.5; color:#B4BDC9; white-space:pre-line; }
+.tc-sheet{ max-height:calc(100vh - 40px); overflow-y:auto; }
 .tc-sheet .tc-sheet-btns{ display:flex; flex-direction:row-reverse; gap:8px; margin-top:16px; }
 .tc-sheet .tc-sheet-btns button{ flex:1; width:auto; margin:0; padding:12px 14px; font-size:14.5px; font-weight:600; border-radius:9px; cursor:pointer;
   background:#1D242D; border:1px solid #2A323D; color:#E7ECF2; font-family:inherit; }
@@ -32,7 +33,9 @@ function ensureStyle(){
 
 // buttons: [{ label, value, kind:'primary'|'danger'|undefined }], first one is the main action.
 // Resolves with the chosen button's value, or `dismissValue` on Escape / tapping outside.
-export function showSheet({ title = '', text = '', buttons = [{ label:'OK', value:true, kind:'primary' }], dismissValue = null } = {}){
+// content: an optional element (e.g. a small form) shown above the buttons.
+// onAction(value): optional check before closing; return false (or a promise of false) to keep it open.
+export function showSheet({ title = '', text = '', content = null, buttons = [{ label:'OK', value:true, kind:'primary' }], dismissValue = null, onAction = null } = {}){
   ensureStyle();
   return new Promise(resolve => {
     const back = document.createElement('div');
@@ -43,6 +46,7 @@ export function showSheet({ title = '', text = '', buttons = [{ label:'OK', valu
     sheet.setAttribute('aria-modal', 'true');
     if (title){ const h = document.createElement('h3'); h.textContent = title; sheet.appendChild(h); }
     if (text){ const p = document.createElement('p'); p.textContent = text; sheet.appendChild(p); }
+    if (content) sheet.appendChild(content);
     const row = document.createElement('div');
     row.className = 'tc-sheet-btns';
     let done = false;
@@ -60,7 +64,15 @@ export function showSheet({ title = '', text = '', buttons = [{ label:'OK', valu
       btn.type = 'button';
       btn.textContent = b.label;
       if (b.kind) btn.className = b.kind;
-      btn.addEventListener('click', ()=> close(b.value));
+      btn.addEventListener('click', async ()=>{
+        if (onAction && b.value !== dismissValue){
+          btn.disabled = true;
+          let ok = true;
+          try { ok = (await onAction(b.value)) !== false; } finally { btn.disabled = false; }
+          if (!ok) return;
+        }
+        close(b.value);
+      });
       row.appendChild(btn);
     });
     sheet.appendChild(row);
@@ -70,7 +82,7 @@ export function showSheet({ title = '', text = '', buttons = [{ label:'OK', valu
     document.body.appendChild(back);
     requestAnimationFrame(()=> back.classList.add('on'));
     const first = row.querySelector('button');
-    if (first) first.focus({ preventScroll:true });
+    if (first && !content) first.focus({ preventScroll:true });
   });
 }
 
