@@ -40,3 +40,43 @@ html.has-appnav select{ -webkit-appearance:none; appearance:none; background-col
 html.has-appnav select:hover{ border-color:#3A4452; }
 html.has-appnav select:focus-visible{ outline:2px solid #45D6C4; outline-offset:1px; }
 html.has-appnav select option{ background:#1D242D; color:#E7ECF2; }
+
+/* ---- Shared look (fonts, motion, loading) - loaded by every app page, including Live and Strength. ---- */
+html:root{
+  --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+html{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; }
+body{ font-feature-settings:'cv11', 'ss01'; }
+:where(button, input, select, textarea){ font-family:inherit; }
+:where(h1, h2, h3){ letter-spacing:-0.015em; }
+:where(button){ transition:background-color .15s ease, border-color .15s ease, color .15s ease, transform .08s ease; }
+:where(button:not(:disabled)):active{ transform:scale(.98); }
+
+/* Page-to-page: a quick cross-fade instead of a white flash (Chrome/Edge; others just navigate). */
+@view-transition{ navigation:auto; }
+::view-transition-old(root), ::view-transition-new(root){ animation-duration:.18s; }
+.tabbar{ view-transition-name:tabbar; }
+
+/* Photo banners are kept for the welcome page; app pages open straight onto their content. */
+html.has-appnav .page-banner{ display:none; }
+
+/* Skeleton placeholders while data loads */
+.sk{ position:relative; overflow:hidden; background:#1D242D; border-radius:10px; }
+.sk::after{ content:''; position:absolute; inset:0; transform:translateX(-100%);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.045), transparent); animation:sk-shine 1.3s ease-in-out infinite; }
+@keyframes sk-shine{ to{ transform:translateX(100%); } }
+.sk-stack{ display:flex; flex-direction:column; gap:10px; }
+.sk-row{ height:64px; }
+.sk-card{ height:150px; }
+.sk-line{ height:14px; border-radius:7px; }
+.sk-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+@media (prefers-reduced-motion: reduce){
+  .sk::after{ animation:none; }
+  ::view-transition-old(root), ::view-transition-new(root){ animation:none; }
+}
+
+/* Content settles in rather than popping */
+.fade-in{ animation:fade-in .28s ease both; }
+@keyframes fade-in{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce){ .fade-in{ animation:none; } }

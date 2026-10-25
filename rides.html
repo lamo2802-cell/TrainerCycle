@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TrainerCycle — Rides</title>
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=3">
+<link rel="stylesheet" href="app-nav.css?v=4">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -121,6 +124,18 @@
   .d-actions button{ min-height:38px; }
   .saved-note{ background:color-mix(in srgb, var(--accent) 12%, var(--panel)); border:1px solid var(--accent); color:var(--text); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; }
   .saved-note b{ color:var(--accent); }
+  .tag.pb{ color:#E8B93D; border-color:rgba(232,185,61,.45); }
+  .pb-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .pb-chip{ font-size:11.5px; font-weight:600; color:#E8B93D; background:rgba(232,185,61,.12); border:1px solid rgba(232,185,61,.4); padding:3px 9px; border-radius:20px; }
+  .finish{ position:relative; overflow:hidden; border-radius:14px; padding:22px 22px 20px; margin-bottom:16px; border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+    background:radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), var(--panel); }
+  .finish-kicker{ font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); }
+  .finish-title{ font-size:clamp(20px, 3.4vw, 26px); font-weight:700; margin:4px 0 16px; letter-spacing:-.015em; }
+  .finish-stats{ display:grid; grid-template-columns:1.5fr repeat(3, minmax(0,1fr)); gap:10px; }
+  @media (max-width:520px){ .finish-stats{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 10px; } }
+  .finish-stats .fs b{ display:block; font-family:var(--mono); font-size:clamp(22px, 4vw, 32px); font-weight:700; line-height:1.1; }
+  .finish-stats .fs span{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  .finish .pb-chips{ margin-top:14px; }
   .ftp-note{ display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap; }
   .ftp-btns{ display:flex; gap:8px; }
   .ftp-btns button{ width:auto; margin:0; min-height:36px; }
@@ -226,10 +241,10 @@
   <div class="logo-reveal-sub">Ride saved</div>
 </div>
 <div class="top-bar">
-  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
   <div class="top-bar-spacer"></div>
-  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 
 <div class="app sidebar-collapsed">
@@ -261,7 +276,7 @@
         <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="completed">Completed</button><button data-f="partial">Partial</button></div>
       </div>
       <div class="summary" id="summary"></div>
-      <div id="ridesList"><div class="empty-note">Loading…</div></div>
+      <div id="ridesList"><div class="sk-stack" aria-label="Loading"><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div></div></div>
     </div>
     <div id="detailView" style="display:none;"></div>
   </div>
@@ -271,6 +286,7 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
+import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -400,7 +416,7 @@ const supabase = createSupabaseClient();
         + g.rides.map(r=>{
           const pct = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
           return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
-            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(r.completed ? '' : '<span class="tag">Partial</span>')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
             + miniProfile(r)
             + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
             + '</button>';
@@ -492,10 +508,19 @@ const supabase = createSupabaseClient();
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
 
     let html = '<button class="back" data-back>‹ Rides</button>';
-    if (opts.justSaved) html += '<div class="saved-note"><b>✓ Ride saved.</b> Here\'s how it went.</div>';
+    const pbs = newBests(ride, rides.some(r=>r.id===ride.id) ? rides.map(r=> r.id===ride.id ? Object.assign({}, r, { power_bests: ride.power_bests }) : r) : rides.concat([ride]));
+    const pbHtml = pbs.length ? '<div class="pb-chips">'+pbs.map(b=>'<span class="pb-chip" title="Previous best '+b.prev+' W">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
+    if (opts.justSaved){
+      const kjDone = ride.avg_power!=null ? Math.round(ride.avg_power*ride.duration_sec/1000) : null;
+      const big = (v,l)=> v==null ? '' : '<div class="fs"><b data-count="'+v+'">'+v+'</b><span>'+l+'</span></div>';
+      html += '<div class="finish fade-in"><div class="finish-kicker">'+(ride.completed ? 'Workout complete' : 'Ride saved')+'</div>'
+        + '<div class="finish-title">'+(ride.completed ? (pbs.length ? 'New personal best. Great ride.' : 'Nice work. That one\'s in the bank.') : 'Every minute counts. It\'s saved.')+'</div>'
+        + '<div class="finish-stats"><div class="fs"><b>'+fmtDur(ride.duration_sec)+'</b><span>Time</span></div>'+big(ride.tss,'TSS')+big(ride.np,'NP (W)')+big(kjDone,'kJ')+'</div>'
+        + pbHtml + '</div>';
+    }
     if (opts.justSaved) html += '<div id="ftpNote"></div>';
     html += '<div class="d-head"><div><h1>'+escapeHtml(ride.workout_name)+(ride.completed ? '' : '<span class="tag">Partial</span>')+'</h1>'
-      + '<div class="when">'+fmtDate(ride.started_at)+(ride.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
+      + '<div class="when">'+fmtDate(ride.started_at)+(ride.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div>'+(opts.justSaved ? '' : pbHtml)+'</div>'
       + '<div class="d-actions"><button data-tcx="'+ride.id+'">Export TCX</button>'
       + (ride.strava_uploaded_at ? '<button disabled style="opacity:.7; cursor:default;">On Strava ✓</button>' : '<button data-strava="'+ride.id+'">Upload to Strava</button>')
       + '</div></div>';
@@ -552,6 +577,7 @@ const supabase = createSupabaseClient();
         + rows.join('') + '</tbody></table></div></div>';
     }
     el.innerHTML = html;
+    countUp(el);
     drawRideChart();
     drawCurve(bests);
     if (opts.justSaved) offerNewFtp(ride);
@@ -878,7 +904,7 @@ const supabase = createSupabaseClient();
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
-    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
   sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
@@ -891,7 +917,7 @@ const supabase = createSupabaseClient();
       else document.exitFullscreen();
     });
     document.addEventListener('fullscreenchange', ()=>{
-      fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+      fullscreenToggle.innerHTML = document.fullscreenElement ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
     });
   }
 
