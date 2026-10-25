@@ -352,7 +352,8 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=1';
+import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=2';
+import { applySwaps } from './adapt.js?v=1';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);
@@ -656,8 +657,9 @@ const supabase = createSupabaseClient();
     try {
       const st = await loadFollowState(supabase, user.id);
       if (!st.planId || !st.startedAt) return;
-      const { data: plan } = await supabase.from('training_plans').select('id,name,weeks').eq('id', st.planId).maybeSingle();
-      if (!plan) return;
+      const { data: planRow } = await supabase.from('training_plans').select('id,name,weeks').eq('id', st.planId).maybeSingle();
+      if (!planRow) return;
+      const plan = applySwaps(planRow, st.swaps);
       const doneDays = await loadDoneDays(supabase, user.id, plan.id, st.startedAt);
       const s = nextSession(plan, st.startedAt, { cursorDay: st.cursorDay, moves: st.moves, doneDays });
       const next = s ? { day: s.dayObj, isToday: s.date === todayIso(), dayIndex: s.dayIndex } : null;

@@ -261,8 +261,9 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=1';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=1';
-import { loadSeries, formLabel } from './training-load.js?v=1';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=2';
+import { loadSeries, formLabel } from './training-load.js?v=2';
+import { applySwaps, undoSwap } from './adapt.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -281,7 +282,7 @@ const supabase = createSupabaseClient();
   // ---- data ----
   let ftp = 250;
   let follow = { planId:null, startedAt:null, cursorDay:0, moves:{} };
-  let plan = null;
+  let plan = null, planRaw = null;
   let doneDays = new Map();
   const workouts = {};   // id -> { name, category, steps, duration_sec }
   let rides = [];        // completed rides, newest window
@@ -309,7 +310,8 @@ const supabase = createSupabaseClient();
     });
     if (follow.planId && follow.startedAt){
       const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
-      plan = data || null;
+      planRaw = data || null;
+      plan = data ? applySwaps(data, follow.swaps) : null;
       if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
     }
   }
@@ -622,6 +624,7 @@ const supabase = createSupabaseClient();
     document.getElementById('sheetTitle').textContent = s.name;
     document.getElementById('sheetSub').textContent = 'Week '+s.weekNum+(s.deload ? ' · Deload' : '')+' · '+longDate(s.date)
       + (s.moved ? ' (planned for '+longDate(s.plannedDate)+')' : '')
+      + (s.dayObj.swappedFrom ? ' · Adapted from '+((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom) : '')
       + (s.isStrength ? ' · Strength' : ((s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
     const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
@@ -632,12 +635,19 @@ const supabase = createSupabaseClient();
       + '<button id="moveSaveBtn">Move</button>'
       + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
       + '</div>'
+      + (s.dayObj.swappedFrom ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
       + '<div class="actions"><button id="sheetCloseBtn">Close</button><a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a></div>';
     sheet.style.display = 'flex';
     document.getElementById('sheetCloseBtn').onclick = closeSheet;
     document.getElementById('moveSaveBtn').onclick = ()=>{
       const v = document.getElementById('moveDate').value;
       if (v){ closeSheet(); moveSession(s.dayIndex, v); }
+    };
+    const undoBtn = document.getElementById('undoSwapBtn');
+    if (undoBtn) undoBtn.onclick = async ()=>{
+      closeSheet();
+      try { await undoSwap(supabase, user.id, follow, s.dayIndex); plan = applySwaps(planRaw, follow.swaps); render(); computeFitness(); drawFitChart(); }
+      catch(e){ notify('Check your connection and try again.', 'Couldn\'t undo that'); }
     };
     const resetBtn = document.getElementById('moveResetBtn');
     if (resetBtn) resetBtn.onclick = ()=>{ closeSheet(); moveSession(s.dayIndex, s.plannedDate); };
