@@ -17,6 +17,11 @@ const RIDE_TYPES = new Set(["Ride", "VirtualRide", "GravelRide", "MountainBikeRi
 const FEEL_DEFAULT_IF = 0.76; // no pace to go on: treat as a steady run
 const RIDE_DEFAULT_IF = 0.7;  // no power or heart rate: treat as an endurance ride
 const LTHR_FROM_MAX = 0.87;   // rough cycling threshold heart rate from the highest heart rate seen
+const REST_HR = 60;           // assumed resting heart rate for the power-based threshold estimate
+const BEST_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600]; // same as ftp-estimate.js
+// Strava's best efforts within a run, by name -> metres. Stored as completed_rides.run_bests.
+const RUN_EFFORTS: Record<string, number> = { "400m": 400, "1/2 mile": 805, "1K": 1000, "1 mile": 1609, "2 mile": 3219, "5K": 5000, "10K": 10000, "15K": 15000, "10 mile": 16093, "20K": 20000, "Half-Marathon": 21097, "30K": 30000, "Marathon": 42195 };
+const DETAIL_CALLS = 25;      // extra Strava requests per sync (power streams, run best efforts), well inside rate limits
 const SINCE_KEY = "strava_import_since";
 const IGNORED_KEY = "strava_import_ignored"; // imports the rider deleted, so they don't come back
 
@@ -44,6 +49,36 @@ async function refreshTokenIfNeeded(admin: any, userId: string, conn: any) {
   return { ...conn, access_token: data.access_token, expires_at: data.expires_at };
 }
 
+// Best average power over BEST_DURS from Strava's time + watts streams. Seconds with no reading
+// (stopped, paused) count as zero, so a coffee stop never stretches an effort.
+function powerBests(time: number[], watts: number[]) {
+  const n = Math.floor(time[time.length - 1] ?? 0) + 1;
+  if (n < 5 || time.length !== watts.length) return null;
+  const per = new Float64Array(n);
+  for (let i = 0; i < time.length; i++) { const t = Math.floor(time[i]); if (t >= 0 && t < n) per[t] = Math.max(0, Number(watts[i]) || 0); }
+  const pre = new Float64Array(n + 1);
+  for (let t = 0; t < n; t++) pre[t + 1] = pre[t] + per[t];
+  const out: Record<string, number> = {};
+  for (const d of BEST_DURS) {
+    if (d > n) break;
+    let best = 0;
+    for (let i = d; i <= n; i++) { const a = (pre[i] - pre[i - d]) / d; if (a > best) best = a; }
+    if (best > 0) out[d] = Math.round(best);
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Threshold heart rate from rides with both power and heart rate (power first): heart rate rises
+// roughly in line with intensity, so a ride at IF x with average heart rate h puts threshold near
+// rest + (h - rest) / x. Uses steady-to-hard rides of 20 minutes or more and takes the median.
+// deno-lint-ignore no-explicit-any
+function lthrFromPower(rows: any[]) {
+  const est = rows.filter((r) => r.avg_hr && r.np && r.intensity_factor >= 0.75 && r.intensity_factor <= 1.05 && r.duration_sec >= 1200)
+    .map((r) => REST_HR + (r.avg_hr - REST_HR) / r.intensity_factor).sort((a, b) => a - b);
+  if (est.length < 2) return null;
+  return Math.round(est[Math.floor(est.length / 2)]);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -66,6 +101,39 @@ Deno.serve(async (req) => {
     if (!scope.split(",").some((s) => s === "activity:read_all" || s === "activity:read")) return json({ imported: [], needsReconnect: true });
 
     const fresh = await refreshTokenIfNeeded(admin, user.id, conn);
+
+    // Extra lookups for the power curve of a ride or the best times within a run.
+    // An empty {} means "looked, nothing there", so older imports aren't fetched again.
+    let calls = 0;
+    // deno-lint-ignore no-explicit-any
+    const fetchBests = async (r: any) => {
+      const sid = String(r.external_id).replace("strava:", "");
+      const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
+      calls++;
+      if (r.sport === "ride") {
+        const resp = await fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,watts&key_by_type=true`, auth);
+        if (!resp.ok) return null;
+        const st = await resp.json();
+        return { power_bests: (st?.time?.data && st?.watts?.data && powerBests(st.time.data, st.watts.data)) || {} };
+      }
+      const resp = await fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth);
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      const bests: Record<string, number> = {};
+      for (const e of d.best_efforts ?? []) { const m = RUN_EFFORTS[e.name]; if (m && e.elapsed_time > 0) bests[m] = Math.round(e.elapsed_time); }
+      return { run_bests: bests };
+    };
+    // Earlier imports from before bests were fetched: fill them in with whatever calls are left.
+    const backfill = async () => {
+      if (calls >= DETAIL_CALLS) return;
+      const { data: old } = await admin.from("completed_rides").select("id,external_id,sport,np,power_bests,run_bests")
+        .eq("user_id", user.id).eq("source", "strava").order("started_at", { ascending: false }).limit(200);
+      for (const r of (old ?? []).filter((r: { sport: string; np: number | null; power_bests: unknown; run_bests: unknown }) =>
+        r.sport === "run" ? r.run_bests == null : (r.np && r.power_bests == null))) {
+        if (calls >= DETAIL_CALLS) break;
+        try { const patch = await fetchBests(r); if (patch) await admin.from("completed_rides").update(patch).eq("id", r.id); } catch (_) { /* try again next sync */ }
+      }
+    };
 
     // Look back two days before the last sync (activities can be uploaded late), or 60 days the first time.
     const syncedAt = Date.parse(setting(SINCE_KEY) ?? "");
@@ -90,7 +158,7 @@ Deno.serve(async (req) => {
     };
     const wanted = activities.filter((a) => sportOf(a) && (a.moving_time || a.elapsed_time));
     const saveSince = () => admin.from("settings").upsert({ user_id: user.id, key: SINCE_KEY, value: { v: startedSync }, updated_at: startedSync }, { onConflict: "user_id,key" });
-    if (!wanted.length) { await saveSince(); return json({ imported: [] }); }
+    if (!wanted.length) { await backfill(); await saveSince(); return json({ imported: [] }); }
 
     // Everything already in TrainerCycle around these dates, to spot imports and overlaps.
     const earliest = Math.min(...wanted.map((a) => Date.parse(a.start_date))) - 86400000;
@@ -114,12 +182,19 @@ Deno.serve(async (req) => {
     const pace = Number(setting("run_threshold_pace")) || null;
     const ftp = Number(setting("ftp")) || null;
     // Threshold heart rate: the rider's own setting, else estimated from the highest heart rate we've seen.
+    // Threshold heart rate: the rider's own setting, else from rides with power and heart rate,
+    // else estimated from the highest heart rate we've seen.
     let lthr = Number(setting("threshold_hr")) || null;
     if (!lthr) {
-      const { data: hrRows } = await admin.from("completed_rides").select("max_hr").eq("user_id", user.id)
-        .gte("started_at", new Date(Date.now() - 365 * 86400000).toISOString()).not("max_hr", "is", null).order("max_hr", { ascending: false }).limit(1);
-      const maxSeen = Math.max(Number(hrRows?.[0]?.max_hr) || 0, ...wanted.map((a) => Number(a.max_heartrate) || 0));
-      if (maxSeen >= 150) lthr = Math.round(maxSeen * LTHR_FROM_MAX);
+      const { data: hrRows } = await admin.from("completed_rides").select("avg_hr,max_hr,np,intensity_factor,duration_sec,sport")
+        .eq("user_id", user.id).gte("started_at", new Date(Date.now() - 365 * 86400000).toISOString());
+      const rideRows = (hrRows ?? []).filter((r: { sport: string }) => r.sport !== "run");
+      lthr = lthrFromPower(rideRows.concat(wanted.filter((a) => sportOf(a) === "ride" && a.device_watts && ftp)
+        .map((a) => ({ avg_hr: a.average_heartrate, np: a.weighted_average_watts, intensity_factor: (a.weighted_average_watts || 0) / ftp!, duration_sec: a.moving_time }))));
+      if (!lthr) {
+        const maxSeen = Math.max(0, ...(hrRows ?? []).map((r: { max_hr: number }) => Number(r.max_hr) || 0), ...wanted.map((a) => Number(a.max_heartrate) || 0));
+        if (maxSeen >= 150) lthr = Math.round(maxSeen * LTHR_FROM_MAX);
+      }
     }
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -144,13 +219,22 @@ Deno.serve(async (req) => {
         avg_power: realPower ? Math.round(a.average_watts) : null, np,
         avg_cadence: sport === "ride" && a.average_cadence ? Math.round(a.average_cadence) : null,
         tss: dur > 0 ? Math.round(dur / 3600 * IF * IF * 100) : null, intensity_factor: Math.round(IF * 100) / 100,
-        completed: true, samples: [],
+        completed: true, samples: [], power_bests: null, run_bests: null,
       };
     }).filter((r) => r.duration_sec > 0);
-    if (!rows.length) { await saveSince(); return json({ imported: [] }); }
+    if (!rows.length) { await backfill(); await saveSince(); return json({ imported: [] }); }
+
+    // Power curve for rides with a power meter, and best times within runs, newest first.
+    const needsBests = (r: { sport: string; np: number | null }) => r.sport === "run" || !!r.np;
+    for (const r of rows.slice().sort((a, b) => (a.started_at < b.started_at ? 1 : -1))) {
+      if (calls >= DETAIL_CALLS) break;
+      if (!needsBests(r)) continue;
+      try { Object.assign(r, await fetchBests(r)); } catch (_) { /* bests are a bonus; the activity still counts */ }
+    }
 
     const { error } = await admin.from("completed_rides").insert(rows);
     if (error) throw error;
+    await backfill();
     await saveSince();
     return json({ imported: rows });
   } catch (err) {

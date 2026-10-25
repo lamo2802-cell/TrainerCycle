@@ -153,6 +153,11 @@
   .week-list .day{ min-height:0; flex-direction:row; align-items:flex-start; gap:10px; padding:10px; }
   .week-list .day .dnum{ width:58px; flex-shrink:0; font-size:12.5px; padding-top:4px; }
   .week-list .day .items{ flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .day.holiday{ background:linear-gradient(0deg, rgba(56,189,248,.07), rgba(56,189,248,.07)), var(--panel-2); }
+  .hol-pill{ display:block; width:100%; text-align:left; margin:0; padding:2px 7px; border-radius:5px; border:0; background:rgba(56,189,248,.18); color:#7DD3FC;
+    font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .hol-pill.cont{ background:rgba(56,189,248,.10); }
+  .hol-pill:hover{ border-color:transparent; background:rgba(56,189,248,.26); }
   .week-list .day .rest{ font-size:12.5px; color:var(--text-dim); font-style:italic; padding-top:4px; }
   .week-list .chip{ padding:8px 10px; font-size:13px; }
   .week-sum{ display:flex; gap:18px; font-size:12.5px; color:var(--text-dim); margin-bottom:10px; font-family:var(--mono); }
@@ -222,6 +227,7 @@
         <button id="calPrev" aria-label="Previous">‹</button>
         <button id="calToday">Today</button>
         <button id="calNext" aria-label="Next">›</button>
+        <button id="holAddBtn">+ Holiday</button>
       </div>
       <div class="cal-hint" id="calHint"></div>
       <div id="calBody"><div class="sk-stack" aria-label="Loading"><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div></div></div>
@@ -264,8 +270,9 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubsc
 import { notify, ask } from './sheet.js?v=2';
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=2';
 import { loadSeries, formLabel } from './training-load.js?v=2';
-import { applySwaps, undoSwap } from './adapt.js?v=1';
+import { applySwaps, undoSwap } from './adapt.js?v=2';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtKm } from './run.js?v=2';
+import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -286,20 +293,23 @@ const supabase = createSupabaseClient();
   let follow = { planId:null, startedAt:null, cursorDay:0, moves:{} };
   let plan = null, planRaw = null;
   let doneDays = new Map();
+  let holidays = [];
   const workouts = {};   // id -> { name, category, steps, duration_sec }
   let rides = [];        // completed rides, newest window
   const ridesByDate = new Map(); // 'YYYY-MM-DD' -> [ride]
 
   async function loadAll(){
     const sinceIso = new Date(Date.now() - 400*86400000).toISOString();
-    const [ftpRes, st, wRes, sRes, rRes] = await Promise.all([
+    const [ftpRes, st, wRes, sRes, rRes, hol] = await Promise.all([
       supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
       loadFollowState(supabase, user.id),
       supabase.from('workouts').select('id,name,category,steps,duration_sec'),
       supabase.from('strength_workouts').select('id,name'),
       supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index,sport,distance_m')
-        .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true })
+        .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true }),
+      loadHolidays(supabase, user.id)
     ]);
+    holidays = hol;
     if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
     follow = st;
     (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
@@ -309,7 +319,7 @@ const supabase = createSupabaseClient();
     if (follow.planId && follow.startedAt){
       const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
       planRaw = data || null;
-      plan = data ? applySwaps(addRuns(data, follow.runs), follow.swaps) : null;
+      rebuildPlan();
       if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
     }
   }
@@ -321,7 +331,7 @@ const supabase = createSupabaseClient();
       ridesByDate.get(d).push(r);
     });
   }
-  function rebuildPlan(){ plan = planRaw ? applySwaps(addRuns(planRaw, follow.runs), follow.swaps) : null; }
+  function rebuildPlan(){ plan = planRaw ? applyHolidays(applySwaps(addRuns(planRaw, follow.runs), follow.swaps), follow.startedAt, follow.moves, holidays) : null; }
 
   // Planned sessions by effective date, with whether each is done/missed and its planned TSS.
   function sessionsByDate(){
@@ -519,6 +529,12 @@ const supabase = createSupabaseClient();
     return { done, planned, mins };
   }
 
+  // Holiday marker: the name on the first day (and each Monday it runs into), a tinted band otherwise.
+  function holPill(d, h, weekStart){
+    if (!h) return '';
+    const first = d === h.start || weekStart;
+    return '<button class="hol-pill'+(first ? '' : ' cont')+'" data-hol="'+h.id+'" title="'+escapeHtml(holidayLabel(h))+'">'+(first ? escapeHtml(h.name || 'Holiday') : '&nbsp;')+'</button>';
+  }
   function render(){
     const byDate = sessionsByDate();
     const today = todayIso();
@@ -538,8 +554,9 @@ const supabase = createSupabaseClient();
         for (let i=0;i<7;i++){
           const d = addDays(mon, i);
           const inMonth = d >= first && d <= lastDay;
-          html += '<div class="day'+(inMonth ? '' : ' other')+(d === today ? ' today' : '')+'" data-date="'+d+'">'
-            + '<div class="dnum">'+parseIso(d).getDate()+'</div>'
+          const hol = holidayOn(d, holidays);
+          html += '<div class="day'+(inMonth ? '' : ' other')+(d === today ? ' today' : '')+(hol ? ' holiday' : '')+'" data-date="'+d+'">'
+            + '<div class="dnum">'+parseIso(d).getDate()+'</div>' + holPill(d, hol, i === 0)
             + itemsFor(d, byDate).map(chipHtml).join('') + '</div>';
         }
         const t = weekTotals(mon, byDate);
@@ -555,9 +572,10 @@ const supabase = createSupabaseClient();
       for (let i=0;i<7;i++){
         const d = addDays(mon, i);
         const items = itemsFor(d, byDate);
-        html += '<div class="day'+(d === today ? ' today' : '')+'" data-date="'+d+'">'
+        const hol = holidayOn(d, holidays);
+        html += '<div class="day'+(d === today ? ' today' : '')+(hol ? ' holiday' : '')+'" data-date="'+d+'">'
           + '<div class="dnum">'+WEEKDAYS[parseIso(d).getDay()]+' '+parseIso(d).getDate()+'</div>'
-          + '<div class="items">'+(items.length ? items.map(chipHtml).join('') : '<div class="rest">Rest</div>')+'</div></div>';
+          + '<div class="items">'+holPill(d, hol, true)+(items.length ? items.map(chipHtml).join('') : (hol ? '' : '<div class="rest">Rest</div>'))+'</div></div>';
       }
       body.innerHTML = html + '</div>';
     }
@@ -584,7 +602,7 @@ const supabase = createSupabaseClient();
     const moves = Object.assign({}, follow.moves);
     if (date === s.plannedDate) delete moves[dayIndex]; else moves[dayIndex] = date;
     follow.moves = moves;
-    render(); computeFitness(); drawFitChart();
+    rebuildPlan(); render(); computeFitness(); drawFitChart();
     try { await saveMoves(supabase, user.id, moves); }
     catch(e){ notify('Check your connection and try again.', 'Couldn\'t save that move'); }
   }
@@ -623,7 +641,15 @@ const supabase = createSupabaseClient();
   function closeSheet(){ sheet.style.display = 'none'; }
   sheet.addEventListener('click', e=>{ if (e.target === sheet) closeSheet(); });
   document.addEventListener('keydown', e=>{ if (e.key === 'Escape') closeSheet(); });
+  async function editHolidays(opts){
+    const list = await openHolidaySheet(supabase, user.id, holidays, opts);
+    if (!list) return;
+    holidays = list; rebuildPlan(); render(); computeFitness(); drawFitChart();
+  }
+  document.getElementById('holAddBtn').addEventListener('click', ()=> editHolidays({ date: anchor > todayIso() ? anchor : todayIso() }));
   calBody.addEventListener('click', e=>{
+    const pill = e.target.closest('.hol-pill');
+    if (pill){ editHolidays({ existing: holidays.find(h => h.id === pill.dataset.hol) }); return; }
     const rideChip = e.target.closest('.chip.done');
     if (rideChip){ window.location.href = 'rides.html?ride='+encodeURIComponent(rideChip.dataset.ride); return; }
     const chip = e.target.closest('.chip.planned');
@@ -633,7 +659,7 @@ const supabase = createSupabaseClient();
     document.getElementById('sheetTitle').textContent = s.name;
     document.getElementById('sheetSub').textContent = 'Week '+s.weekNum+(s.deload ? ' · Deload' : '')+' · '+longDate(s.date)
       + (s.moved ? ' (planned for '+longDate(s.plannedDate)+')' : '')
-      + (s.dayObj.swappedFrom ? ' · Adapted from '+((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom) : '')
+      + (s.dayObj.holiday ? ' · Easy version for '+s.dayObj.holiday : s.dayObj.swappedFrom ? ' · Adapted from '+((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom) : '')
       + (s.isStrength ? ' · Strength' : ((s.isRun ? ' · Run' : '')+(s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
     const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
@@ -644,7 +670,7 @@ const supabase = createSupabaseClient();
       + '<button id="moveSaveBtn">Move</button>'
       + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
       + '</div>'
-      + (s.dayObj.swappedFrom ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
+      + (s.dayObj.swappedFrom && !s.dayObj.holiday ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
       + (s.isRun ? '<p class="run-desc">'+escapeHtml(s.run.text)+'</p>' : '')
       + '<div class="actions"><button id="sheetCloseBtn">Close</button>'+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
         : '<a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a>')+'</div>';

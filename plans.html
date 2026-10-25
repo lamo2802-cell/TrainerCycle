@@ -252,7 +252,8 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=2';
-import { applySwaps } from './adapt.js?v=1';
+import { applySwaps } from './adapt.js?v=2';
+import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=2';
 import { showSheet } from './sheet.js?v=2';
 const supabase = createSupabaseClient();
@@ -340,7 +341,8 @@ const supabase = createSupabaseClient();
 
   // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
   // The followed plan as the rider sees it: their run days added, then any adaptive swaps.
-  function followed(plan){ return applySwaps(addRuns(plan, activePlanRuns), activePlanSwaps); }
+  let activeHolidays = [];
+  function followed(plan){ return applyHolidays(applySwaps(addRuns(plan, activePlanRuns), activePlanSwaps), activePlanStartedAt, activePlanMoves, activeHolidays); }
   function getNextSession(plan, startedAtIso, cursorDay){
     const n = nextSession(followed(plan), startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
     if (!n) return null; // plan complete
@@ -357,6 +359,7 @@ const supabase = createSupabaseClient();
     activePlanMoves = st.moves;
     activePlanSwaps = st.swaps;
     activePlanRuns = st.runs;
+    activeHolidays = await loadHolidays(supabase, user.id);
     await loadDoneDays();
   }
 

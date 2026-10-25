@@ -536,7 +536,8 @@ import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=2';
-import { applySwaps } from './adapt.js?v=1';
+import { applySwaps } from './adapt.js?v=2';
+import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 import { addRuns } from './run.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -832,7 +833,7 @@ const supabase = createSupabaseClient();
       if (!st.planId || !st.startedAt) return;
       const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', st.planId).maybeSingle();
       if (!plan) return;
-      activePlan = { plan: applySwaps(addRuns(plan, st.runs), st.swaps), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
+      activePlan = { plan: applyHolidays(applySwaps(addRuns(plan, st.runs), st.swaps), st.startedAt, st.moves, await loadHolidays(supabase, user.id)), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
     } catch(e){ activePlan = null; /* linking is a bonus; the ride still saves without it */ }
   }
   function findPlanSession(workoutId){

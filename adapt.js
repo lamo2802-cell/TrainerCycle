@@ -58,8 +58,9 @@ function dayName(iso, today){
 
 // sessions: from planSessions(), each with { dayIndex, date, dayObj, isStrength, done, skipped, name, steps, durationSec }.
 // rides: recent completed_rides; byRide/levels: from computeLevels(); form: today's CTL - ATL.
+// away(date): optional, true on holiday days, which a missed session is never moved onto.
 // Returns [{ id, kind, title, text, accept:{ type:'move'|'swap', dayIndex, date?, workoutId? }, acceptLabel }].
-export function findAdaptations({ sessions, rides, levels, byRide, library, ftp, today, form, dismissed, ridToday }){
+export function findAdaptations({ sessions, rides, levels, byRide, library, ftp, today, form, dismissed, ridToday, away }){
   const out = [];
   const no = new Set(dismissed || []);
   const live = sessions.filter(s => !s.skipped);
@@ -76,7 +77,7 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
     const id = 'miss:'+s.dayIndex+':'+s.date;
     if (no.has(id)) continue;
     let free = null;
-    for (let d = ridToday ? addDays(today, 1) : today; d <= weekEnd; d = addDays(d, 1)){ if (!busy.has(d)){ free = d; break; } }
+    for (let d = ridToday ? addDays(today, 1) : today; d <= weekEnd; d = addDays(d, 1)){ if (!busy.has(d) && !(away && away(d))){ free = d; break; } }
     if (!free) continue;
     out.push({ id, kind:'missed', title:'You missed '+possessive(dayName(s.date, today))+' '+s.name,
       text:'You have a free day '+dayName(free, today)+'. Move it there so the week still adds up.',

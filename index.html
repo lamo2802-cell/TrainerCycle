@@ -348,8 +348,9 @@ import { notify } from './sheet.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
+import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=1';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan } from './run.js?v=2';
-import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=1';
+import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -423,10 +424,10 @@ const supabase = createSupabaseClient();
 
     const today = todayIso();
     let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
-    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {};
+    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [];
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
-      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes] = await Promise.all([
+      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes, hol] = await Promise.all([
         supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
@@ -436,8 +437,10 @@ const supabase = createSupabaseClient();
         supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key','getting_started_dismissed').eq('user_id', user.id).maybeSingle(),
         supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
-        supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle()
+        supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle(),
+        loadHolidays(supabase, user.id)
       ]);
+      holidays = hol || [];
       if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
       stravaOn = !!(stravaRes && stravaRes.data);
@@ -449,7 +452,7 @@ const supabase = createSupabaseClient();
       rides = rRes.data || [];
       if (follow.planId && follow.startedAt){
         const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
-        plan = data ? applySwaps(addRuns(data, follow.runs), follow.swaps) : null;
+        plan = data ? applyHolidays(applySwaps(addRuns(data, follow.runs), follow.swaps), follow.startedAt, follow.moves, holidays) : null;
         if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
       }
     } catch(e){
@@ -530,7 +533,7 @@ const supabase = createSupabaseClient();
 
     // Adaptive plan tweaks: small changes to the plan the rider can take or leave.
     const adaptations = plan ? findAdaptations({ sessions, rides, levels, byRide, library: Object.values(workouts).filter(w=>w.steps),
-      ftp: ftpW, today, form, dismissed: adaptDismissed, ridToday: ridTodayList.length > 0 }) : [];
+      ftp: ftpW, today, form, dismissed: adaptDismissed, ridToday: ridTodayList.length > 0, away: d => !!holidayOn(d, holidays) }) : [];
     if (adaptations.length){
       html += '<div class="t-panel adapt-card"><div class="t-label"><span>Plan adjustments</span></div>'
         + adaptations.map((a,i)=>'<div class="adapt-item" data-adapt-row="'+i+'"><span class="adapt-ic '+a.kind+'">'+ADAPT_ICON[a.kind]+'</span>'
@@ -558,14 +561,22 @@ const supabase = createSupabaseClient();
         + levelChip(s)
         + '</div>'
         + '<div class="hero-sub">'+esc(plan.name)+' · Week '+s.weekNum+(s.deload ? ' · Deload week' : '')+'</div>'
-        + (s.dayObj.swappedFrom ? '<div class="adapted-note">Adapted from '+esc((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
+        + (s.dayObj.holiday ? '<div class="adapted-note">Easy version of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' while you\'re away</div>'
+          : s.dayObj.swappedFrom ? '<div class="adapted-note">Adapted from '+esc((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')+'</div></div>';
     }
-    if (todoToday){
-      html += sessionHero(todoToday, 'Today’s workout');
+    const awayNow = holidayOn(today, holidays);
+    if (awayNow && !todoToday && !ridTodayList.length){
+      html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
+        + '<div class="hero-name">Enjoy '+esc(awayNow.name || 'your holiday')+'</div>'
+        + '<div class="hero-sub">'+esc(holidayLabel(awayNow))+'. '+(awayNow.mode === 'off' ? 'No training planned while you\'re away.' : 'Nothing planned today.')
+        + (nextS ? ' Next up: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'.' : '')+'</div>'
+        + '<div class="hero-actions"><button class="t-btn" data-log-run="">+ Log a run</button><a class="t-btn" href="builder.html">Ride anyway</a></div></div>';
+    } else if (todoToday){
+      html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout');
     } else if (ridTodayList.length){
       const r = ridTodayList[ridTodayList.length-1];
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'

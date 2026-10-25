@@ -185,7 +185,7 @@
 
     <div class="panel">
       <div class="panel-title">Threshold heart rate</div>
-      <div class="panel-desc">The heart rate you could hold for about an hour on the bike. Rides from Strava with heart rate but no power use it to work out TSS. Leave it empty and we'll estimate it from the highest heart rate we've seen.</div>
+      <div class="panel-desc">The heart rate you could hold for about an hour on the bike. Rides from Strava with heart rate but no power use it to work out TSS. Leave it empty and we'll estimate it, from rides with both power and heart rate first, or from the highest heart rate we've seen.</div>
       <div class="ftp-row">
         <span class="ftp-value" id="lthrDisplay">—</span>
         <span class="ftp-unit">bpm</span>
@@ -362,7 +362,28 @@ const supabase = createSupabaseClient();
       const v = data && data.value && Number(data.value.v);
       document.getElementById('lthrDisplay').textContent = v ? v : 'Auto';
       if (v) document.getElementById('lthrInput').value = v;
+      else showLthrEstimate();
     } catch(e){}
+  }
+  // Same estimate the Strava import uses: from rides with power and heart rate first (heart rate
+  // rises roughly in line with intensity), else 87% of the highest heart rate seen.
+  async function showLthrEstimate(){
+    try {
+      const { data } = await supabase.from('completed_rides').select('avg_hr,max_hr,np,intensity_factor,duration_sec,sport')
+        .eq('user_id', user.id).gte('started_at', new Date(Date.now() - 365*86400000).toISOString());
+      const rows = (data || []).filter(r => r.sport !== 'run');
+      const est = rows.filter(r => r.avg_hr && r.np && r.intensity_factor >= 0.75 && r.intensity_factor <= 1.05 && r.duration_sec >= 1200)
+        .map(r => 60 + (r.avg_hr - 60) / r.intensity_factor).sort((a,b)=>a-b);
+      let v = null, how = '';
+      if (est.length >= 2){ v = Math.round(est[Math.floor(est.length/2)]); how = 'from '+est.length+' rides with power and heart rate'; }
+      else {
+        const max = Math.max(0, ...(data || []).map(r => Number(r.max_hr) || 0));
+        if (max >= 150){ v = Math.round(max * 0.87); how = 'from your highest heart rate ('+max+')'; }
+      }
+      if (!v) return;
+      document.getElementById('lthrDisplay').textContent = '~'+v;
+      document.getElementById('lthrMsg').textContent = 'Estimated '+how+'.';
+    } catch(_){}
   }
   document.getElementById('lthrSaveBtn').addEventListener('click', async ()=>{
     const raw = document.getElementById('lthrInput').value.trim();
@@ -377,6 +398,7 @@ const supabase = createSupabaseClient();
       if (error) throw error;
       document.getElementById('lthrDisplay').textContent = v ?? 'Auto';
       msg.textContent = v === null ? 'Cleared. We\'ll estimate it.' : 'Saved. New imports will use it.';
+      if (v === null) setTimeout(showLthrEstimate, 3100);
     } catch(e){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
     setTimeout(()=>{ msg.textContent = ''; }, 3000);
   });
