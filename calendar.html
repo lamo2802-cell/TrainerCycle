@@ -7,7 +7,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=1">
+<link rel="stylesheet" href="app-nav.css?v=2">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -211,6 +211,18 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="cal-bar">
+        <div class="cal-title" id="calTitle">—</div>
+        <div class="seg"><button id="viewWeek">Week</button><button id="viewMonth">Month</button></div>
+        <button id="calPrev" aria-label="Previous">‹</button>
+        <button id="calToday">Today</button>
+        <button id="calNext" aria-label="Next">›</button>
+      </div>
+      <div class="cal-hint" id="calHint"></div>
+      <div id="calBody"><div class="empty-note">Loading…</div></div>
+    </div>
+
     <div class="panel" id="fitPanel">
       <div class="panel-title"><span>Fitness &amp; form</span>
         <div class="fit-legend">
@@ -231,18 +243,6 @@
         <div class="chart-tip" id="chartTip"></div>
       </div>
       <div class="fit-explain">Fitness is your average daily TSS over the last six weeks, Fatigue over the last week, and Form is Fitness minus Fatigue. Hard weeks push Form negative; a rest week lets it bounce back before a test or event.</div>
-    </div>
-
-    <div class="panel">
-      <div class="cal-bar">
-        <div class="cal-title" id="calTitle">—</div>
-        <div class="seg"><button id="viewWeek">Week</button><button id="viewMonth">Month</button></div>
-        <button id="calPrev" aria-label="Previous">‹</button>
-        <button id="calToday">Today</button>
-        <button id="calNext" aria-label="Next">›</button>
-      </div>
-      <div class="cal-hint" id="calHint"></div>
-      <div id="calBody"><div class="empty-note">Loading…</div></div>
     </div>
   </div>
 </div>
