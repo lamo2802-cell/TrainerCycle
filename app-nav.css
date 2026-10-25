@@ -1,36 +1,122 @@
-/* App-style navigation, shared by every signed-in page except the ride screens.
+/* App navigation, shared by every signed-in page except the ride screens (see app-nav.js).
    html.has-appnav is set by a tiny inline script in each page's <head> (so the layout doesn't jump);
-   the tab bar itself is added by app-nav.js once the user is signed in. */
+   the links themselves are added by app-nav.js once the user is signed in.
+   Tablet and desktop: links in the top bar. Phone: a bottom tab bar. The old ☰ side menu is gone. */
+html.has-appnav .sidebar, html.has-appnav .sidebar-backdrop, html.has-appnav #sidebarToggle{ display:none !important; }
 
-/* Desktop / large tablet: the menu stays open beside the page instead of hiding behind ☰. */
-@media (min-width:1100px){
-  html.has-appnav .sidebar{ transform:none !important; width:228px; padding:18px 12px; }
-  html.has-appnav .sidebar > .sub:first-child{ display:none; }
-  html.has-appnav .sidebar-backdrop{ display:none !important; }
-  html.has-appnav #sidebarToggle{ visibility:hidden; }
-  html.has-appnav .app{ padding-left:228px; }
-  html.has-appnav .page-nav a{ font-size:14.5px; padding:9px 10px; }
+.topnav, .tn-ride, .tn-avatar{ display:none; }
+.tn-link, .tn-ride, .tn-avatar, .tabbar a, .tabbar button, .navmenu a, .navmenu button{
+  width:auto; margin:0; font-family:inherit; cursor:pointer; text-decoration:none; -webkit-tap-highlight-color:transparent;
+}
+.topnav svg, .tn-ride svg, .tabbar svg, .navmenu svg, .nav-back svg{
+  width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0;
 }
 
-/* Phone: a bottom tab bar for the screens you use most; "More" opens the full menu. */
+/* Account button: on every width, top right */
+html.has-appnav .tn-avatar{
+  display:flex; align-items:center; justify-content:center; width:38px; height:38px; padding:0; margin-left:8px; overflow:hidden;
+  border-radius:50%; border:1px solid #2A323D; background:#1D242D; color:#E7ECF2; font-size:14px; font-weight:700; flex-shrink:0;
+}
+html.has-appnav .tn-avatar img{ width:100%; height:100%; object-fit:cover; }
+html.has-appnav .tn-avatar:hover, html.has-appnav .tn-avatar.on, html.has-appnav .tn-avatar[aria-expanded="true"]{ border-color:#45D6C4; }
+
+@media (min-width:760px){
+  html.has-appnav .top-bar{ gap:6px; padding-left:20px; padding-right:20px; }
+  html.has-appnav .top-bar-logo-link{ position:static; transform:none; margin-right:14px; flex-shrink:0; }
+  html.has-appnav .top-logo{ height:44px; }
+  html.has-appnav .top-bar-spacer{ display:none; }
+  html.has-appnav .topnav{ display:flex; align-items:center; gap:2px; flex:1; min-width:0; }
+  .tn-link{
+    display:flex; align-items:center; gap:4px; padding:9px 13px; border-radius:10px; border:none; background:none;
+    color:#8C97A6; font-size:14.5px; font-weight:600; white-space:nowrap; line-height:1.2;
+  }
+  .tn-link:hover{ color:#E7ECF2; background:#171D25; }
+  .tn-link.on, .tn-link[aria-expanded="true"]{ color:#E7ECF2; background:#1D242D; }
+  .tn-link .tn-caret{ width:15px; height:15px; stroke-width:2.2; opacity:.7; transition:transform .15s ease; }
+  .tn-link[aria-expanded="true"] .tn-caret{ transform:rotate(180deg); }
+  html.has-appnav .tn-ride{
+    display:flex; align-items:center; gap:7px; height:38px; padding:0 16px; margin-right:6px; border-radius:10px; border:none;
+    background:#45D6C4; color:#0B0E12; font-size:14px; font-weight:700; flex-shrink:0;
+  }
+  html.has-appnav .tn-ride:hover{ background:#5FE0D0; }
+  html.has-appnav .tn-ride svg{ width:15px; height:15px; }
+}
+@media (min-width:760px) and (max-width:979px){
+  html.has-appnav #fullscreenToggle{ display:none; }
+  .tn-link{ padding:9px 10px; }
+}
+
+/* Phone: a bottom tab bar; the middle Ride button opens today's options. */
 .tabbar{ display:none; }
 @media (max-width:759px){
-  html.has-appnav body{ padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
-  html.has-appnav #sidebarToggle{ visibility:hidden; } /* More in the tab bar opens the menu instead */
-  html.has-appnav .sidebar, html.has-appnav .sidebar-backdrop{ bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  html.has-appnav body{ padding-bottom:calc(68px + env(safe-area-inset-bottom, 0px)); }
+  html.has-appnav .top-bar-spacer{ flex:1; }
+  html.has-appnav #fullscreenToggle{ display:none; }
   html.has-appnav .tabbar{
-    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:70;
-    height:calc(64px + env(safe-area-inset-bottom, 0px)); padding-bottom:env(safe-area-inset-bottom, 0px);
-    background:#10141A; border-top:1px solid #2A323D;
+    display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); align-items:stretch;
+    position:fixed; left:0; right:0; bottom:0; z-index:70;
+    height:calc(68px + env(safe-area-inset-bottom, 0px)); padding-bottom:env(safe-area-inset-bottom, 0px);
+    background:#0F1318; border-top:1px solid #2A323D;
   }
   .tabbar a, .tabbar button{
-    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-    color:#8C97A6; text-decoration:none; font-size:10.5px; font-weight:600; letter-spacing:.02em;
-    background:none; border:none; border-radius:0; padding:0; margin:0; min-width:0; cursor:pointer; font-family:inherit;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    color:#8C97A6; font-size:11px; font-weight:600; letter-spacing:.01em;
+    background:none; border:none; border-radius:0; padding:0; min-width:0;
   }
-  .tabbar svg{ width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .tabbar .on{ color:#45D6C4; }
+  .tabbar svg{ width:23px; height:23px; }
+  .tabbar .on, .tabbar button[aria-expanded="true"]{ color:#45D6C4; }
+  .tabbar .tab-ride span{
+    display:flex; align-items:center; justify-content:center; width:56px; height:56px; margin-top:-22px; border-radius:50%;
+    background:#45D6C4; color:#0B0E12; box-shadow:0 6px 18px rgba(69,214,196,.3), 0 0 0 5px #0F1318;
+  }
+  .tabbar .tab-ride svg{ width:24px; height:24px; margin-left:2px; }
+  .tabbar .tab-ride[aria-expanded="true"]{ color:#0B0E12; }
 }
+
+/* Menus: a dropdown on wide screens, a sheet from the bottom on a phone */
+.navmenu-backdrop{ position:fixed; inset:0; z-index:80; background:transparent; opacity:0; pointer-events:none; transition:opacity .18s ease; }
+.navmenu-backdrop.open{ opacity:1; pointer-events:auto; }
+.navmenu{
+  position:fixed; z-index:81; display:none; flex-direction:column; gap:2px; padding:8px;
+  background:#1D242D; border:1px solid #2A323D; border-radius:14px; box-shadow:0 18px 44px rgba(0,0,0,.5);
+}
+.navmenu.open{ display:flex; animation:nm-in .14s ease both; }
+@keyframes nm-in{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+.navmenu a, .navmenu button{
+  display:flex; align-items:center; gap:12px; min-height:46px; padding:8px 10px; border-radius:10px; border:none; background:none;
+  color:#E7ECF2; text-align:left; font-size:14.5px;
+}
+.navmenu a:hover, .navmenu button:hover, .navmenu a:focus-visible, .navmenu button:focus-visible{ background:#252D38; outline:none; }
+.navmenu a.here{ background:#252D38; }
+.navmenu .nm-ico{ display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; background:#141A21; color:#45D6C4; flex-shrink:0; }
+.navmenu[data-kind="account"] .nm-ico{ color:#A9B3C1; background:none; width:24px; height:24px; }
+.navmenu .nm-txt{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.navmenu .nm-txt b{ font-weight:600; }
+.navmenu .nm-txt small{ font-size:12.5px; color:#8C97A6; font-weight:400; }
+.navmenu .nm-title{ padding:8px 10px 6px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8C97A6; }
+.navmenu .nm-who{ display:flex; align-items:center; gap:10px; padding:8px 10px 12px; margin-bottom:4px; border-bottom:1px solid #2A323D; }
+.navmenu .nm-who b{ display:block; font-size:14px; color:#E7ECF2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.navmenu .nm-who small{ display:block; font-size:12px; color:#8C97A6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.navmenu .nm-who > span:last-child{ min-width:0; }
+.navmenu .nm-avatar{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; overflow:hidden; background:#45D6C4; color:#08211E; font-weight:700; flex-shrink:0; }
+.navmenu .nm-avatar img{ width:100%; height:100%; object-fit:cover; }
+@media (max-width:759px){
+  .navmenu-backdrop{ background:rgba(5,8,12,.55); }
+  .navmenu{
+    left:0 !important; right:0; bottom:0; top:auto !important; width:auto !important; max-height:80vh; overflow-y:auto;
+    padding:10px 12px calc(16px + env(safe-area-inset-bottom, 0px)); border-radius:20px 20px 0 0; border-bottom:none;
+  }
+  .navmenu::before{ content:''; align-self:center; width:40px; height:5px; border-radius:3px; background:#2A323D; margin:0 0 8px; flex-shrink:0; }
+  .navmenu.open{ animation:nm-up .2s ease both; }
+  .navmenu a, .navmenu button{ min-height:54px; }
+}
+@keyframes nm-up{ from{ transform:translateY(100%); } to{ transform:none; } }
+@media (prefers-reduced-motion: reduce){ .navmenu.open{ animation:none; } }
+
+/* Live Ride and TrainerStrength: a back button instead of the menu */
+.top-bar .icon-btn{ padding:0; margin:0; } /* those pages' plain button style squeezed the icons */
+.nav-back{ color:#E7ECF2; }
+.nav-back svg{ width:20px; height:20px; }
 
 /* Dropdowns: the app's own look instead of the browser's default control. */
 :where(html.has-appnav) select{ padding:8px 10px; min-height:38px; font-size:14px; font-family:inherit; border-radius:8px; }

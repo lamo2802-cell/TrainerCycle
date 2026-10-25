@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
-<link rel="stylesheet" href="app-nav.css?v=4">
+<link rel="stylesheet" href="app-nav.css?v=5">
 <style>
   :root{
     --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
@@ -231,7 +231,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=17';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=18';
 import { notify, ask } from './sheet.js?v=2';
 const supabase = createSupabaseClient();
 
