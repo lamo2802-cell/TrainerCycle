@@ -177,8 +177,8 @@ const LOG_CSS = `
 `;
 function localIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
-// session: optional { dayIndex, date, workoutId } of a planned run, with planId. Resolves with the saved record, or null.
-export async function openRunLog(supabase, userId, { session = null, planId = null } = {}){
+// session: optional { dayIndex, date, workoutId } of a planned run, with planId; date: the day to log it on. Resolves with the saved record, or null.
+export async function openRunLog(supabase, userId, { session = null, planId = null, date: onDate = null } = {}){
   if (!document.getElementById('rl-style')){ const st = document.createElement('style'); st.id = 'rl-style'; st.textContent = LOG_CSS; document.head.appendChild(st); }
   let thresholdPace = null;
   try {
@@ -187,7 +187,7 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
   } catch(_){}
   const planned = session ? runSession(session.workoutId) : null;
   const today = localIso(new Date());
-  const date = session && session.date <= today ? session.date : today;
+  const date = onDate && onDate <= today ? onDate : session && session.date <= today ? session.date : today;
   const form = document.createElement('div');
   form.className = 'rl-form';
   form.innerHTML = (planned ? '<p class="rl-note">'+planned.text+'</p>' : '')

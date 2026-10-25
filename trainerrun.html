@@ -235,11 +235,11 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=2';
 import { isoDate, todayIso, addDays, parseIso, daysBetween, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=3';
-import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=4';
+import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=5';
 import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
-  paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=2';
-import { applySwaps } from './adapt.js?v=2';
-import { openExportSheet } from './export.js?v=2';
+  paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=3';
+import { applySwaps } from './adapt.js?v=3';
+import { openExportSheet } from './export.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
 const supabase = createSupabaseClient();
 
