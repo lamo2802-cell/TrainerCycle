@@ -80,6 +80,33 @@
      while actually riding. */
   .live-layout.riding-active .side-panel{ display:none; }
 
+  /* ---- Before the ride: workout header, profile, device checks and one big Start button.
+     The live numbers and the in-ride buttons only appear once the ride is underway. ---- */
+  .preride{ display:none; }
+  .live-layout:not(.riding-active) .preride{ display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:12px; }
+  .live-layout:not(.riding-active) .dash,
+  .live-layout:not(.riding-active) .ride-bar,
+  .live-layout:not(.riding-active) #pauseBtn,
+  .live-layout:not(.riding-active) #bailBtn,
+  .live-layout:not(.riding-active) #skipBtn,
+  .live-layout:not(.riding-active) #stopBtn{ display:none; }
+  .when-riding{ display:none; }
+  .live-layout.riding-active .when-idle{ display:none; }
+  .live-layout.riding-active .when-riding{ display:inline; }
+  .pr-text{ min-width:0; }
+  .pr-kicker{ font-size:11.5px; color:var(--accent); text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+  .pr-name{ font-size:clamp(22px, 3vw, 30px); font-weight:700; line-height:1.15; margin:3px 0 4px; overflow-wrap:anywhere; }
+  .pr-meta{ font-size:13.5px; color:var(--text-dim); font-family:var(--mono); }
+  .pr-meta b{ color:var(--text); font-weight:600; }
+  .pr-pick{ width:300px; flex-shrink:0; }
+  .pr-pick select{ padding:10px 11px; font-size:14px; }
+  .pr-ftp{ font-size:12.5px; color:var(--text-dim); margin-top:6px; text-align:right; }
+  .pr-ftp b{ color:var(--text); font-family:var(--mono); }
+  .block-title .need{ text-transform:none; letter-spacing:0; font-size:11px; opacity:.75; margin-left:4px; }
+  .setup-trainer.nudge{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(69,214,196,.22); }
+  .live-layout:not(.riding-active) .start-hint.ready{ color:var(--accent); }
+  .live-layout.riding-active .start-hint{ display:none !important; }
+
   @media (max-width:800px){
     .live-layout{ flex-direction:column; }
     .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
@@ -269,6 +296,35 @@
     .controls .lbl-long{ display:none; }
     .controls .lbl-short{ display:inline; }
   }
+
+  /* Pre-ride on tablets/phones (one column): workout first, then profile, then the device checks
+     just above Start. live-main's children join the column so they can be ordered. */
+  @media (max-width:800px){
+    .live-layout:not(.riding-active){ gap:0; }
+    .live-layout:not(.riding-active) .live-main{ display:contents; }
+    .live-layout:not(.riding-active) #unsupportedNote{ order:0; }
+    .live-layout:not(.riding-active) .preride{ order:1; flex-direction:column; align-items:stretch; gap:10px; }
+    .live-layout:not(.riding-active) .chart-panel.flex-chart{ order:2; flex:1 1 120px; }
+    .live-layout:not(.riding-active) .side-panel{ order:3; margin-bottom:8px; overflow:visible; }
+    .live-layout:not(.riding-active) .start-hint{ order:4; }
+    .live-layout:not(.riding-active) .controls{ order:5; }
+    .pr-pick{ width:auto; display:flex; align-items:center; gap:12px; }
+    .pr-pick select{ flex:1; min-width:0; }
+    .pr-ftp{ margin-top:0; white-space:nowrap; }
+  }
+  @media (max-width:600px){
+    .side-panel{ flex-direction:column; gap:6px; }
+    .side-panel .block{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:10px; padding:9px 12px; min-width:0; }
+    .side-panel .block-title{ margin:0 0 2px; grid-column:1; }
+    .side-panel .status-row{ grid-column:1; margin:0; min-width:0; }
+    .side-panel .status-row span:last-child{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .side-panel .block button{ grid-column:2; grid-row:1 / span 2; width:auto; margin:0; padding:9px 12px; font-size:13px; }
+    .side-panel #calibrateBtn:disabled{ display:none; }
+    .side-panel #calibrateBtn{ grid-column:1 / -1; grid-row:auto; margin-top:8px; }
+    .pr-name{ font-size:22px; }
+    .pr-meta{ font-size:12.5px; }
+    .live-layout:not(.riding-active) .controls button{ padding:15px 14px; font-size:16px; }
+  }
 </style>
 <script>
   (function(){
@@ -314,28 +370,15 @@
   <div class="main">
     <div class="live-layout">
       <div class="side-panel">
-        <div class="block">
-          <div class="block-title">FTP</div>
-          <div style="font-family:var(--mono); font-size:20px; font-weight:600;" id="ftpDisplay">—</div>
-        </div>
-
-        <div class="block">
-          <div class="block-title">Workout</div>
-          <select id="workoutSelect">
-            <option value="" disabled selected>Choose a workout…</option>
-            <option value="freeride">Free ride (no target)</option>
-          </select>
-        </div>
-
-        <div class="block">
-          <div class="block-title">Trainer (ERG control)</div>
+        <div class="block setup-trainer" id="setupTrainer">
+          <div class="block-title">Trainer <span class="need">needed</span></div>
           <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
           <button id="connectTrainerBtn">Connect trainer</button>
           <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
         </div>
 
-        <div class="block">
-          <div class="block-title">Heart Rate</div>
+        <div class="block setup-hr">
+          <div class="block-title">Heart rate <span class="need">optional</span></div>
           <div class="status-row"><span class="dot" id="hrDot"></span><span id="hrStatus">Not connected</span></div>
           <button id="connectHrBtn">Connect HR strap</button>
         </div>
@@ -343,6 +386,22 @@
 
       <div class="live-main">
         <div id="unsupportedNote"></div>
+
+        <!-- Shown until the ride starts: what you're about to ride, then the profile and Start. -->
+        <div class="preride">
+          <div class="pr-text">
+            <div class="pr-kicker" id="prKicker">Ready to ride</div>
+            <div class="pr-name" id="prName">Choose a workout</div>
+            <div class="pr-meta" id="prMeta">Pick one below, or ride without targets.</div>
+          </div>
+          <div class="pr-pick">
+            <select id="workoutSelect" aria-label="Workout">
+              <option value="" disabled selected>Choose a workout…</option>
+              <option value="freeride">Free ride (no target)</option>
+            </select>
+            <div class="pr-ftp">FTP <b id="ftpDisplay">—</b> W · <a href="settings.html">Change</a></div>
+          </div>
+        </div>
 
         <div class="dash">
           <div class="metric power">
@@ -397,9 +456,9 @@
           <div class="chart-click-info" id="overviewClickInfo">Tap the chart to inspect a point</div>
         </div>
 
-        <div class="start-hint" id="startHint">Open the menu (☰) and choose a workout to begin.</div>
+        <div class="start-hint" id="startHint">Choose a workout to begin.</div>
         <div class="controls">
-          <button class="primary" id="startBtn" disabled>Start</button>
+          <button class="primary" id="startBtn" disabled><span class="when-idle">Start ride</span><span class="when-riding">Start</span></button>
           <button id="pauseBtn" disabled>Pause</button>
           <button id="bailBtn" disabled><span class="lbl-long">Bail to recovery</span><span class="lbl-short">Bail</span></button>
           <button id="skipBtn" disabled><span class="lbl-long">Skip step</span><span class="lbl-short">Skip</span></button>
@@ -458,6 +517,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=17';
+import { notify, ask, showSheet } from './sheet.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -635,12 +695,51 @@ const supabase = createSupabaseClient();
 
   let currentWorkoutMeta = { name: 'Free Ride', category: null, workoutId: null };
   let planLink = null; // { planId, dayIndex } when this ride is a session from the followed plan
+  function trainerConnected(){ return !!(trainerDevice && trainerDevice.gatt && trainerDevice.gatt.connected); }
   function updateStartAvailability(){
     const hasSelection = document.getElementById('workoutSelect').value !== '';
     if (!running){
       document.getElementById('startBtn').disabled = !hasSelection;
     }
-    document.getElementById('startHint').style.display = hasSelection ? 'none' : 'block';
+    const hint = document.getElementById('startHint');
+    const ready = hasSelection && trainerConnected();
+    hint.textContent = !hasSelection ? 'Choose a workout to begin.'
+      : !trainerConnected() ? 'Connect your trainer to start.'
+      : 'All set. Start gives you a 3 second countdown.';
+    hint.classList.toggle('ready', ready);
+    hint.style.display = sessionStart ? 'none' : 'block';
+    if (trainerConnected()) document.getElementById('setupTrainer').classList.remove('nudge');
+  }
+
+  // The header above the profile: what's about to be ridden, and whether it's from the plan.
+  let preselectedFromPlan = null; // workout id picked automatically because it's today's plan session
+  function renderPreride(){
+    const id = document.getElementById('workoutSelect').value;
+    const kicker = document.getElementById('prKicker'), name = document.getElementById('prName'), meta = document.getElementById('prMeta');
+    if (!id){
+      kicker.textContent = 'Ready to ride';
+      name.textContent = 'Choose a workout';
+      meta.textContent = 'Pick one here, or ride without targets.';
+      return;
+    }
+    if (id === 'freeride'){
+      kicker.textContent = 'Free ride';
+      name.textContent = 'Ride as you like';
+      meta.textContent = 'No targets. Power, heart rate and time are still recorded.';
+      return;
+    }
+    const w = library.find(x=>x.id===id);
+    if (!w) return;
+    const st = computeStats(w.steps);
+    const tss = st.IF!=null ? Math.round(st.totalDur/3600*st.IF*st.IF*100) : null;
+    kicker.textContent = planLink ? (preselectedFromPlan === id ? 'Today\'s plan session' : 'From your plan') : (w.category ? categoryLabel(w.category) : 'Workout');
+    name.textContent = w.name;
+    const intervals = flatten(w.steps).filter(x=> effectivePct(x) != null && effectivePct(x) >= 88).length;
+    const mins = Math.round(st.totalDur/60);
+    meta.innerHTML = '<b>'+(mins >= 60 ? Math.floor(mins/60)+'h '+String(mins%60).padStart(2,'0')+'m' : mins+' min')+'</b>'
+      + (tss!=null ? ' · TSS <b>'+tss+'</b>' : '')
+      + (st.IF!=null ? ' · IF <b>'+st.IF.toFixed(2)+'</b>' : '')
+      + (intervals ? ' · '+intervals+' hard '+(intervals===1?'interval':'intervals') : '');
   }
   function selectWorkout(id){
     const w = library.find(x=>x.id===id);
@@ -652,7 +751,7 @@ const supabase = createSupabaseClient();
     planLink = w ? findPlanSession(w.id) : null;
     renderStepReadout();
     drawOverviewChart();
-   
+    renderPreride();
     updateStartAvailability();
   }
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
@@ -858,7 +957,7 @@ const supabase = createSupabaseClient();
     }
   }
   async function startCalibration(){
-    if (!trainerControlReady){ alert('Connect the trainer first — calibration needs ERG control to be active.'); return; }
+    if (!trainerControlReady){ notify('Calibration needs ERG control, so connect the trainer first.', 'Connect your trainer'); return; }
     document.getElementById('calibrationOverlay').style.display = 'flex';
     document.getElementById('calibrationLog').innerHTML = '';
     calibrationActive = true;
@@ -962,6 +1061,7 @@ const supabase = createSupabaseClient();
       (trainerControlReady ? '' : (' — ERG unavailable (' + (controlFailReason||'unknown') + ')'));
     document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
     document.getElementById('calibrateBtn').disabled = !trainerControlReady;
+    updateStartAvailability();
 
     // if we were mid-workout when this (re)connected, resume holding the last known target
     if (trainerControlReady && lastTargetWatts!=null) setTargetPower(lastTargetWatts);
@@ -999,7 +1099,7 @@ const supabase = createSupabaseClient();
   }
 
   document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
-    if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser. Use Chrome or Edge on desktop or Android.'); return; }
+    if (!navigator.bluetooth){ notify('Use Chrome or Edge on a computer or Android. Safari and iPhone/iPad don\'t support it.', 'Bluetooth isn\'t available here'); return; }
     try {
       trainerDevice = await navigator.bluetooth.requestDevice({
         filters: [{ services: ['fitness_machine'] }],
@@ -1010,6 +1110,7 @@ const supabase = createSupabaseClient();
         document.getElementById('trainerDot').classList.add('err');
         document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
         trainerControlReady = false;
+        updateStartAvailability();
         scheduleTrainerReconnect(trainerDevice);
       });
       await setupTrainer(trainerDevice);
@@ -1046,6 +1147,7 @@ const supabase = createSupabaseClient();
         document.getElementById('trainerDot').classList.add('err');
         document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
         trainerControlReady = false;
+        updateStartAvailability();
         scheduleTrainerReconnect(trainerDevice);
       });
       try { await setupTrainer(trainerDevice); }
@@ -1105,7 +1207,7 @@ const supabase = createSupabaseClient();
   }
 
   document.getElementById('connectHrBtn').addEventListener('click', async ()=>{
-    if (!navigator.bluetooth){ alert('Web Bluetooth isn\'t supported in this browser.'); return; }
+    if (!navigator.bluetooth){ notify('Use Chrome or Edge on a computer or Android. Safari and iPhone/iPad don\'t support it.', 'Bluetooth isn\'t available here'); return; }
     try {
       hrDevice = await navigator.bluetooth.requestDevice({ filters:[{ services:['heart_rate'] }] });
       hrDevice.addEventListener('gattserverdisconnected', ()=>{
@@ -1476,12 +1578,16 @@ const supabase = createSupabaseClient();
   }
 
   document.getElementById('startBtn').addEventListener('click', async ()=>{
-    if (!trainerDevice || !trainerDevice.gatt.connected){
-      alert('Connect your trainer before starting a ride — use the "Connect trainer" button in the menu.');
+    if (!trainerConnected()){
+      // point at the trainer check rather than popping up a box
+      const box = document.getElementById('setupTrainer');
+      box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge');
+      box.scrollIntoView({ block:'nearest', behavior:'smooth' });
+      updateStartAvailability();
       return;
     }
     if (!(await isSubscriptionActive(supabase, user))){
-      alert('Your subscription isn\'t active — head to Settings to resubscribe before starting a ride.');
+      notify('Head to Settings to resubscribe before starting a ride.', 'Your subscription isn\'t active');
       return;
     }
     document.getElementById('startBtn').disabled = true;
@@ -1565,11 +1671,15 @@ const supabase = createSupabaseClient();
     try { saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null'); } catch(e){ saved = null; }
     if (!saved || !Array.isArray(saved.log) || !saved.log.length){ clearAutosave(); return; }
     const mins = Math.round((saved.activeElapsedSec||0)/60);
-    const when = new Date(saved.startedAt).toLocaleString();
-    if (confirm('We found an unsaved ride from ' + when + ' (' + (saved.workoutName||'Free Ride') + ', ' + mins + ' min) — it looks like the app closed mid-ride.\n\nSave it to your ride history now?')){
+    const sd = new Date(saved.startedAt);
+    const when = sd.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}) + ' at ' + sd.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    const choice = await showSheet({ title:'Save your last ride?',
+      text:'We found an unsaved ride from ' + when + ' (' + (saved.workoutName||'Free Ride') + ', ' + mins + ' min). It looks like the app closed mid-ride.',
+      buttons:[{ label:'Save it', value:'save', kind:'primary' }, { label:'Discard', value:'discard', kind:'danger' }, { label:'Not now', value:'later' }], dismissValue:'later' });
+    if (choice === 'save'){
       const rec = await saveCompletedRide(false, saved);
       if (rec) window.location.href = 'rides.html?summary=' + encodeURIComponent(rec.id);
-    } else if (confirm('Discard that unsaved ride? This can\'t be undone.')){
+    } else if (choice === 'discard' && await ask('This can\'t be undone.', { title:'Discard that ride?', ok:'Discard', danger:true })){
       clearAutosave();
     }
   }
@@ -1614,7 +1724,7 @@ const supabase = createSupabaseClient();
     if (!ok){
       // Keep the local autosave so nothing is lost, and tell the rider instead of failing silently.
       autosaveRide();
-      alert('Your ride couldn\'t be saved to your account (check your connection). It\'s kept safely on this device — reopen Live Ride and you\'ll be offered the chance to save it again.');
+      await notify('Check your connection. The ride is kept safely on this device, and next time you open Live Ride you\'ll be offered the chance to save it again.', 'Your ride couldn\'t be saved yet');
       return null;
     }
     clearAutosave();
@@ -1741,8 +1851,8 @@ const supabase = createSupabaseClient();
       document.getElementById('stopConfirmOverlay').style.display = 'none';
       stopSession(false);
     };
-    document.getElementById('stopDiscardBtn').onclick = ()=>{
-      if (confirm('Discard this ride? This can\'t be undone.')){
+    document.getElementById('stopDiscardBtn').onclick = async ()=>{
+      if (await ask('This can\'t be undone.', { title:'Discard this ride?', ok:'Discard', danger:true })){
         document.getElementById('stopConfirmOverlay').style.display = 'none';
         discardSession();
       }
@@ -1863,6 +1973,17 @@ const supabase = createSupabaseClient();
       document.getElementById('workoutSelect').value = loadParam;
       selectWorkout(loadParam);
       window.history.replaceState({}, '', window.location.pathname);
+    } else if (!loadParam && activePlan && document.getElementById('workoutSelect').value === ''){
+      // Nothing chosen yet: if the plan has a ride due today, have it ready to go.
+      const { plan, state, doneDays } = activePlan;
+      const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
+        filter: x => x.dayObj.workoutType !== 'strength' });
+      const wid = next && next.date === todayIso() && next.dayObj.workoutId;
+      if (wid && library.find(x=>x.id===wid)){
+        preselectedFromPlan = wid;
+        document.getElementById('workoutSelect').value = wid;
+        selectWorkout(wid);
+      }
     }
   });
   renderStepReadout();

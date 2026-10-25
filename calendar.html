@@ -257,6 +257,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
+import { notify, ask } from './sheet.js?v=1';
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=1';
 import { loadSeries, formLabel } from './training-load.js?v=1';
 const supabase = createSupabaseClient();
@@ -571,7 +572,7 @@ const supabase = createSupabaseClient();
     follow.moves = moves;
     render(); computeFitness(); drawFitChart();
     try { await saveMoves(supabase, user.id, moves); }
-    catch(e){ alert('Couldn\'t save that move (check your connection).'); }
+    catch(e){ notify('Check your connection and try again.', 'Couldn\'t save that move'); }
   }
 
   const calBody = document.getElementById('calBody');
