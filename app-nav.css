@@ -16,6 +16,7 @@
 .tabbar{ display:none; }
 @media (max-width:759px){
   html.has-appnav body{ padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  html.has-appnav #sidebarToggle{ visibility:hidden; } /* More in the tab bar opens the menu instead */
   html.has-appnav .sidebar, html.has-appnav .sidebar-backdrop{ bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
   html.has-appnav .tabbar{
     display:flex; position:fixed; left:0; right:0; bottom:0; z-index:70;

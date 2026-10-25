@@ -7,7 +7,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=1">
+<link rel="stylesheet" href="app-nav.css?v=2">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -79,27 +79,85 @@
   button:hover{ border-color:var(--accent); }
   button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
 
-  .ride-card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:12px; }
-  .ride-card.ride-just-saved{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
-  .ride-card.ride-just-saved::before{ content:"✓ Ride saved"; display:block; color:var(--accent); font-size:12px; font-weight:600; margin-bottom:8px; }
-  .ride-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
-  .ride-name{ font-size:16px; font-weight:600; }
-  .ride-date{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:2px; }
-  .ride-tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:6px; }
-  .ride-tag.partial{ color:var(--text-dim); }
-  .ride-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-  @media (max-width:480px){ .ride-stats{ grid-template-columns:repeat(2,1fr); } }
-  .ride-stat{ background:var(--panel-2); border-radius:6px; padding:8px; text-align:center; }
-  .ride-stat .val{ font-family:var(--mono); font-size:16px; font-weight:600; }
-  .ride-stat .lbl{ font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
   .empty-note{ color:var(--text-dim); font-size:13px; }
-  .filters{ display:flex; gap:8px; margin-bottom:18px; }
-  .ride-chart-wrap{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
-  .chart-legend{ display:flex; gap:16px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
+  .page-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .page-head h1{ font-size:24px; margin:0; }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .seg button{ border:none; border-radius:0; background:var(--panel-2); padding:8px 14px; }
+  .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
+
+  /* ---- list ---- */
+  .summary{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-bottom:20px; }
+  .sum-tile{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .sum-tile .lbl{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+  .sum-tile .val{ font-family:var(--mono); font-size:24px; font-weight:600; margin-top:2px; }
+  .week-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:18px 2px 8px; }
+  .week-head .t{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  .week-head .s{ font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+  .ride-row{ display:grid; grid-template-columns:4px minmax(0,1fr) 150px auto; align-items:center; gap:14px; width:100%; text-align:left;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px 10px 0; margin-bottom:6px; color:var(--text); cursor:pointer; font:inherit; overflow:hidden; }
+  .ride-row:hover{ border-color:#3A4452; }
+  .ride-row .bar{ align-self:stretch; border-radius:0 3px 3px 0; margin:-10px 0; }
+  .ride-row .nm{ font-weight:600; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ride-row .when{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+  .ride-row .mini{ display:block; width:150px; height:30px; }
+  .ride-row .st{ display:flex; gap:14px; font-family:var(--mono); font-size:12px; color:var(--text-dim); text-align:right; }
+  .ride-row .st b{ display:block; color:var(--text); font-size:14.5px; }
+  .tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim); margin-left:6px; font-weight:500; vertical-align:1px; }
+  .tag.plan{ color:var(--accent); }
+  @media (max-width:640px){
+    .ride-row{ grid-template-columns:4px minmax(0,1fr) auto; }
+    .ride-row .mini{ display:none; }
+    .ride-row .st span:nth-child(3){ display:none; }
+    .summary .val{ font-size:20px; }
+  }
+
+  /* ---- detail ---- */
+  .back{ display:inline-flex; align-items:center; gap:6px; color:var(--accent); background:none; border:none; padding:6px 0; font-size:14px; margin-bottom:6px; }
+  .d-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .d-head h1{ font-size:24px; margin:0 0 4px; }
+  .d-head .when{ color:var(--text-dim); font-size:13px; }
+  .d-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .d-actions button{ min-height:38px; }
+  .saved-note{ background:color-mix(in srgb, var(--accent) 12%, var(--panel)); border:1px solid var(--accent); color:var(--text); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; }
+  .saved-note b{ color:var(--accent); }
+  .d-stats{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-bottom:16px; }
+  @media (min-width:900px){ .d-stats{ grid-template-columns:repeat(9, minmax(0,1fr)); } .d-stat .val{ font-size:18px; } }
+  .d-stat{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .d-stat .val{ font-family:var(--mono); font-size:20px; font-weight:600; }
+  @media (max-width:520px){ .d-stat{ padding:9px 10px; } .d-stat .val{ font-size:17px; } }
+  .d-stat .lbl{ font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+  .panel-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .chart-legend{ display:flex; gap:14px; font-size:11.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; }
   .chart-legend span{ display:flex; align-items:center; gap:5px; }
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
-  #ridesList canvas{ width:100%; height:150px; display:block; }
-  .filters select{ max-width:200px; }
+  .chart-wrap{ position:relative; }
+  #rideChart{ width:100%; height:220px; display:block; touch-action:pan-y; }
+  #curveChart{ width:100%; height:200px; display:block; touch-action:pan-y; }
+  .tip{ position:absolute; top:0; pointer-events:none; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12px; font-family:var(--mono); white-space:nowrap; display:none; z-index:5; }
+  .tip .d{ color:var(--text-dim); font-family:var(--sans); margin-bottom:3px; }
+  .two{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  @media (max-width:800px){ .two{ grid-template-columns:1fr; } }
+  .bests{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px; margin-top:10px; }
+  .best{ background:var(--panel-2); border-radius:8px; padding:6px 8px; text-align:center; }
+  .best b{ font-family:var(--mono); font-size:15px; display:block; }
+  .best span{ font-size:10.5px; color:var(--text-dim); }
+  .zone-row{ display:grid; grid-template-columns:96px minmax(0,1fr) 74px; align-items:center; gap:10px; margin-bottom:7px; font-size:12.5px; }
+  .zone-row .zn{ display:flex; align-items:center; gap:6px; color:var(--text); }
+  .zone-row .zn i{ width:9px; height:9px; border-radius:2px; display:inline-block; flex-shrink:0; }
+  .zone-row .track{ height:12px; background:var(--panel-2); border-radius:4px; overflow:hidden; }
+  .zone-row .track i{ display:block; height:100%; border-radius:4px; }
+  .zone-row .v{ text-align:right; font-family:var(--mono); color:var(--text-dim); }
+  .zone-row .v b{ color:var(--text); font-weight:600; }
+  .laps{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .laps th{ text-align:right; font-weight:500; color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .laps td{ text-align:right; padding:7px 8px; border-bottom:1px solid var(--line); font-family:var(--mono); }
+  .laps th:first-child, .laps td:first-child{ text-align:left; font-family:var(--sans); }
+  .laps td:first-child i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:0; }
+  .laps .hit{ color:var(--accent); } .laps .miss{ color:#E8B93D; }
+  .laps-wrap{ overflow-x:auto; }
+  @media (max-width:640px){ .laps .opt{ display:none; } }
 
   /* Full-screen animated logo shown right after a ride is saved, before the post-ride summary
      is revealed underneath it - a little "landing" moment instead of the page just appearing. */
@@ -171,15 +229,16 @@
   </div>
 
   <div class="main">
-    <div class="page-banner" style="background-image:url('banner-rides.jpg');"></div>
-    <div class="filters">
-      <select id="filterCompleted">
-        <option value="">All rides</option>
-        <option value="completed">Completed only</option>
-        <option value="partial">Partial only</option>
-      </select>
+    <div id="listView">
+      <div class="page-banner" style="background-image:url('banner-rides.jpg');"></div>
+      <div class="page-head">
+        <h1>Rides</h1>
+        <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="completed">Completed</button><button data-f="partial">Partial</button></div>
+      </div>
+      <div class="summary" id="summary"></div>
+      <div id="ridesList"><div class="empty-note">Loading…</div></div>
     </div>
-    <div id="ridesList"><div class="empty-note">Loading…</div></div>
+    <div id="detailView" style="display:none;"></div>
   </div>
 </div>
 
@@ -191,53 +250,79 @@ const supabase = createSupabaseClient();
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await showSubscribeNudge(supabase, user);
-  let rides = [];
+  let rides = [];        // list rows (no samples - those load per ride)
+  const workoutsById = {}, workoutsByName = {};
+  let filter = '';
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
     return h>0 ? (h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')) : (m+':'+String(s).padStart(2,'0'));
   }
+  function fmtHm(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h'+String(m%60).padStart(2,'0') : m+'m'; }
   function fmtDate(iso){
     const d = new Date(iso);
     return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}) + ' · ' + d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
   }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function localIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function mondayOf(d){ const m = new Date(d); m.setHours(0,0,0,0); m.setDate(m.getDate() - ((m.getDay()+6)%7)); return m; }
+
+  const ZONES = [
+    {max:60,color:'var(--z-recovery)',hex:'#5A6472',name:'Recovery'},{max:76,color:'var(--z-endurance)',hex:'#4C8BF5',name:'Endurance'},
+    {max:91,color:'var(--z-tempo)',hex:'#3DBE7A',name:'Tempo'},{max:106,color:'var(--z-threshold)',hex:'#E8B93D',name:'Threshold'},
+    {max:121,color:'var(--z-vo2)',hex:'#F08A3C',name:'VO2 Max'},{max:151,color:'var(--z-anaerobic)',hex:'#E5484D',name:'Anaerobic'},
+    {max:Infinity,color:'var(--z-neuro)',hex:'#B14AED',name:'Sprint'}
+  ];
+  function zoneIdx(pct){ for (let i=0;i<ZONES.length;i++) if (pct < ZONES[i].max) return i; return ZONES.length-1; }
+  function zoneColor(pct){ return pct==null ? 'var(--text-dim)' : ZONES[zoneIdx(pct)].color; }
+  function zoneRGBA(pct, alpha){ const h = ZONES[zoneIdx(pct)].hex; return 'rgba('+parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)+','+alpha+')'; }
+  const CATEGORY_PCT = { recovery:50, endurance:70, tempo:85, sweet_spot:90, threshold:100, over_under:100, vo2max:115, anaerobic:130, test:100 };
+
+  function flattenSteps(steps){ let out=[]; for (const st of steps||[]){ if (st.type==='repeat'){ for (let i=0;i<st.repetitions;i++) out=out.concat(flattenSteps(st.steps)); } else out.push(st); } return out; }
+  function workoutFor(r){ return (r.workout_id && workoutsById[r.workout_id]) || workoutsByName[r.workout_name] || null; }
+  function miniProfile(r){
+    const w = workoutFor(r);
+    if (!w || !w.steps) return '<span class="mini"></span>';
+    const flat = flattenSteps(w.steps); const total = flat.reduce((a,x)=>a+(x.duration||0),0) || 1;
+    let x = 0;
+    const rects = flat.map(st=>{
+      const pct = st.targetType==='ftp_pct' ? (st.low+st.high)/2 : 60;
+      const wd = (st.duration||0)/total*150, h = Math.max(3, Math.min(30, pct/150*30));
+      const out = '<rect x="'+x.toFixed(1)+'" y="'+(30-h).toFixed(1)+'" width="'+Math.max(.4,wd-.3).toFixed(1)+'" height="'+h.toFixed(1)+'" fill="'+ZONES[zoneIdx(pct)].hex+'"/>';
+      x += wd; return out;
+    }).join('');
+    return '<svg class="mini" viewBox="0 0 150 30" preserveAspectRatio="none" aria-hidden="true">'+rects+'</svg>';
+  }
 
   async function loadRides(){
     try {
-      const { data, error } = await supabase.from('completed_rides').select('*').order('started_at',{ascending:false}).limit(100);
-      if (error) throw error;
-      rides = data || [];
-    } catch(e){ rides = []; }
-    render();
-
-    const summaryId = new URLSearchParams(window.location.search).get('summary');
-    if (summaryId && rides.find(r=>r.id===summaryId)){
-      const wrap = document.getElementById('chartwrap-'+summaryId);
-      const card = document.getElementById('ridecard-'+summaryId);
-      if (wrap) wrap.style.display = 'block';
-      if (card){
-        card.classList.add('ride-just-saved');
-        card.scrollIntoView({ behavior:'smooth', block:'start' });
-      }
-      const ride = rides.find(r=>r.id===summaryId);
-      if (ride) drawRideChart(ride);
-      window.history.replaceState({}, '', window.location.pathname);
-
-      // auto-upload to Strava if connected — this is what "connecting Strava" is actually for
-      try {
-        const { data: conn } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle();
-        const stravaBtn = document.querySelector('[data-strava="'+summaryId+'"]');
-        if (conn && stravaBtn) uploadRideToStrava(ride, stravaBtn, true);
-      } catch(e){ /* best effort — the manual button is still right there either way */ }
-
+      const [rRes, wRes] = await Promise.all([
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at')
+          .order('started_at',{ascending:false}).limit(200),
+        supabase.from('workouts').select('id,name,steps')
+      ]);
+      if (rRes.error) throw rRes.error;
+      rides = rRes.data || [];
+      (wRes.data||[]).forEach(w=>{ workoutsById[w.id] = w; if (!workoutsByName[w.name]) workoutsByName[w.name] = w; });
+    } catch(e){
+      rides = [];
+      document.getElementById('ridesList').innerHTML = '<div class="empty-note">Couldn\'t load your rides. Check your connection and refresh.</div>';
       hideLogoReveal();
-    } else {
-      hideLogoReveal();
+      return;
     }
+    renderList();
+    const q = new URLSearchParams(window.location.search);
+    const summaryId = q.get('summary'), rideId = q.get('ride');
+    if (summaryId){
+      history.replaceState({ ride: summaryId }, '', '?ride='+encodeURIComponent(summaryId));
+      await showDetail(summaryId, { justSaved:true });
+    } else if (rideId){
+      await showDetail(rideId);
+    }
+    hideLogoReveal();
   }
 
   // Lets the full-screen logo animation play for a minimum stretch (so it never just flashes),
-  // then fades out to reveal the already-scrolled-to, already-drawn summary underneath it.
+  // then fades out to reveal the already-drawn summary underneath it.
   let logoRevealShownAt = document.documentElement.classList.contains('logo-reveal-pending') ? Date.now() : null;
   function hideLogoReveal(){
     if (logoRevealShownAt == null) return;
@@ -254,141 +339,309 @@ const supabase = createSupabaseClient();
     logoRevealShownAt = null;
   }
 
-  function render(){
+  // ---- list: summary + rides grouped by week ----
+  function renderList(){
     const el = document.getElementById('ridesList');
-    if (!rides.length){ el.innerHTML = '<div class="empty-note">No completed rides yet — finish a session on the Live Ride page and it\'ll show up here.</div>'; return; }
+    const since = new Date(Date.now() - 28*86400000);
+    const recent = rides.filter(r=> new Date(r.started_at) >= since);
+    document.getElementById('summary').innerHTML =
+        '<div class="sum-tile"><div class="lbl">Rides · 4 wks</div><div class="val">'+recent.length+'</div></div>'
+      + '<div class="sum-tile"><div class="lbl">Time · 4 wks</div><div class="val">'+fmtHm(recent.reduce((a,r)=>a+(r.duration_sec||0),0))+'</div></div>'
+      + '<div class="sum-tile"><div class="lbl">TSS · 4 wks</div><div class="val">'+recent.reduce((a,r)=>a+(r.tss||0),0)+'</div></div>';
 
-    const filterVal = document.getElementById('filterCompleted').value;
+    if (!rides.length){ el.innerHTML = '<div class="empty-note">No rides yet. Finish a session on Live Ride and it\'ll show up here.</div>'; return; }
     let items = rides;
-    if (filterVal==='completed') items = items.filter(r=>r.completed);
-    if (filterVal==='partial') items = items.filter(r=>!r.completed);
-
+    if (filter==='completed') items = items.filter(r=>r.completed);
+    if (filter==='partial') items = items.filter(r=>!r.completed);
     if (!items.length){ el.innerHTML = '<div class="empty-note">No rides match this filter.</div>'; return; }
 
-    el.innerHTML = items.map(r=>{
-      return '<div class="ride-card" id="ridecard-'+r.id+'">'
-        + '<div class="ride-top"><div>'
-        + '<div class="ride-name">'+escapeHtml(r.workout_name)
-        + '<span class="ride-tag'+(r.completed?'':' partial')+'">'+(r.completed?'Completed':'Partial')+'</span>'
-        + '</div><div class="ride-date">'+fmtDate(r.started_at)+'</div>'
-        + '</div><div style="display:flex; gap:6px;"><button data-details="'+r.id+'">View chart</button><button data-tcx="'+r.id+'">Export TCX</button>'
-        + (r.strava_uploaded_at
-            ? '<button disabled style="opacity:.7; cursor:default;">Uploaded ✓</button>'
-            : '<button data-strava="'+r.id+'">Upload to Strava</button>')
-        + '</div></div>'
-        + '<div class="ride-stats">'
-        + '<div class="ride-stat"><div class="val">'+fmtDur(r.duration_sec)+'</div><div class="lbl">Duration</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.tss ?? '—')+'</div><div class="lbl">TSS</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.avg_power ?? '—')+'</div><div class="lbl">Avg Power</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.np ?? '—')+'</div><div class="lbl">NP</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</div><div class="lbl">IF</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.avg_hr ?? '—')+'</div><div class="lbl">Avg HR</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
-        + '<div class="ride-stat"><div class="val">'+(r.avg_power!=null ? Math.round(r.avg_power*r.duration_sec/1000) : '—')+'</div><div class="lbl">Work (kJ)</div></div>'
-        + '</div>'
-        + '<div class="ride-chart-wrap" id="chartwrap-'+r.id+'" style="display:none;">'
-        + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--z-threshold); opacity:.75;"></i>Target intensity zone</span></div>'
-        + '<canvas id="chart-'+r.id+'" width="760" height="150"></canvas>'
-        + '</div>'
-        + '</div>';
+    const thisMon = mondayOf(new Date());
+    const groups = [];
+    items.forEach(r=>{
+      const key = localIso(mondayOf(new Date(r.started_at)));
+      let g = groups[groups.length-1];
+      if (!g || g.key !== key){ g = { key, rides:[] }; groups.push(g); }
+      g.rides.push(r);
+    });
+    el.innerHTML = groups.map(g=>{
+      const weeksAgo = Math.round((thisMon - new Date(g.key+'T00:00:00')) / (7*86400000));
+      const title = weeksAgo === 0 ? 'This week' : weeksAgo === 1 ? 'Last week'
+        : 'Week of ' + new Date(g.key+'T00:00:00').toLocaleDateString(undefined,{ day:'numeric', month:'short' });
+      const time = g.rides.reduce((a,r)=>a+(r.duration_sec||0),0), tss = g.rides.reduce((a,r)=>a+(r.tss||0),0);
+      return '<div class="week-head"><span class="t">'+title+'</span><span class="s">'+g.rides.length+' ride'+(g.rides.length===1?'':'s')+' · '+fmtHm(time)+' · '+tss+' TSS</span></div>'
+        + g.rides.map(r=>{
+          const pct = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
+          return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
+            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(r.completed ? '' : '<span class="tag">Partial</span>')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+            + miniProfile(r)
+            + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
+            + '</button>';
+        }).join('');
     }).join('');
   }
-  document.getElementById('filterCompleted').addEventListener('change', render);
-
-  // Keeps a canvas's actual pixel buffer in sync with its rendered CSS width.
-  function fitCanvasWidth(canvas){
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = Math.round(rect.width);
-    const displayHeight = Math.round(rect.height);
-    const bufferWidth = Math.round(displayWidth * dpr);
-    const bufferHeight = Math.round(displayHeight * dpr);
-    if (displayWidth > 0 && canvas.width !== bufferWidth) canvas.width = bufferWidth;
-    if (displayHeight > 0 && canvas.height !== bufferHeight) canvas.height = bufferHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  document.getElementById('filterSeg').addEventListener('click', e=>{
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    filter = b.dataset.f;
+    document.querySelectorAll('#filterSeg button').forEach(x=> x.classList.toggle('on', x === b));
+    renderList();
+  });
+  document.getElementById('ridesList').addEventListener('click', e=>{
+    const row = e.target.closest('[data-ride]'); if (!row) return;
+    history.pushState({ ride: row.dataset.ride }, '', '?ride='+encodeURIComponent(row.dataset.ride));
+    showDetail(row.dataset.ride);
+  });
+  window.addEventListener('popstate', ()=>{
+    const id = new URLSearchParams(location.search).get('ride');
+    if (id) showDetail(id); else showList();
+  });
+  function showList(){
+    document.getElementById('detailView').style.display = 'none';
+    document.getElementById('listView').style.display = '';
+    current = null;
   }
 
-  const ZONES = [
-    {max:60,color:'var(--z-recovery)'},{max:76,color:'var(--z-endurance)'},{max:91,color:'var(--z-tempo)'},
-    {max:106,color:'var(--z-threshold)'},{max:121,color:'var(--z-vo2)'},{max:151,color:'var(--z-anaerobic)'},
-    {max:Infinity,color:'var(--z-neuro)'}
-  ];
-  function zoneColor(pct){ if(pct==null) return 'var(--text-dim)'; for(const z of ZONES) if(pct<z.max) return z.color; return ZONES[ZONES.length-1].color; }
-  function zoneColorRGBA(pct, alpha){
-    const map = {
-      'var(--z-recovery)':'90,100,114', 'var(--z-endurance)':'76,139,245', 'var(--z-tempo)':'61,190,122',
-      'var(--z-threshold)':'232,185,61', 'var(--z-vo2)':'240,138,60', 'var(--z-anaerobic)':'229,72,77',
-      'var(--z-neuro)':'177,74,237', 'var(--text-dim)':'140,151,166'
-    };
-    const rgb = map[zoneColor(pct)] || '140,151,166';
-    return 'rgba('+rgb+','+alpha+')';
-  }
+  // ---- ride detail ----
+  let current = null; // { ride, sec: per-second series, ftp }
+  const detailCache = {};
 
-  function drawRideChart(ride){
-    const canvas = document.getElementById('chart-'+ride.id);
-    if (!canvas) return;
-    fitCanvasWidth(canvas);
-    const ctx = canvas.getContext('2d');
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    const samples = ride.samples || [];
-    if (!samples.length) return;
-    const n = samples.length;
-    const maxPower = Math.max(50, ...samples.map(s=>Number(s.power)||0), ...samples.map(s=>Number(s.target)||0)) * 1.15;
-    const maxHr = Math.max(60, ...samples.map(s=>Number(s.hr)||0)) * 1.1;
-    const xAt = i => (i/Math.max(1,n-1))*w;
-
-    // Historical FTP at the time of this ride, backed out from NP/IF (rather than today's FTP),
-    // so the zone coloring reflects what was actually true when the ride happened.
-    const histFtp = (ride.np && ride.intensity_factor) ? (ride.np / ride.intensity_factor) : null;
-
-    // Colored zone-intensity background (skyline profile), same technique as Live Ride's overview chart,
-    // using each sample's own target power to classify + size each sliver. The bar height is scaled
-    // against the SAME maxPower used for the power trace below, so a target block's top lines up with
-    // where the actual power line sits at that wattage - not a separate %FTP-based scale.
-    if (histFtp){
-      samples.forEach((s,i)=>{
-        const tgt = Number(s.target);
-        if (!tgt) return;
-        const pct = (tgt/histFtp)*100;
-        const barH = Math.max(h*0.04, Math.min(h*0.98, (tgt/maxPower)*h));
-        ctx.fillStyle = zoneColorRGBA(pct, 0.75);
-        const x = xAt(i);
-        const segW = w/Math.max(1,n-1) + 1;
-        ctx.fillRect(x, h-barH, segW, barH);
-      });
-    }
-
-    function line(getVal, max, color, outline){
-      [ {c: outline, lw: 4}, {c: color, lw: 2} ].forEach(pass=>{
-        ctx.beginPath(); ctx.strokeStyle = pass.c; ctx.lineWidth = pass.lw; ctx.setLineDash([]);
-        samples.forEach((s,i)=>{
-          const v = Number(getVal(s))||0;
-          const y = h - (v/max)*h;
-          if (i===0) ctx.moveTo(xAt(i), y); else ctx.lineTo(xAt(i), y);
-        });
-        ctx.stroke();
-      });
-    }
-    line(s=>s.hr, maxHr, '#E5484D', 'rgba(255,255,255,0.6)');
-    line(s=>s.power, maxPower, '#45D6C4', 'rgba(255,255,255,0.6)');
-  }
-
-  document.getElementById('ridesList').addEventListener('click', (e)=>{
-    const detailsId = e.target.dataset.details;
-    if (detailsId){
-      const wrap = document.getElementById('chartwrap-'+detailsId);
-      const showing = wrap.style.display !== 'none';
-      wrap.style.display = showing ? 'none' : 'block';
-      e.target.textContent = showing ? 'View chart' : 'Hide chart';
-      if (!showing){
-        const ride = rides.find(r=>r.id===detailsId);
-        if (ride) drawRideChart(ride);
+  // Samples arrive roughly once a second while riding (elapsed = active seconds). Resample to exactly
+  // one value per second so averages and best efforts are time-weighted.
+  function perSecond(samples){
+    const n = samples.length ? Math.max(1, Math.floor(Number(samples[samples.length-1].elapsed)||0) + 1) : 0;
+    const out = new Array(n);
+    const buckets = new Map();
+    samples.forEach(sm=>{
+      const t = Math.max(0, Math.floor(Number(sm.elapsed)||0));
+      if (!buckets.has(t)) buckets.set(t, []);
+      buckets.get(t).push(sm);
+    });
+    let last = { power:0, hr:null, cadence:null, target:null, stepIdx:null };
+    for (let t=0;t<n;t++){
+      const b = buckets.get(t);
+      if (b){
+        const avg = k => { const v = b.map(x=>Number(x[k])).filter(x=>x>0 || (k==='power' && x===0)); return v.length ? v.reduce((a,c)=>a+c,0)/v.length : null; };
+        const p = avg('power');
+        last = { power: p!=null ? p : last.power, hr: avg('hr') ?? last.hr, cadence: avg('cadence') ?? last.cadence,
+          target: Number(b[b.length-1].target) || null, stepIdx: b[b.length-1].stepIdx ?? last.stepIdx };
       }
-      return;
+      out[t] = Object.assign({ t }, last);
+    }
+    return out;
+  }
+  const CURVE_DURS = [5,10,15,30,60,120,180,300,480,600,1200,1800,2700,3600,5400,7200];
+  function bestEfforts(sec){
+    const p = sec.map(x=>x.power||0), n = p.length;
+    const pre = new Float64Array(n+1); for (let i=0;i<n;i++) pre[i+1] = pre[i] + p[i];
+    return CURVE_DURS.filter(d=>d<=n).map(d=>{
+      let best = 0; for (let i=d;i<=n;i++){ const v = pre[i]-pre[i-d]; if (v>best) best = v; }
+      return { d, w: Math.round(best/d) };
+    });
+  }
+  function durLabel(d){ return d < 60 ? d+'s' : d < 3600 ? (d/60)+' min' : (d/3600)+' h'; }
+
+  async function showDetail(id, opts={}){
+    const el = document.getElementById('detailView');
+    document.getElementById('listView').style.display = 'none';
+    el.style.display = '';
+    window.scrollTo(0,0);
+    let ride = detailCache[id];
+    if (!ride){
+      el.innerHTML = '<button class="back" data-back>‹ Rides</button><div class="empty-note">Loading ride…</div>';
+      try {
+        const { data, error } = await supabase.from('completed_rides').select('*').eq('id', id).maybeSingle();
+        if (error) throw error;
+        ride = data;
+      } catch(e){ ride = null; }
+      if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Rides</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
+      detailCache[id] = ride;
+    }
+    const sec = perSecond(ride.samples || []);
+    // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
+    const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
+    current = { ride, sec, ftp };
+    const w = workoutFor(ride);
+    const kj = ride.avg_power!=null ? Math.round(ride.avg_power*ride.duration_sec/1000) : null;
+    const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
+
+    let html = '<button class="back" data-back>‹ Rides</button>';
+    if (opts.justSaved) html += '<div class="saved-note"><b>✓ Ride saved.</b> Here\'s how it went.</div>';
+    html += '<div class="d-head"><div><h1>'+escapeHtml(ride.workout_name)+(ride.completed ? '' : '<span class="tag">Partial</span>')+'</h1>'
+      + '<div class="when">'+fmtDate(ride.started_at)+(ride.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
+      + '<div class="d-actions"><button data-tcx="'+ride.id+'">Export TCX</button>'
+      + (ride.strava_uploaded_at ? '<button disabled style="opacity:.7; cursor:default;">On Strava ✓</button>' : '<button data-strava="'+ride.id+'">Upload to Strava</button>')
+      + '</div></div>';
+    html += '<div class="d-stats">'
+      + stat(fmtDur(ride.duration_sec),'Duration') + stat(ride.tss,'TSS')
+      + stat(ride.intensity_factor!=null ? Number(ride.intensity_factor).toFixed(2) : null,'IF')
+      + stat(ride.np,'NP (W)') + stat(ride.avg_power,'Avg power') + stat(kj,'Work (kJ)')
+      + stat(ride.avg_hr,'Avg HR') + stat(ride.max_hr,'Max HR') + stat(ride.avg_cadence,'Cadence')
+      + '</div>';
+
+    if (!sec.length){
+      html += '<div class="panel empty-note">No second-by-second data was recorded for this ride.</div>';
+      el.innerHTML = html; return;
+    }
+    html += '<div class="panel"><div class="panel-title"><span>Ride</span><span class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--z-threshold); opacity:.7"></i>Target (zone colour)</span></span></div>'
+      + '<div class="chart-wrap"><canvas id="rideChart"></canvas><div class="tip" id="rideTip"></div></div></div>';
+
+    // power curve + time in zone
+    const bests = bestEfforts(sec);
+    const key = [5,60,300,1200].map(d=> bests.find(b=>b.d===d)).filter(Boolean);
+    let zoneHtml = '<div class="empty-note">Needs NP and IF to work out your zones.</div>';
+    if (ftp){
+      const tz = new Array(ZONES.length).fill(0);
+      sec.forEach(x=>{ if (x.power > 0) tz[zoneIdx(x.power/ftp*100)]++; });
+      const tot = tz.reduce((a,c)=>a+c,0) || 1, mx = Math.max(...tz) || 1;
+      zoneHtml = ZONES.map((z,i)=>'<div class="zone-row"><span class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</span>'
+        + '<span class="track"><i style="width:'+(tz[i]/mx*100).toFixed(1)+'%; background:'+z.color+'"></i></span>'
+        + '<span class="v"><b>'+fmtHm(tz[i])+'</b> '+Math.round(tz[i]/tot*100)+'%</span></div>').join('')
+        + '<div class="empty-note" style="font-size:11.5px; margin-top:6px;">Zones from your FTP at the time ('+Math.round(ftp)+' W).</div>';
+    }
+    html += '<div class="two"><div class="panel"><div class="panel-title"><span>Best efforts</span></div>'
+      + '<div class="chart-wrap"><canvas id="curveChart"></canvas><div class="tip" id="curveTip"></div></div>'
+      + '<div class="bests">'+key.map(b=>'<div class="best"><b>'+b.w+'</b><span>'+durLabel(b.d)+'</span></div>').join('')+'</div></div>'
+      + '<div class="panel"><div class="panel-title"><span>Time in zone</span></div>'+zoneHtml+'</div></div>';
+
+    // intervals: one row per workout step that lasted 10 s or more
+    const laps = [];
+    sec.forEach(x=>{
+      const last = laps[laps.length-1];
+      if (!last || last.stepIdx !== x.stepIdx) laps.push({ stepIdx:x.stepIdx, pts:[x] }); else last.pts.push(x);
+    });
+    const steps = w && w.steps ? flattenSteps(w.steps) : [];
+    const rows = laps.filter(l=>l.pts.length >= 10).map((l,i)=>{
+      const avg = k => { const v = l.pts.map(x=>x[k]).filter(v=>v!=null && v>0); return v.length ? Math.round(v.reduce((a,c)=>a+c,0)/v.length) : null; };
+      const pw = avg('power'), tg = avg('target'), hr = avg('hr'), cad = avg('cadence');
+      const name = (steps[l.stepIdx] && steps[l.stepIdx].note) || (l.stepIdx!=null && l.stepIdx>=0 ? 'Step '+(l.stepIdx+1) : 'Free ride');
+      const hitPct = (pw && tg) ? Math.round(pw/tg*100) : null;
+      return '<tr><td><i style="background:'+(tg && ftp ? zoneColor(tg/ftp*100) : 'var(--text-dim)')+'"></i>'+escapeHtml(name)+'</td><td>'+fmtDur(l.pts.length)+'</td><td>'+(tg ?? '—')+'</td><td>'+(pw ?? '—')+'</td>'
+        + '<td class="'+(hitPct==null ? '' : Math.abs(hitPct-100) <= 5 ? 'hit' : 'miss')+'">'+(hitPct!=null ? hitPct+'%' : '—')+'</td><td class="opt">'+(hr ?? '—')+'</td><td class="opt">'+(cad ?? '—')+'</td></tr>';
+    });
+    if (rows.length > 1){
+      html += '<div class="panel"><div class="panel-title"><span>Intervals</span></div><div class="laps-wrap"><table class="laps"><thead><tr><th>Step</th><th>Time</th><th>Target W</th><th>Avg W</th><th>Of target</th><th class="opt">HR</th><th class="opt">Cad</th></tr></thead><tbody>'
+        + rows.join('') + '</tbody></table></div></div>';
+    }
+    el.innerHTML = html;
+    drawRideChart();
+    drawCurve(bests);
+    if (opts.justSaved){
+      // auto-upload to Strava if connected — this is what "connecting Strava" is actually for
+      try {
+        const { data: conn } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle();
+        const stravaBtn = el.querySelector('[data-strava="'+ride.id+'"]');
+        if (conn && stravaBtn) uploadRideToStrava(ride, stravaBtn, true);
+      } catch(e){ /* best effort — the manual button is still right there either way */ }
+    }
+  }
+  document.getElementById('detailView').addEventListener('click', e=>{
+    if (e.target.closest('[data-back]')){
+      if (history.state && history.state.ride && document.referrer.includes('rides.html')) history.back();
+      else { history.pushState({}, '', location.pathname); showList(); }
     }
   });
+
+  function setupCanvas(canvas){
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = Math.round(W*dpr); canvas.height = Math.round(H*dpr);
+    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    return { ctx, W, H };
+  }
+
+  // Power (and HR) over the zone-coloured target profile, with a hover/tap readout.
+  function drawRideChart(hover){
+    const canvas = document.getElementById('rideChart');
+    if (!canvas || !current) return;
+    const { ctx, W, H } = setupCanvas(canvas);
+    const { sec, ftp } = current, n = sec.length;
+    const maxP = Math.max(100, ...sec.map(x=>Math.max(x.power||0, x.target||0))) * 1.12;
+    const maxHr = Math.max(60, ...sec.map(x=>x.hr||0)) * 1.1;
+    const xAt = i => i/Math.max(1,n-1)*W;
+    // smooth the power line a little (5 s) so it reads as a trace, not noise; the stats use raw data
+    const sm = sec.map((x,i)=>{ let a=0,c=0; for (let j=Math.max(0,i-2); j<=Math.min(n-1,i+2); j++){ a+=sec[j].power||0; c++; } return a/c; });
+    if (ftp){
+      const bw = W/Math.max(1,n-1)+1;
+      sec.forEach((x,i)=>{ if (!x.target) return; const h = Math.min(H, x.target/maxP*H);
+        ctx.fillStyle = zoneRGBA(x.target/ftp*100, .38); ctx.fillRect(xAt(i), H-h, bw, h); });
+    }
+    function path(vals, max, color, lw){
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round';
+      let started = false;
+      vals.forEach((v,i)=>{ if (v==null){ started = false; return; } const y = H - v/max*H; if (!started){ ctx.moveTo(xAt(i), y); started = true; } else ctx.lineTo(xAt(i), y); });
+      ctx.stroke();
+    }
+    if (sec.some(x=>x.hr)) path(sec.map(x=>x.hr||null), maxHr, '#E5484D', 1.5);
+    path(sm, maxP, '#45D6C4', 2);
+    if (hover != null){
+      const x = xAt(hover);
+      ctx.strokeStyle = 'rgba(231,236,242,.6)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(Math.round(x)+.5, 0); ctx.lineTo(Math.round(x)+.5, H); ctx.stroke();
+    }
+  }
+  function attachTip(canvasId, tipId, onIndex, count){
+    const canvas = document.getElementById(canvasId), tip = document.getElementById(tipId);
+    if (!canvas) return;
+    function show(clientX){
+      const r = canvas.getBoundingClientRect();
+      const n = count();
+      const i = Math.max(0, Math.min(n-1, Math.round((clientX - r.left)/r.width*(n-1))));
+      tip.innerHTML = onIndex(i);
+      tip.style.display = 'block';
+      const x = (i/Math.max(1,n-1))*r.width;
+      tip.style.left = (x + 12 + tip.offsetWidth > r.width ? Math.max(0, x - tip.offsetWidth - 12) : x + 12) + 'px';
+    }
+    canvas.addEventListener('pointermove', e=>show(e.clientX));
+    canvas.addEventListener('pointerdown', e=>show(e.clientX));
+    canvas.addEventListener('pointerleave', ()=>{ tip.style.display = 'none'; onIndex(null); });
+  }
+
+  // Best average power for each duration, log-scaled time axis.
+  let curvePts = [];
+  function drawCurve(bests, hover){
+    const canvas = document.getElementById('curveChart');
+    if (!canvas) return;
+    if (bests) curvePts = bests;
+    const { ctx, W, H } = setupCanvas(canvas);
+    if (curvePts.length < 2) return;
+    const pad = { l:36, r:8, t:8, b:20 };
+    const maxW = Math.ceil(Math.max(...curvePts.map(p=>p.w)) * 1.1 / 50) * 50;
+    const lx = d => Math.log(d), x0 = lx(curvePts[0].d), x1 = lx(curvePts[curvePts.length-1].d);
+    const X = d => pad.l + (lx(d)-x0)/(x1-x0||1)*(W-pad.l-pad.r);
+    const Y = w => pad.t + (1 - w/maxW)*(H-pad.t-pad.b);
+    ctx.font = '11px '+getComputedStyle(document.body).getPropertyValue('--mono'); ctx.fillStyle = '#8C97A6';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const step = maxW > 600 ? 200 : 100;
+    for (let w=0; w<=maxW; w+=step){ ctx.strokeStyle = '#2A323D'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad.l, Math.round(Y(w))+.5); ctx.lineTo(W-pad.r, Math.round(Y(w))+.5); ctx.stroke(); ctx.fillText(String(w), pad.l-6, Y(w)); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    [5,30,60,300,1200,3600].filter(d=>d>=curvePts[0].d && d<=curvePts[curvePts.length-1].d).forEach(d=> ctx.fillText(durLabel(d).replace(' ',''), X(d), H-pad.b+5));
+    if (current && current.ftp){
+      ctx.setLineDash([4,4]); ctx.strokeStyle = 'rgba(232,185,61,.7)';
+      ctx.beginPath(); ctx.moveTo(pad.l, Y(current.ftp)); ctx.lineTo(W-pad.r, Y(current.ftp)); ctx.stroke(); ctx.setLineDash([]);
+      ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#E8B93D'; ctx.fillText('FTP', W-pad.r, Y(current.ftp)-2);
+    }
+    ctx.strokeStyle = '#45D6C4'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath(); curvePts.forEach((p,i)=>{ i ? ctx.lineTo(X(p.d), Y(p.w)) : ctx.moveTo(X(p.d), Y(p.w)); }); ctx.stroke();
+    curvePts.forEach((p,i)=>{ ctx.fillStyle = '#45D6C4'; ctx.strokeStyle = '#171D25'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X(p.d), Y(p.w), i===hover ? 5 : 3, 0, Math.PI*2); ctx.fill(); ctx.stroke(); });
+  }
+
+  // tooltips are wired once; they read whatever ride is current
+  const detailObserver = new MutationObserver(()=>{
+    if (!current) return;
+    attachTip('rideChart', 'rideTip', i=>{
+      if (i==null){ drawRideChart(); return ''; }
+      const x = current.sec[i]; drawRideChart(i);
+      return '<div class="d">'+fmtDur(i)+'</div>'+Math.round(x.power||0)+' W'+(x.target ? ' / '+x.target+' target' : '')+(x.hr ? '<br>'+Math.round(x.hr)+' bpm' : '')+(x.cadence ? '<br>'+Math.round(x.cadence)+' rpm' : '');
+    }, ()=>current.sec.length);
+    attachTip('curveChart', 'curveTip', i=>{
+      if (i==null){ drawCurve(null); return ''; }
+      const p = curvePts[i]; drawCurve(null, i);
+      return '<div class="d">Best '+durLabel(p.d)+'</div>'+p.w+' W'+(current.ftp ? ' · '+Math.round(p.w/current.ftp*100)+'% FTP' : '');
+    }, ()=>curvePts.length);
+  });
+  detailObserver.observe(document.getElementById('detailView'), { childList:true });
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ if (current){ drawRideChart(); drawCurve(null); } }, 150); });
 
   // ---- TCX export ----
   function buildTcx(ride){
@@ -447,10 +700,10 @@ const supabase = createSupabaseClient();
       + '</TrainingCenterDatabase>';
   }
 
-  document.getElementById('ridesList').addEventListener('click', (e)=>{
+  document.getElementById('detailView').addEventListener('click', (e)=>{
     const id = e.target.dataset.tcx;
     if (!id) return;
-    const ride = rides.find(r=>r.id===id);
+    const ride = detailCache[id];
     if (!ride) return;
     const xml = buildTcx(ride);
     const blob = new Blob([xml], {type:'application/vnd.garmin.tcx+xml'});
@@ -493,7 +746,8 @@ const supabase = createSupabaseClient();
         const uploadedAt = new Date().toISOString();
         ride.strava_uploaded_at = uploadedAt;
         try { await supabase.from('completed_rides').update({ strava_uploaded_at: uploadedAt }).eq('id', ride.id); } catch(e){ /* non-fatal - button still shows uploaded for this session */ }
-        btn.textContent = 'Uploaded ✓';
+        btn.textContent = 'On Strava ✓';
+        const row = rides.find(r=>r.id===ride.id); if (row) row.strava_uploaded_at = uploadedAt;
         btn.style.opacity = '.7';
         btn.style.cursor = 'default';
         btn.removeAttribute('data-strava');
@@ -504,10 +758,10 @@ const supabase = createSupabaseClient();
       setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 3000);
     }
   }
-  document.getElementById('ridesList').addEventListener('click', async (e)=>{
+  document.getElementById('detailView').addEventListener('click', async (e)=>{
     const id = e.target.dataset.strava;
     if (!id) return;
-    const ride = rides.find(r=>r.id===id);
+    const ride = detailCache[id];
     if (!ride) return;
     uploadRideToStrava(ride, e.target, false);
   });
