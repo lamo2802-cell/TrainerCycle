@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TrainerCycle — Live Session</title>
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
@@ -10,6 +13,7 @@
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<link rel="stylesheet" href="app-nav.css?v=4">
 <style>
   :root{
     --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
@@ -327,6 +331,15 @@
     .pr-meta{ font-size:12.5px; }
     .live-layout:not(.riding-active) .controls button{ padding:15px 14px; font-size:16px; }
   }
+
+/* Dropdowns: the app's own look instead of the browser's default control. */
+:where(html) select{ padding:8px 10px; min-height:38px; font-size:14px; font-family:inherit; border-radius:8px; }
+html select{ -webkit-appearance:none; appearance:none; background-color:#1D242D; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238C97A6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 11px center; background-size:12px 8px; padding-right:32px;
+  color:#E7ECF2; border:1px solid #2A323D; cursor:pointer; }
+html select:hover{ border-color:#3A4452; }
+html select:focus-visible{ outline:2px solid #45D6C4; outline-offset:1px; }
+html select option{ background:#1D242D; color:#E7ECF2; }
 </style>
 <script>
   (function(){
@@ -343,10 +356,10 @@
 </head>
 <body>
 <div class="top-bar">
-  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
   <div class="top-bar-spacer"></div>
-  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 <div class="app sidebar-collapsed">
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -1945,7 +1958,7 @@ const supabase = createSupabaseClient();
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
-    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
   sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
@@ -1965,7 +1978,7 @@ const supabase = createSupabaseClient();
     let wantFullscreenRecover = false;
     document.addEventListener('fullscreenchange', ()=>{
       const isFs = !!document.fullscreenElement;
-      fullscreenToggle.textContent = isFs ? '⤢' : '⛶';
+      fullscreenToggle.innerHTML = isFs ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
       if (!isFs && wasFullscreenIntentional) wantFullscreenRecover = true;
       wasFullscreenIntentional = isFs;
     });

@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TrainerCycle — Plans</title>
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=2">
+<link rel="stylesheet" href="app-nav.css?v=4">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -84,7 +87,9 @@
   .plan-desc{ color:var(--text-dim); font-size:12.5px; margin:6px 0 4px; line-height:1.5; }
   .plan-meta{ font-size:11.5px; color:var(--text-dim); }
 
-  .plan-filters{ margin-bottom:16px; }
+  .plans-h1{ font-size:26px; margin:0 0 18px; }
+  .plan-filters{ margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+  .pf-label{ font-size:13px; color:var(--text-dim); }
   .plan-filters select{ min-width:160px; }
 
   .following-banner{
@@ -94,7 +99,16 @@
   .following-banner .fb-label{ font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin-bottom:6px; }
   .following-banner .fb-top{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:10px; }
   .following-banner .fb-plan-name{ font-size:16px; font-weight:600; }
-  .following-banner .fb-week{ color:var(--text-dim); font-size:12.5px; }
+  .following-banner .fb-week{ color:var(--text-dim); font-size:12.5px; margin-top:3px; }
+  .following-banner .fb-actions{ display:flex; gap:8px; }
+  .following-banner .fb-actions a{ text-decoration:none; }
+  @media (max-width:600px){
+    .following-banner{ padding:16px; }
+    .following-banner .fb-next{ padding:12px; }
+    .following-banner .fb-next > div:last-child{ width:100%; }
+    .following-banner .fb-next > div:last-child a{ flex:1; }
+    .following-banner .fb-next > div:last-child a button{ width:100% !important; }
+  }
   .following-banner .fb-next{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:var(--panel-2); border-radius:8px; padding:12px 16px; }
   .following-banner .fb-next-text{ font-size:13.5px; }
   .following-banner .fb-next-text b{ color:var(--accent); }
@@ -107,7 +121,11 @@
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
     padding:18px 20px; margin-bottom:20px;
   }
-  .phase-roadmap-title{ font-size:13px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:14px; }
+  .phase-roadmap-title{ font-size:13px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; }
+  .phase-roadmap-title::-webkit-details-marker{ display:none; }
+  .phase-roadmap-title::after{ content:'Show'; text-transform:none; letter-spacing:0; font-weight:500; color:var(--accent); font-size:12.5px; }
+  .phase-roadmap[open] .phase-roadmap-title{ margin-bottom:14px; }
+  .phase-roadmap[open] .phase-roadmap-title::after{ content:'Hide'; }
   .phase-roadmap-track{ display:flex; align-items:stretch; gap:8px; flex-wrap:wrap; }
   .phase-stop{ flex:1; min-width:140px; background:var(--panel-2); border-radius:8px; padding:12px 14px; }
   .phase-stop-name{ font-size:14px; font-weight:700; color:var(--accent); margin-bottom:4px; }
@@ -148,10 +166,10 @@
 </head>
 <body>
 <div class="top-bar">
-  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
   <div class="top-bar-spacer"></div>
-  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 
 <div class="app sidebar-collapsed">
@@ -177,7 +195,8 @@
 
   <div class="main">
     <div class="page-banner" style="background-image:url('banner-plans.jpg?v=2');"></div>
-    <div class="ftp-prompt">
+    <h1 class="plans-h1">Training plans</h1>
+    <div class="ftp-prompt" id="ftpPrompt" style="display:none;">
       <div class="ftp-prompt-text">
         <b>New here or not sure of your current FTP?</b>
         <p>These plans are built around %FTP, so it's worth starting with a Ramp Test to get an accurate number before picking a plan.</p>
@@ -187,8 +206,8 @@
 
     <div id="followingBanner" style="display:none;"></div>
 
-    <div class="phase-roadmap">
-      <div class="phase-roadmap-title">How the plans fit together</div>
+    <details class="phase-roadmap" id="phaseRoadmap" open>
+      <summary class="phase-roadmap-title">How the plans fit together</summary>
       <div class="phase-roadmap-track">
         <div class="phase-stop">
           <div class="phase-stop-name">Foundation</div>
@@ -211,16 +230,17 @@
         </div>
       </div>
       <div class="phase-roadmap-note">Finish a plan and, where there's a natural next step, we'll suggest it directly. Or use the filter below to jump in wherever fits.</div>
-    </div>
+    </details>
 
     <div class="plan-filters">
+      <label for="filterSessions" class="pf-label">Show</label>
       <select id="filterSessions">
         <option value="">All plans</option>
       </select>
     </div>
     <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:16px; margin-top:-8px;">Click a plan to see its week-by-week breakdown, then click any day's ride or strength session to load it straight in.</div>
 
-    <div id="plansList"><div class="empty-note">Loading…</div></div>
+    <div id="plansList"><div class="sk-stack" aria-label="Loading"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div></div>
   </div>
 </div>
 
@@ -393,6 +413,11 @@ const supabase = createSupabaseClient();
       (strengthData||[]).forEach(w=>{ workoutNames[w.id] = { name: w.name, category: 'strength' }; });
 
       await loadActivePlan();
+      // the Ramp Test prompt is only for riders who haven't set an FTP yet
+      try {
+        const { data: f } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
+        if (!(f && f.value && typeof f.value.v === 'number')) document.getElementById('ftpPrompt').style.display = '';
+      } catch(_){}
       populateFilter();
       render();
     } catch(e){
@@ -409,6 +434,7 @@ const supabase = createSupabaseClient();
 
   function renderFollowingBanner(){
     const el = document.getElementById('followingBanner');
+    document.getElementById('phaseRoadmap').open = !activePlanId; // tucked away once you're following a plan
     if (!activePlanId){ el.style.display = 'none'; return; }
     const plan = plans.find(p=>p.id===activePlanId);
     if (!plan){ el.style.display = 'none'; return; }
@@ -445,8 +471,9 @@ const supabase = createSupabaseClient();
     }
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
-      + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div></div>'
-      + '<div><span class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+' · <a href="calendar.html" style="color:var(--accent);">Calendar</a></span> <button class="ghost" id="unfollowBtn">Stop Following</button></div>'
+      + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div>'
+      + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div></div>'
+      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="unfollowBtn">Stop following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -494,7 +521,7 @@ const supabase = createSupabaseClient();
         + (p.focus ? '<span class="plan-tag">'+focusLabel(p.focus)+'</span>' : '')
         + (isFollowing ? '<span class="plan-tag" style="background:var(--accent); color:#08211E;">Following</span>' : '')
         + '</div>'
-        + '<button class="follow-btn'+(isFollowing?' following':'')+'" data-follow="'+p.id+'">'+(isFollowing?'Following ✓':'Follow Plan')+'</button>'
+        + '<button class="follow-btn'+(isFollowing?' following':'')+'" data-follow="'+p.id+'">'+(isFollowing?'Following':'Follow plan')+'</button>'
         + '</div>'
         + '<div class="plan-desc">'+escapeHtml(p.description||'')+'</div>'
         + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+rpw+' ride'+(rpw===1?'':'s')+'/week'+(spw>0?' + '+spw+' strength':'')+'</div>'
@@ -584,7 +611,7 @@ const supabase = createSupabaseClient();
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
-    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
   sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
@@ -597,7 +624,7 @@ const supabase = createSupabaseClient();
       else document.exitFullscreen();
     });
     document.addEventListener('fullscreenchange', ()=>{
-      fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+      fullscreenToggle.innerHTML = document.fullscreenElement ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
     });
   }
 

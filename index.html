@@ -3,6 +3,9 @@
 <head>
 <meta name="google-site-verification" content="-fXFe3wSfJs54gznI5nzaMQsbQdcMefjANLjkGT3G6A" />
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TrainerCycle</title>
 <meta property="og:title" content="TrainerCycle — Structured Indoor Training">
@@ -14,7 +17,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=2">
+<link rel="stylesheet" href="app-nav.css?v=4">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -145,6 +148,28 @@
   .t-panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
   .t-label{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
   .t-label a{ color:var(--accent); text-decoration:none; text-transform:none; letter-spacing:0; font-size:12.5px; }
+  .t-btn.sm{ padding:8px 14px; font-size:13px; border-radius:8px; }
+  .link-btn{ background:none; border:none; color:var(--accent); font-size:12.5px; padding:0; margin:0; width:auto; cursor:pointer; font-family:inherit; text-transform:none; letter-spacing:0; }
+  .streak{ display:flex; align-items:center; gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; }
+  .streak svg{ width:18px; height:18px; fill:#F08A3C; flex-shrink:0; }
+  .streak span{ color:var(--text-dim); }
+  .pb-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .pb-chip{ font-size:11.5px; font-weight:600; color:#E8B93D; background:rgba(232,185,61,.12); border:1px solid rgba(232,185,61,.4); padding:2px 8px; border-radius:20px; }
+  .gs-card{ border-color:var(--accent); }
+  .gs-bar{ height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; margin:2px 0 12px; }
+  .gs-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .gs-step{ display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .gs-step:first-of-type{ border-top:none; }
+  .gs-tick{ width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; font-family:var(--mono);
+    border:1px solid var(--line); color:var(--text-dim); }
+  .gs-step.done .gs-tick{ background:var(--accent); border-color:var(--accent); color:#08211E; }
+  .gs-step.done b{ color:var(--text-dim); font-weight:500; text-decoration:line-through; text-decoration-color:var(--text-dim); }
+  .gs-step.next .gs-tick{ border-color:var(--accent); color:var(--accent); }
+  .gs-body{ min-width:0; padding-top:3px; }
+  .gs-body b{ font-size:14.5px; }
+  .gs-body p{ margin:3px 0 8px; color:var(--text-dim); font-size:13px; line-height:1.4; }
+  .gs-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .gs-step:not(.next) .gs-actions .t-btn.primary{ background:var(--panel-2); color:var(--text); border-color:var(--line); }
   button.t-btn{ width:auto; margin:0; cursor:pointer; font-family:inherit; }
   .t-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 22px; border-radius:10px; font-weight:700; font-size:15px; text-decoration:none; border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
   .t-btn.primary{ background:var(--accent); border-color:var(--accent); color:#08211E; }
@@ -222,10 +247,10 @@
 <script>/* play the splash once per visit, not every time you come back to Today */try{if(sessionStorage.getItem('tc_splashed'))document.getElementById('splashScreen').classList.add('skip');else sessionStorage.setItem('tc_splashed','1');}catch(e){}</script>
 
 <div class="top-bar">
-  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu">☰</button>
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
   <div class="top-bar-spacer"></div>
-  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen">⛶</button>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 
 <div class="app sidebar-collapsed">
@@ -307,6 +332,7 @@ import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSe
 import { loadSeries, formLabel } from './training-load.js?v=1';
 import { notify } from './sheet.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
+import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -371,22 +397,26 @@ const supabase = createSupabaseClient();
     const first = ((user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || '').split(' ')[0];
     const hello = (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening') + (first ? ', '+esc(first) : '');
     const dateStr = new Date().toLocaleDateString('en-GB',{ weekday:'long', day:'numeric', month:'long' });
-    el.innerHTML = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div><div class="t-panel t-empty">Loading your training…</div>';
+    el.innerHTML = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div><div class="sk-stack"><div class="sk" style="height:230px"></div><div class="t-grid"><div class="sk" style="height:170px"></div><div class="sk" style="height:170px"></div></div></div>';
 
     const today = todayIso();
-    let ftpDismissed = null;
+    let ftpDismissed = null, gsDismissed = false, stravaOn = false;
     let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {};
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
-      const [ftpRes, st, wRes, sRes, rRes, dRes] = await Promise.all([
+      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes] = await Promise.all([
         supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
         supabase.from('strength_workouts').select('id,name'),
         supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index,completed,workout_id,feel,power_bests')
           .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
-        supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle()
+        supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
+        supabase.from('settings').select('value').eq('key','getting_started_dismissed').eq('user_id', user.id).maybeSingle(),
+        supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle()
       ]);
+      gsDismissed = !!(gsRes && gsRes.data);
+      stravaOn = !!(stravaRes && stravaRes.data);
       if (dRes && dRes.data && dRes.data.value && typeof dRes.data.value.v === 'number') ftpDismissed = dRes.data.value.v;
       if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
       follow = st;
@@ -399,7 +429,7 @@ const supabase = createSupabaseClient();
         if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
       }
     } catch(e){
-      el.querySelector('.t-empty').textContent = 'Couldn\'t load your training just now. Check your connection and refresh.';
+      el.querySelector('.sk-stack').outerHTML = '<div class="t-panel t-empty">Couldn\'t load your training just now. Check your connection and refresh.</div>';
       return;
     }
     const ftpW = ftp || 200;
@@ -419,10 +449,30 @@ const supabase = createSupabaseClient();
 
     let html = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div>';
 
-    // First-run nudge: without an FTP every target is a guess.
-    if (!ftp){
-      html += '<div class="t-panel setup-card"><div><b>Set your FTP first</b><p>Every workout target is a % of your FTP. A 20-minute Ramp Test finds it for you, or enter it in Settings if you already know it.</p></div>'
-        + '<div class="hero-actions" style="margin:0;"><a class="t-btn primary" href="live.html?load=prebuilt-ramp-test-25">Take a Ramp Test</a><a class="t-btn" href="settings.html">Enter FTP</a></div></div>';
+    // Getting started: the handful of things that make everything else work, until they're done.
+    let trainerSeen = false;
+    try { trainerSeen = !!(localStorage.getItem('tc_last_trainer_id') || localStorage.getItem('tc_paired_trainer_name')); } catch(_){}
+    const steps = [
+      { done: !!ftp, title:'Set your FTP', text:'Every target is a % of it. A Ramp Test takes about 20 minutes.',
+        actions:'<a class="t-btn primary sm" href="live.html?load=prebuilt-ramp-test-25">Ramp Test</a><a class="t-btn sm" href="settings.html">Enter it</a>' },
+      { done: trainerSeen || rides.length > 0, title:'Connect your trainer', text:'Use Chrome or Edge on a computer or Android, then press Connect trainer on Live Ride.',
+        actions:'<a class="t-btn sm" href="live.html">Live Ride</a>' },
+      { done: !!(follow && follow.planId), title:'Pick a training plan', text:'A plan puts the right workout on each day. You can move sessions around later.',
+        actions:'<a class="t-btn sm" href="plans.html">See plans</a>' },
+      { done: rides.length > 0, title:'Ride your first workout', text:'Afterwards you\'ll see your power curve, time in zone and how it moved your levels.',
+        actions:'<a class="t-btn sm" href="builder.html">Find a workout</a>' },
+      { done: stravaOn, optional:true, title:'Connect Strava', text:'Optional. Rides upload automatically once connected.',
+        actions:'<a class="t-btn sm" href="settings.html">Settings</a>' },
+    ];
+    const coreLeft = steps.filter(x=>!x.optional && !x.done).length;
+    if (coreLeft && !gsDismissed){
+      const doneCount = steps.filter(x=>x.done).length;
+      const firstTodo = steps.findIndex(x=>!x.done);
+      html += '<div class="t-panel gs-card"><div class="t-label"><span>Getting started · '+doneCount+' of '+steps.length+'</span><button class="link-btn" data-gs-hide>Hide</button></div>'
+        + '<div class="gs-bar"><i style="width:'+(doneCount/steps.length*100)+'%"></i></div>'
+        + steps.map((x,i)=>'<div class="gs-step'+(x.done ? ' done' : '')+(i===firstTodo ? ' next' : '')+'"><span class="gs-tick">'+(x.done ? '✓' : (i+1))+'</span>'
+          + '<div class="gs-body"><b>'+x.title+'</b>'+(x.done ? '' : '<p>'+x.text+'</p><div class="gs-actions">'+x.actions+'</div>')+'</div></div>').join('')
+        + '</div>';
     }
 
     // FTP detection: a new FTP from recent hard efforts, or a nudge to retest when workouts feel easy.
@@ -506,9 +556,13 @@ const supabase = createSupabaseClient();
       cells += '<a class="wd'+(d===today ? ' today' : '')+'" href="calendar.html"><div class="l">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]+'</div><div class="n">'+parseIso(d).getDate()+'</div><div class="m">'+marks+'</div></a>';
     }
     const pct = planned ? Math.min(100, Math.round(done/planned*100)) : (done ? 100 : 0);
+    const { weeks: streak, since: streakStart } = weekStreak(rides);
+    const streakSince = streakStart ? streakStart.toLocaleDateString('en-GB',{ day:'numeric', month:'short' }) : '';
     html += '<div class="t-grid"><div class="t-panel"><div class="t-label"><span>This week</span><a href="calendar.html">Calendar →</a></div>'
       + '<div class="week-strip">'+cells+'</div>'
-      + '<div class="wk-progress"><div class="bar"><i style="width:'+pct+'%"></i></div><div class="txt"><span><b>'+done+'</b> TSS ridden</span><span>'+(planned ? planned+' planned' : 'no plan this week')+'</span></div></div></div>';
+      + '<div class="wk-progress"><div class="bar"><i style="width:'+pct+'%"></i></div><div class="txt"><span><b data-count="'+done+'">'+done+'</b> TSS ridden</span><span>'+(planned ? planned+' planned' : 'no plan this week')+'</span></div></div>'
+      + (streak >= 2 ? '<div class="streak"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1.2 2.6 2.3 2.8C11 8.6 11.2 5.6 12 3z"/></svg><b>'+streak+'-week streak</b><span>riding every week since '+streakSince+'</span></div>' : '')
+      + '</div>';
 
     const daily = new Map();
     rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
@@ -517,8 +571,8 @@ const supabase = createSupabaseClient();
     const now = series[series.length-1];
     const form = Math.round(now.ctl - now.atl);
     html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="calendar.html">Chart →</a></div><div class="load-tiles">'
-      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
-      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
+      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-count="'+Math.round(now.ctl)+'">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
+      + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" data-count="'+Math.round(now.atl)+'">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val">'+(form>0?'+':'')+form+'</div><div class="note">'+formLabel(form)+'</div></div>'
       + '</div></div></div>';
 
@@ -528,13 +582,22 @@ const supabase = createSupabaseClient();
         + '<span class="track"><i style="width:'+(levels[z.key]/10*100).toFixed(1)+'%; background:'+z.color+'"></i></span><b>'+fmtLevel(levels[z.key])+'</b></div>').join('')+'</div>'
       + '<div class="lvl-note">Levels go up when you finish workouts at or above them. Pick Achievable or Productive workouts to keep moving.</div></div>';
     const last = rides[rides.length-1];
+    const lastBests = last ? newBests(last, rides) : [];
+    const lastBestsHtml = lastBests.length ? '<div class="pb-chips">'+lastBests.map(b=>'<span class="pb-chip">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
     html += '<div class="t-panel"><div class="t-label"><span>Last ride</span><a href="rides.html">All rides →</a></div>'
-      + (last ? '<a class="last-ride" href="rides.html"><div><div class="nm">'+esc(last.workout_name)+'</div><div class="when">'+relDay(isoDate(new Date(last.started_at)))+'</div></div>'
+      + (last ? '<a class="last-ride" href="rides.html"><div><div class="nm">'+esc(last.workout_name)+'</div><div class="when">'+relDay(isoDate(new Date(last.started_at)))+'</div>'+lastBestsHtml+'</div>'
           + '<div class="stats"><span><b>'+fmtMins(last.duration_sec)+'</b>time</span>'+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')+(last.np!=null ? '<span><b>'+last.np+'</b>NP</span>' : '')+(last.intensity_factor!=null ? '<span><b>'+Number(last.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div></a>'
         : '<div class="t-empty">No rides yet. Your first one will show up here.</div>')
       + '</div></div>';
 
     el.innerHTML = html;
+    el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in');
+    countUp(el);
+    const gsHide = el.querySelector('[data-gs-hide]');
+    if (gsHide) gsHide.addEventListener('click', async ()=>{
+      gsHide.closest('.gs-card').remove();
+      try { await supabase.from('settings').upsert({ user_id:user.id, key:'getting_started_dismissed', value:{ v:true }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' }); } catch(_){}
+    });
     const acc = el.querySelector('[data-ftp-accept]'), dis = el.querySelector('[data-ftp-dismiss]');
     if (acc) acc.addEventListener('click', async ()=>{
       const v = Number(acc.dataset.ftpAccept);
@@ -582,7 +645,7 @@ const supabase = createSupabaseClient();
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   function applyCollapsed(collapsed){
     appRoot.classList.toggle('sidebar-collapsed', collapsed);
-    sidebarToggle.textContent = collapsed ? '☰' : '✕';
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   }
   sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
   sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
@@ -595,7 +658,7 @@ const supabase = createSupabaseClient();
       else document.exitFullscreen();
     });
     document.addEventListener('fullscreenchange', ()=>{
-      fullscreenToggle.textContent = document.fullscreenElement ? '⤢' : '⛶';
+      fullscreenToggle.innerHTML = document.fullscreenElement ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
     });
   }
 })();
