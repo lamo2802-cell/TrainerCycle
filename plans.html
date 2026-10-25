@@ -162,6 +162,7 @@
       <nav class="page-nav">
         <a href="index.html">Home</a>
         <a href="plans.html" class="active">Training Plans</a>
+        <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html">TrainerStrength</a>
@@ -223,6 +224,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=16';
+import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -289,6 +291,7 @@ const supabase = createSupabaseClient();
   let activePlanId = null;
   let activePlanStartedAt = null; // ISO date string, Monday of week 1
   let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
+  let activePlanMoves = {}; // day-index -> 'YYYY-MM-DD' for sessions moved on the Calendar
   let sessionsFilter = '';
   let doneDays = new Map(); // day-index -> ride ({tss}) for the followed plan, from rides linked to it
 
@@ -303,56 +306,28 @@ const supabase = createSupabaseClient();
     return (week.days||[]).filter(d=>d.type==='workout' && d.workoutType==='strength').length;
   }
 
-  function getMondayOnOrAfter(date){
-    const d = new Date(date); d.setHours(0,0,0,0);
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const diff = (1 - day + 7) % 7;
-    d.setDate(d.getDate() + diff);
-    return d;
-  }
-
-  // Finds the next scheduled (non-rest) session for a followed plan, starting from whichever is later:
-  // today's calendar position, or the persisted skip cursor (so a skipped session never reappears).
-  // Day index within each week's 7-entry array is assumed Mon=0..Sun=6, matching started_at (always a Monday).
+  // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
   function getNextSession(plan, startedAtIso, cursorDay){
-    const start = new Date(startedAtIso); start.setHours(0,0,0,0);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const totalWeeks = (plan.weeks||[]).length;
-    let daysSinceStart = Math.round((today - start) / 86400000);
-    if (daysSinceStart < 0) daysSinceStart = 0; // plan starts in the future (this coming Monday)
-    const searchFrom = Math.max(daysSinceStart, cursorDay||0);
-    for (let d = searchFrom; d < totalWeeks*7; d++){
-      const weekIdx = Math.floor(d/7);
-      const dayIdx = d % 7;
-      const week = plan.weeks[weekIdx];
-      const dayObj = week && (week.days||[])[dayIdx];
-      if (dayObj && dayObj.type === 'workout' && !doneDays.has(d)){
-        const isToday = d === daysSinceStart;
-        return { weekNum: week.week || (weekIdx+1), deload: !!week.deload, dayObj, isToday, dayIndex: d };
-      }
-    }
-    return null; // plan complete
+    const n = nextSession(plan, startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
+    if (!n) return null; // plan complete
+    return Object.assign(n, { isToday: n.date === todayIso() });
   }
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  function shortDate(iso){ const d = parseIso(iso); return WEEKDAYS[d.getDay()]+' '+d.getDate()+' '+d.toLocaleString('en-GB',{month:'short'}); }
 
   async function loadActivePlan(){
-    const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
-    (data||[]).forEach(row=>{
-      if (row.key === 'active_plan_id') activePlanId = row.value && row.value.v;
-      if (row.key === 'active_plan_started_at') activePlanStartedAt = row.value && row.value.v;
-      if (row.key === 'active_plan_cursor_day') activePlanCursorDay = (row.value && row.value.v) || 0;
-    });
+    const st = await loadFollowState(supabase, user.id);
+    activePlanId = st.planId;
+    activePlanStartedAt = st.startedAt;
+    activePlanCursorDay = st.cursorDay;
+    activePlanMoves = st.moves;
     await loadDoneDays();
   }
 
   // Rides saved from Live Ride carry the plan and day they were for; those days count as done.
   async function loadDoneDays(){
-    doneDays = new Map();
-    if (!activePlanId || !activePlanStartedAt) return;
-    try {
-      const { data } = await supabase.from('completed_rides').select('plan_day_index,tss')
-        .eq('user_id', user.id).eq('plan_id', activePlanId).gte('started_at', activePlanStartedAt);
-      (data||[]).forEach(r=>{ if (r.plan_day_index!=null) doneDays.set(r.plan_day_index, r); });
-    } catch(e){ /* ticks are a bonus; the plan still works without them */ }
+    try { doneDays = await loadPlanDoneDays(supabase, user.id, activePlanId, activePlanStartedAt); }
+    catch(e){ doneDays = new Map(); /* ticks are a bonus; the plan still works without them */ }
   }
   function sessionCounts(plan){
     let total = 0, done = 0, tss = 0;
@@ -366,13 +341,14 @@ const supabase = createSupabaseClient();
   }
 
   async function followPlan(planId){
-    const monday = getMondayOnOrAfter(new Date());
-    const startedAtIso = monday.toISOString().slice(0,10);
+    const startedAtIso = mondayOnOrAfter(new Date());
     activePlanId = planId;
     activePlanStartedAt = startedAtIso;
     document.querySelectorAll('.plan-weeks').forEach(c=>{ delete c.dataset.rendered; });
     activePlanCursorDay = 0;
+    activePlanMoves = {};
     await loadDoneDays();
+    await supabase.from('settings').delete().eq('user_id', user.id).eq('key', 'active_plan_moves');
     await supabase.from('settings').upsert([
       { user_id:user.id, key:'active_plan_id', value:{v:planId}, updated_at:new Date().toISOString() },
       { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() },
@@ -385,7 +361,8 @@ const supabase = createSupabaseClient();
     activePlanId = null;
     activePlanStartedAt = null;
     activePlanCursorDay = 0;
-    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
+    activePlanMoves = {};
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', FOLLOW_SETTING_KEYS);
     render();
   }
 
@@ -457,7 +434,7 @@ const supabase = createSupabaseClient();
       const label = wk ? wk.name : next.dayObj.workoutId;
       const isStrength = next.dayObj.workoutType === 'strength';
       const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
-      const whenLabel = next.isToday ? 'Today' : next.dayObj.day;
+      const whenLabel = next.isToday ? 'Today' : shortDate(next.date);
       nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + (next.deload ? ' · Deload' : '') + '): <b>' + escapeHtml(label) + '</b></div>'
         + '<div style="display:flex; gap:8px;">'
         + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
@@ -467,7 +444,7 @@ const supabase = createSupabaseClient();
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
       + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div></div>'
-      + '<div><span class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</span> <button class="ghost" id="unfollowBtn">Stop Following</button></div>'
+      + '<div><span class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+' · <a href="calendar.html" style="color:var(--accent);">Calendar</a></span> <button class="ghost" id="unfollowBtn">Stop Following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -563,9 +540,11 @@ const supabase = createSupabaseClient();
         }
         const dayIndex = wi*7+di;
         const doneRide = isActive ? doneDays.get(dayIndex) : null;
+        const movedTo = (isActive && activePlanMoves[dayIndex]) || null;
         const href = targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
         return '<div class="day-row'+(doneRide ? ' done' : '')+'"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+href+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+          + (movedTo && !doneRide ? '<span class="tag">moved to '+shortDate(movedTo)+'</span>' : '')
           + (doneRide ? '<span class="done-tag">✓ Done'+(doneRide.tss ? ' · '+doneRide.tss+' TSS' : '')+'</span>' : '')
           + (durLabel ? '<span class="tag">'+durLabel+'</span>' : '')
           + (tag ? '<span class="tag">'+tag+'</span>' : '')
