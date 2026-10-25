@@ -121,6 +121,28 @@
   .d-actions button{ min-height:38px; }
   .saved-note{ background:color-mix(in srgb, var(--accent) 12%, var(--panel)); border:1px solid var(--accent); color:var(--text); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:13.5px; }
   .saved-note b{ color:var(--accent); }
+  .feel-card{ padding:14px 16px; }
+  .feel-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px 16px; flex-wrap:wrap; margin-bottom:12px; }
+  .feel-wl{ font-size:13px; color:var(--text-dim); }
+  .lvl-chip{ display:inline-block; font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--text); padding:2px 8px; border-radius:6px;
+    background:color-mix(in srgb, var(--zc) 18%, transparent); border:1px solid color-mix(in srgb, var(--zc) 55%, transparent); }
+  .feel-result{ font-size:14px; }
+  .feel-result b{ font-family:var(--mono); }
+  .feel-result .up{ color:var(--accent); font-family:var(--mono); font-weight:600; }
+  .feel-result .dim{ color:var(--text-dim); }
+  .feel-opts{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
+  .feel-opts button{ display:flex; flex-direction:column; align-items:center; gap:2px; width:auto; margin:0; padding:10px 6px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); cursor:pointer; text-align:center; }
+  .feel-opts button b{ font-size:13.5px; }
+  .feel-opts button span{ font-size:11px; color:var(--text-dim); }
+  .feel-opts button:hover{ border-color:#3A4452; }
+  .feel-opts button.on{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, var(--panel-2)); }
+  .feel-note{ font-size:12px; color:var(--text-dim); margin-top:10px; }
+  @media (max-width:640px){
+    .feel-opts{ grid-template-columns:repeat(5, minmax(0,1fr)); gap:5px; }
+    .feel-opts button{ padding:9px 2px; }
+    .feel-opts button b{ font-size:11.5px; }
+    .feel-opts button span{ display:none; }
+  }
   .d-stats{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-bottom:16px; }
   @media (min-width:900px){ .d-stats{ grid-template-columns:repeat(9, minmax(0,1fr)); } .d-stat .val{ font-size:18px; } }
   .d-stat{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
@@ -245,6 +267,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=1';
+import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -297,9 +320,9 @@ const supabase = createSupabaseClient();
   async function loadRides(){
     try {
       const [rRes, wRes] = await Promise.all([
-        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at')
+        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel')
           .order('started_at',{ascending:false}).limit(200),
-        supabase.from('workouts').select('id,name,steps')
+        supabase.from('workouts').select('id,name,steps,category')
       ]);
       if (rRes.error) throw rRes.error;
       rides = rRes.data || [];
@@ -477,6 +500,7 @@ const supabase = createSupabaseClient();
       + stat(ride.np,'NP (W)') + stat(ride.avg_power,'Avg power') + stat(kj,'Work (kJ)')
       + stat(ride.avg_hr,'Avg HR') + stat(ride.max_hr,'Max HR') + stat(ride.avg_cadence,'Cadence')
       + '</div>';
+    html += '<div id="feelCard">'+feelCardHtml(ride, opts.justSaved)+'</div>';
 
     if (!sec.length){
       html += '<div class="panel empty-note">No second-by-second data was recorded for this ride.</div>';
@@ -534,6 +558,54 @@ const supabase = createSupabaseClient();
       } catch(e){ /* best effort — the manual button is still right there either way */ }
     }
   }
+  // ---- "How did it feel?" + what the ride did to your progression level ----
+  function feelCardHtml(ride, prompt){
+    const w = workoutFor(ride);
+    const rideFtp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
+    const wl = w ? workoutLevel(w, rideFtp) : null;
+    const { byRide } = computeLevels(rides, workoutFor, rideFtp);
+    const change = byRide[ride.id];
+    const asked = ride.feel != null;
+    if (!wl && asked && !prompt) return '';
+    let out = '<div class="panel feel-card">';
+    out += '<div class="feel-top"><div><div class="panel-title" style="margin-bottom:4px;"><span>'+(asked ? 'How it felt' : 'How did that feel?')+'</span></div>';
+    if (wl){
+      const z = zoneInfo(wl.zone);
+      out += '<div class="feel-wl"><span class="lvl-chip" style="--zc:'+z.color+'">'+z.name+' '+fmtLevel(wl.level)+'</span> workout</div>';
+    }
+    out += '</div>';
+    if (change){
+      const z = zoneInfo(change.zone);
+      const up = change.after - change.before;
+      out += '<div class="feel-result">'+(!ride.completed
+        ? '<span class="dim">Partial rides don\'t change your '+z.name+' level ('+fmtLevel(change.before)+').</span>'
+        : up > 0.05
+          ? z.name+' level <b>'+fmtLevel(change.before)+' → '+fmtLevel(change.after)+'</b> <span class="up">+'+up.toFixed(1)+'</span>'
+          : '<span class="dim">'+z.name+' level stays at <b>'+fmtLevel(change.after)+'</b>.</span>')+'</div>';
+    }
+    out += '</div><div class="feel-opts" role="group" aria-label="How did it feel?">'
+      + FEEL_OPTIONS.map(o=>'<button type="button" data-feel="'+o.v+'" class="'+(ride.feel===o.v ? 'on' : '')+'"><b>'+o.label+'</b><span>'+o.hint+'</span></button>').join('')
+      + '</div>';
+    if (!asked && wl && ride.completed) out += '<div class="feel-note">Your answer tunes how much this ride moves your level. Easy rides move it more, all-out ones less.</div>';
+    return out + '</div>';
+  }
+  document.getElementById('detailView').addEventListener('click', async e=>{
+    const b = e.target.closest('[data-feel]');
+    if (!b || !current) return;
+    const ride = current.ride, v = Number(b.dataset.feel), prev = ride.feel;
+    ride.feel = v;
+    const row = rides.find(r=>r.id===ride.id); if (row) row.feel = v;
+    document.getElementById('feelCard').innerHTML = feelCardHtml(ride, true);
+    try {
+      const { error } = await supabase.from('completed_rides').update({ feel: v }).eq('id', ride.id);
+      if (error) throw error;
+    } catch(err){
+      ride.feel = prev; if (row) row.feel = prev;
+      document.getElementById('feelCard').innerHTML = feelCardHtml(ride, true);
+      notify('Check your connection and try again.', 'Couldn\'t save that');
+    }
+  });
+
   document.getElementById('detailView').addEventListener('click', e=>{
     if (e.target.closest('[data-back]')){
       if (history.state && history.state.ride && document.referrer.includes('rides.html')) history.back();

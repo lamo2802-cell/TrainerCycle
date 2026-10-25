@@ -122,6 +122,13 @@
   .lib-tag{ display:inline-block; font-size:12px; padding:2px 9px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:8px; }
   .lib-name{ font-weight:600; font-size:17px; }
   .lib-meta{ color:var(--text-dim); font-size:14px; font-family:var(--mono); margin:3px 0 6px; }
+  .lib-levels{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:4px; }
+  .lvl-chip{ display:inline-block; font-family:var(--mono); font-size:12px; font-weight:600; color:var(--text); padding:1px 7px; border-radius:6px;
+    background:color-mix(in srgb, var(--zc) 18%, transparent); border:1px solid color-mix(in srgb, var(--zc) 55%, transparent); }
+  .lvl-diff{ font-size:12px; color:var(--text-dim); }
+  .lvl-diff.achievable, .lvl-diff.productive{ color:var(--accent); }
+  .lvl-diff.stretch{ color:#E8B93D; }
+  .lvl-diff.breakthrough, .lvl-diff.too-hard{ color:#F08A3C; }
   .lib-item-row{ display:flex; gap:10px; align-items:center; }
   .lib-chart{ width:84px; height:48px; flex-shrink:0; border-radius:5px; background:var(--panel-2); }
   .lib-item-text{ flex:1; min-width:0; }
@@ -312,6 +319,8 @@
           <option value="duration_desc">Duration ↓</option>
           <option value="if_asc">Intensity ↑</option>
           <option value="if_desc">Intensity ↓</option>
+          <option value="level_asc">Level ↑</option>
+          <option value="level_desc">Level ↓</option>
           <option value="name">Name</option>
         </select>
       </div>
@@ -339,6 +348,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=1';
+import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=1';
 const supabase = createSupabaseClient();
 (async function(){
@@ -400,11 +410,27 @@ const supabase = createSupabaseClient();
       if (cached) { try { library = JSON.parse(cached); } catch(_){ library = []; } }
       showMsg('saveMsg','Offline — showing last synced library.', true);
     }
+    // Rider's progression levels, from ride history (used to label each workout Achievable, Productive…)
+    try {
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor').eq('user_id', user.id);
+      const byId = {}, byName = {};
+      library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
+      riderLevels = computeLevels(data||[], r => byId[r.workout_id] || byName[r.workout_name] || null, ftp).levels;
+    } catch(e){ riderLevels = null; }
     renderFtp();
     renderPicker();
     renderFits();
     renderLibrary();
     renderPlanNudge();
+  }
+  let riderLevels = null;
+  function levelChip(w){
+    const wl = workoutLevel(w, ftp);
+    if (!wl) return '';
+    const z = zoneInfo(wl.zone);
+    const d = riderLevels ? difficultyLabel(wl.level, riderLevels[wl.zone]) : null;
+    return '<span class="lvl-chip" style="--zc:'+z.color+'"'+(riderLevels ? ' title="Your '+z.name+' level is '+fmtLevel(riderLevels[wl.zone])+'"' : '')+'>'+z.short+' '+fmtLevel(wl.level)+'</span>'
+      + (d ? '<span class="lvl-diff '+d.key+'">'+d.label+'</span>' : '');
   }
   async function saveFtp(v){
     ftp = v;
@@ -675,6 +701,10 @@ const supabase = createSupabaseClient();
       if (sortVal==='if_asc') return (a.stats.IF??0) - (b.stats.IF??0);
       if (sortVal==='if_desc') return (b.stats.IF??0) - (a.stats.IF??0);
       if (sortVal==='name') return a.w.name.localeCompare(b.w.name);
+      if (sortVal==='level_asc' || sortVal==='level_desc'){
+        const la = (workoutLevel(a.w, ftp)||{level:0}).level, lb = (workoutLevel(b.w, ftp)||{level:0}).level;
+        return sortVal==='level_asc' ? la-lb : lb-la;
+      }
       return 0;
     });
 
@@ -700,6 +730,7 @@ const supabase = createSupabaseClient();
         + '<div class="lib-item-text">'
         + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
         + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.tss!=null ? ('  ·  '+stats.tss+' TSS') : '') +'</div>'
+        + (levelChip(w) ? '<div class="lib-levels">'+levelChip(w)+'</div>' : '')
         + '</div></div>'
         + (isOwn ? '<div class="lib-actions"><button class="ghost danger" data-del="'+w.id+'">Delete</button></div>' : '')
         + '</div>';
