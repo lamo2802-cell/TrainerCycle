@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { mountAppNav } from './app-nav.js?v=1';
+import { mountAppNav } from './app-nav.js?v=2';
 
 export function createSupabaseClient(){
   return createClient(
@@ -711,7 +711,7 @@ export function renderSidebarUserBadge(supabase, user, container){
   wrap.appendChild(labelEl);
   wrap.appendChild(signOutBtn);
   container.appendChild(wrap);
-  mountAppNav(); // every signed-in page renders this badge, so the tab bar rides along
+  mountAppNav({ supabase, user }); // every signed-in page renders this badge, so the navigation rides along
 }
 
 // Adds a compact sign-out button into the given container element (legacy top-right usage).
