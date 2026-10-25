@@ -7,6 +7,8 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app-nav.css?v=1">
+<script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
@@ -105,7 +107,7 @@
     <div class="block">
       <div class="block-title">Navigate</div>
       <nav class="page-nav">
-        <a href="index.html">Home</a>
+        <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
@@ -216,7 +218,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=16';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=17';
 const supabase = createSupabaseClient();
 
 (async function(){

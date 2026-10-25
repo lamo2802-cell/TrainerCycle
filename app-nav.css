@@ -1,0 +1,32 @@
+/* App-style navigation, shared by every signed-in page except the ride screens.
+   html.has-appnav is set by a tiny inline script in each page's <head> (so the layout doesn't jump);
+   the tab bar itself is added by app-nav.js once the user is signed in. */
+
+/* Desktop / large tablet: the menu stays open beside the page instead of hiding behind ☰. */
+@media (min-width:1100px){
+  html.has-appnav .sidebar{ transform:none !important; width:228px; padding:18px 12px; }
+  html.has-appnav .sidebar > .sub:first-child{ display:none; }
+  html.has-appnav .sidebar-backdrop{ display:none !important; }
+  html.has-appnav #sidebarToggle{ visibility:hidden; }
+  html.has-appnav .app{ padding-left:228px; }
+  html.has-appnav .page-nav a{ font-size:14.5px; padding:9px 10px; }
+}
+
+/* Phone: a bottom tab bar for the screens you use most; "More" opens the full menu. */
+.tabbar{ display:none; }
+@media (max-width:759px){
+  html.has-appnav body{ padding-bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  html.has-appnav .sidebar, html.has-appnav .sidebar-backdrop{ bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  html.has-appnav .tabbar{
+    display:flex; position:fixed; left:0; right:0; bottom:0; z-index:70;
+    height:calc(64px + env(safe-area-inset-bottom, 0px)); padding-bottom:env(safe-area-inset-bottom, 0px);
+    background:#10141A; border-top:1px solid #2A323D;
+  }
+  .tabbar a, .tabbar button{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    color:#8C97A6; text-decoration:none; font-size:10.5px; font-weight:600; letter-spacing:.02em;
+    background:none; border:none; border-radius:0; padding:0; margin:0; min-width:0; cursor:pointer; font-family:inherit;
+  }
+  .tabbar svg{ width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .tabbar .on{ color:#45D6C4; }
+}
