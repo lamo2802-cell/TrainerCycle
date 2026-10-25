@@ -290,7 +290,7 @@
       <nav class="page-nav">
         <a href="index.html" class="active">Today</a>
         <a href="plans.html">Training Plans</a>
-        <a href="running.html">Running</a>
+        <a href="trainerrun.html">TrainerRun</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -644,9 +644,9 @@ const supabase = createSupabaseClient();
     const rp = follow && follow.runPlan;
     if (rp && rp.raceDate >= today && RUN_GOALS[rp.goal]){
       const toGo = daysBetween(today, rp.raceDate), pred = predictTime(rp.goal, runPace);
-      html += '<a class="t-panel race-card" href="running.html"><div class="rc-days"><b>'+(toGo === 0 ? 'Today' : toGo)+'</b>'+(toGo === 0 ? 'race day' : toGo === 1 ? 'day to go' : 'days to go')+'</div>'
+      html += '<a class="t-panel race-card" href="trainerrun.html"><div class="rc-days"><b>'+(toGo === 0 ? 'Today' : toGo)+'</b>'+(toGo === 0 ? 'race day' : toGo === 1 ? 'day to go' : 'days to go')+'</div>'
         + '<div class="rc-body"><div class="rc-name">'+esc(RUN_GOALS[rp.goal].label)+' · '+parseIso(rp.raceDate).toLocaleDateString('en-GB',{ weekday:'short', day:'numeric', month:'short' })+'</div>'
-        + '<div class="rc-sub">'+(pred ? 'Predicted <b>'+fmtDuration(pred)+'</b> · '+fmtPace(goalPace(rp.goal, runPace))+' /km' : 'Set a threshold pace to see your predicted time')+'</div></div><span class="rc-go">Running →</span></a>';
+        + '<div class="rc-sub">'+(pred ? 'Predicted <b>'+fmtDuration(pred)+'</b> · '+fmtPace(goalPace(rp.goal, runPace))+' /km' : 'Set a threshold pace to see your predicted time')+'</div></div><span class="rc-go">TrainerRun →</span></a>';
     }
     const weekIdx = plan && follow.startedAt ? Math.floor(daysBetween(planStart(follow.startedAt), today) / 7) : -1;
     const note = weekIdx >= 0 ? planWeekNote(plan, weekIdx) : null;

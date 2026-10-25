@@ -194,7 +194,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html" class="active">Training Plans</a>
-        <a href="running.html">Running</a>
+        <a href="trainerrun.html">TrainerRun</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -500,7 +500,7 @@ const supabase = createSupabaseClient();
   function renderRunPlanBanner(){
     const el = document.getElementById('runPlanBanner');
     const rp = activeRunPlan, g = rp && RUN_GOALS[rp.goal];
-    el.innerHTML = '<a class="run-plan-banner" href="running.html"><span class="rpb-tag">Running</span><span class="rpb-text">'
+    el.innerHTML = '<a class="run-plan-banner" href="trainerrun.html"><span class="rpb-tag">TrainerRun</span><span class="rpb-text">'
       + (g ? '<b>'+escapeHtml(g.label)+' plan</b> · race '+new Date(rp.raceDate+'T12:00:00').toLocaleDateString('en-GB',{ day:'numeric', month:'short' })+' · runs on '+daysLabel(rp.days)+(activePlanId ? ', on this plan\'s rest days' : '')
         : '<b>Training for a race?</b> Build a 5K, 10K, half or marathon plan, on its own or alongside a cycling plan.')
       + '</span><span class="rpb-go">'+(g ? 'Open' : 'Build a run plan')+' →</span></a>';
@@ -561,7 +561,7 @@ const supabase = createSupabaseClient();
       btn.textContent = 'Unfollowing…';
       await unfollowPlan();
     });
-    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); if (activeRunPlan) location.href = 'running.html'; else chooseRunDays(plan); });
+    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); if (activeRunPlan) location.href = 'trainerrun.html'; else chooseRunDays(plan); });
     const logRunBtn = document.getElementById('logRunBtn');
     if (logRunBtn) logRunBtn.addEventListener('click', async e=>{
       e.stopPropagation();
