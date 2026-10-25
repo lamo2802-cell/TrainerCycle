@@ -487,30 +487,38 @@ const supabase = createSupabaseClient();
   // Tracks the currently running rAF loop so switching exercises (or clearing the display)
   // cancels the previous animation instead of letting it keep running into a stale/detached SVG.
   let positionsAnimToken = 0;
-  // Licensed exercise demos live in strength-media/<key>.gif. Keys listed here show the demo;
-  // anything else (or a demo that fails to load) falls back to the vector figure above.
-  const EXERCISE_MEDIA = new Set([]);
+  // Exercise demos live in strength-media/, keyed by exercise key -> file (.gif, .webp, .mp4 or .webm).
+  // Anything not listed here (or a demo that fails to load) falls back to the vector figure above.
+  const EXERCISE_MEDIA = {};
   function renderPositions(key, container){
     positionsAnimToken++;
     const myToken = positionsAnimToken;
     const pose = POSES[key];
-    if (!pose && !EXERCISE_MEDIA.has(key)){ container.innerHTML = ''; return; }
+    const media = EXERCISE_MEDIA[key];
+    if (!pose && !media){ container.innerHTML = ''; return; }
     const isHold = pose && pose.hold;
 
     container.innerHTML = '<div class="position-box single"><div></div><div class="position-label">'+(isHold ? 'Hold position' : 'Rep motion')+'</div></div>';
     const svgHost = container.querySelector('.position-box.single > div');
 
-    if (EXERCISE_MEDIA.has(key)){
-      const img = document.createElement('img');
-      img.className = 'exercise-demo';
-      img.alt = key.replace(/_/g,' ') + ' demonstration';
-      img.src = 'strength-media/' + key + '.gif';
-      img.addEventListener('error', ()=>{
+    if (media){
+      const isVideo = /\.(mp4|webm)$/i.test(media);
+      const el = document.createElement(isVideo ? 'video' : 'img');
+      el.className = 'exercise-demo';
+      if (isVideo){
+        el.muted = true; el.loop = true; el.playsInline = true;
+        el.autoplay = !reduceMotion; el.controls = reduceMotion;
+        el.setAttribute('aria-label', key.replace(/_/g,' ') + ' demonstration');
+      } else {
+        el.alt = key.replace(/_/g,' ') + ' demonstration';
+      }
+      el.addEventListener('error', ()=>{
         if (myToken !== positionsAnimToken) return;
-        EXERCISE_MEDIA.delete(key);
+        delete EXERCISE_MEDIA[key];
         renderPositions(key, container);
       });
-      svgHost.appendChild(img);
+      el.src = 'strength-media/' + media;
+      svgHost.appendChild(el);
       return;
     }
 
