@@ -172,6 +172,14 @@
     background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:9px 16px;
     transition:border-color .3s ease, background-color .3s ease;
   }
+  .intensity-ctl{ display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:4px; }
+  .intensity-ctl button{ width:40px; height:40px; margin:0; padding:0; font-size:22px; line-height:1; font-weight:600; border-radius:9px; }
+  .intensity-read{ display:flex; flex-direction:column; align-items:center; min-width:58px; }
+  .intensity-val{ font-family:var(--mono); cursor:pointer; }
+  .intensity-read b{ font-size:17px; }
+  .intensity-val.changed{ color:var(--accent); }
+  .intensity-read span{ font-size:9.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
   .next-dot{ width:11px; height:11px; border-radius:50%; background:var(--next-c); flex-shrink:0; }
   .next-tag{ font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); }
   .next-body{ font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
@@ -231,10 +239,12 @@
     .metric.power{ grid-column:1 / -1; padding:12px; }
     .metric.power .val{ font-size:clamp(72px, 30vw, 128px); line-height:.95; }
     .metric.power .lbl{ font-size:13px; text-transform:none; letter-spacing:0; }
-    .power-target{ display:block; font-size:14px; color:var(--text-dim); margin-top:4px; }
+    .power-target{ display:flex; align-items:center; justify-content:center; gap:14px; font-size:14px; color:var(--text-dim); margin-top:4px; }
     .power-target b{ color:var(--text); font-family:var(--mono); }
     .metric.target{ display:none; }
     .ride-bar{ flex-direction:column; align-items:stretch; gap:6px; margin-bottom:10px; }
+    .ride-bar .intensity-ctl{ display:none !important; }
+    .pt-btn{ width:40px; height:40px; margin:0; padding:0; border-radius:50%; font-size:22px; line-height:1; font-weight:600; }
     .ride-bar-step{ flex-direction:row; align-items:baseline; justify-content:space-between; gap:8px; }
     .ride-bar-step > b{ font-size:14px; }
     .ride-bar-meta{ font-size:11.5px; }
@@ -337,7 +347,11 @@
           <div class="metric power">
             <div class="val" id="mPower">—</div>
             <div class="lbl">Watts <span id="mWattsPerKg" style="opacity:.7;"></span></div>
-            <div class="power-target">Target <b id="mTargetInline">—</b> W</div>
+            <div class="power-target">
+              <button class="pt-btn intensity-only" data-intensity="-1" aria-label="Lower intensity 1%" style="display:none;">&minus;</button>
+              <span>Target <b id="mTargetInline">—</b> W<span class="intensity-only" style="display:none;"> · <b class="intensity-val" title="Tap to reset to 100%">100%</b></span></span>
+              <button class="pt-btn intensity-only" data-intensity="1" aria-label="Raise intensity 1%" style="display:none;">+</button>
+            </div>
           </div>
           <div class="metric target"><div class="val" id="mTarget">—</div><div class="lbl">Target</div></div>
           <div class="metric interval"><div class="val" id="mIntervalTime">0:00</div><div class="lbl">Interval</div></div>
@@ -352,6 +366,11 @@
           <div class="ride-bar-step">
             <b id="stepNote">—</b>
             <span class="ride-bar-meta">Step <b id="stepIdx">–</b> of <b id="stepTotal">–</b> · <b id="totalRemaining">—</b> to go</span>
+          </div>
+          <div class="intensity-ctl" style="display:none;">
+            <button data-intensity="-1" aria-label="Lower intensity 1%">&minus;</button>
+            <div class="intensity-read"><b class="intensity-val" title="Tap to reset to 100%">100%</b><span>Intensity</span></div>
+            <button data-intensity="1" aria-label="Raise intensity 1%">+</button>
           </div>
           <div class="next-pill" id="nextPill">
             <span class="next-dot" id="nextDot"></span>
@@ -582,11 +601,17 @@ const supabase = createSupabaseClient();
     }
     return out;
   }
+  // In-ride intensity: the rider can nudge every ERG target up or down (TrainerRoad-style).
+  // 100 = as written. It scales the targets, the Next pill and the profile alike; tests stay at 100.
+  let intensityPct = 100;
+  const INTENSITY_MIN = 50, INTENSITY_MAX = 150;
   function targetWatts(step){
     if (!step) return null;
-    if (step.targetType==='ftp_pct') return Math.round(ftp*(step.low+step.high)/200);
-    if (step.targetType==='watts') return Math.round((step.low+step.high)/2);
-    return null; // HR-based steps don't set an ERG target
+    let w = null;
+    if (step.targetType==='ftp_pct') w = ftp*(step.low+step.high)/200;
+    else if (step.targetType==='watts') w = (step.low+step.high)/2;
+    if (w==null) return null; // HR-based steps don't set an ERG target
+    return Math.round(w*intensityPct/100);
   }
   function currentTargetWatts(){
     const step = flatSteps[stepIndex];
@@ -606,7 +631,8 @@ const supabase = createSupabaseClient();
     return null;
   }
 
-  let currentWorkoutMeta = { name: 'Free Ride', category: null };
+  let currentWorkoutMeta = { name: 'Free Ride', category: null, workoutId: null };
+  let planLink = null; // { planId, dayIndex } when this ride is a session from the followed plan
   function updateStartAvailability(){
     const hasSelection = document.getElementById('workoutSelect').value !== '';
     if (!running){
@@ -617,8 +643,11 @@ const supabase = createSupabaseClient();
   function selectWorkout(id){
     const w = library.find(x=>x.id===id);
     flatSteps = w ? flatten(w.steps) : [];
-    currentWorkoutMeta = w ? { name: w.name, category: w.category||null } : { name: 'Free Ride', category: null };
+    currentWorkoutMeta = w ? { name: w.name, category: w.category||null, workoutId: w.id } : { name: 'Free Ride', category: null, workoutId: null };
     stepIndex = -1; stepElapsed = 0;
+    intensityPct = 100;
+    renderIntensity();
+    planLink = w ? findPlanSession(w.id) : null;
     renderStepReadout();
     drawOverviewChart();
    
@@ -627,6 +656,72 @@ const supabase = createSupabaseClient();
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
     selectWorkout(e.target.value);
   });
+
+  // Two copies of the control: beside the Next pill on tablet/laptop, around the target in the phone power box.
+  function renderIntensity(){
+    const show = flatSteps.length && currentWorkoutMeta.category !== 'test';
+    document.querySelectorAll('.intensity-ctl, .intensity-only').forEach(el=>{ el.style.display = show ? '' : 'none'; });
+    document.querySelectorAll('.intensity-val').forEach(el=>{
+      el.textContent = intensityPct + '%';
+      el.classList.toggle('changed', intensityPct !== 100);
+    });
+    document.querySelectorAll('[data-intensity]').forEach(btn=>{
+      btn.disabled = Number(btn.dataset.intensity) < 0 ? intensityPct <= INTENSITY_MIN : intensityPct >= INTENSITY_MAX;
+    });
+  }
+  async function changeIntensity(delta){
+    intensityPct = Math.min(INTENSITY_MAX, Math.max(INTENSITY_MIN, intensityPct + delta));
+    renderIntensity();
+    renderStepReadout();
+    drawOverviewChart();
+    if (running && flatSteps[stepIndex] && !bailActive){
+      const w = currentTargetWatts();
+      if (w!=null) await setTargetPower(w);
+    }
+  }
+  document.querySelectorAll('[data-intensity]').forEach(btn=> btn.addEventListener('click', ()=> changeIntensity(Number(btn.dataset.intensity))));
+  document.querySelectorAll('.intensity-val').forEach(el=> el.addEventListener('click', ()=>{ if (intensityPct !== 100) changeIntensity(100 - intensityPct); }));
+
+  // ---- link this ride to the followed plan ----
+  // A ride counts towards a plan session when it was launched from that session (plans.html passes
+  // ?plan=&day=), or when the chosen workout is the next not-yet-done session in the followed plan
+  // within the coming week. Same calendar rules as plans.html (day 0 = the Monday the plan started).
+  let activePlan = null; // { id, weeks, startedAt, cursorDay, doneDays:Set }
+  let explicitPlanLink = null;
+  {
+    const q = new URLSearchParams(window.location.search);
+    const day = parseInt(q.get('day'), 10);
+    if (q.get('plan') && !isNaN(day)) explicitPlanLink = { planId: q.get('plan'), dayIndex: day, workoutId: q.get('load') };
+  }
+  async function loadActivePlanForLinking(){
+    try {
+      const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
+      const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
+      if (!v.active_plan_id || !v.active_plan_started_at) return;
+      const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', v.active_plan_id).maybeSingle();
+      if (!plan) return;
+      const { data: done } = await supabase.from('completed_rides').select('plan_day_index')
+        .eq('user_id', user.id).eq('plan_id', plan.id).gte('started_at', v.active_plan_started_at);
+      activePlan = { id: plan.id, weeks: plan.weeks||[], startedAt: v.active_plan_started_at, cursorDay: v.active_plan_cursor_day||0,
+        doneDays: new Set((done||[]).map(r=>r.plan_day_index).filter(n=>n!=null)) };
+    } catch(e){ activePlan = null; /* linking is a bonus; the ride still saves without it */ }
+  }
+  function findPlanSession(workoutId){
+    if (explicitPlanLink && explicitPlanLink.workoutId === workoutId) return { planId: explicitPlanLink.planId, dayIndex: explicitPlanLink.dayIndex };
+    if (!activePlan) return null;
+    const start = new Date(activePlan.startedAt); start.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysSinceStart = Math.max(0, Math.round((today - start)/86400000));
+    const from = Math.max(daysSinceStart, activePlan.cursorDay);
+    const last = Math.min(activePlan.weeks.length*7, from + 7);
+    for (let d = from; d < last; d++){
+      const day = ((activePlan.weeks[Math.floor(d/7)]||{}).days||[])[d%7];
+      if (day && day.type === 'workout' && day.workoutType !== 'strength' && !activePlan.doneDays.has(d)){
+        return day.workoutId === workoutId ? { planId: activePlan.id, dayIndex: d } : null;
+      }
+    }
+    return null;
+  }
 
   function renderStepReadout(){
     const step = flatSteps[stepIndex];
@@ -1384,7 +1479,7 @@ const supabase = createSupabaseClient();
       stopSession(true); return;
     }
     beep(1200, 200); // marks the actual moment the interval changes
-    const w = targetWatts(flatSteps[stepIndex]);
+    const w = currentTargetWatts();
     if (w!=null) await setTargetPower(w);
     renderStepReadout();
   }
@@ -1451,6 +1546,8 @@ const supabase = createSupabaseClient();
         activeElapsedSec,
         workoutName: currentWorkoutMeta.name,
         category: currentWorkoutMeta.category,
+        workoutId: currentWorkoutMeta.workoutId,
+        planLink,
         log
       }));
     } catch(e){ /* storage full/unavailable — best effort */ }
@@ -1489,7 +1586,8 @@ const supabase = createSupabaseClient();
   async function saveCompletedRide(completed, recovered){
     const rideLog = recovered ? recovered.log : log;
     const elapsedSec = recovered ? recovered.activeElapsedSec : activeElapsedSec;
-    const meta = recovered ? { name: recovered.workoutName, category: recovered.category } : currentWorkoutMeta;
+    const meta = recovered ? { name: recovered.workoutName, category: recovered.category, workoutId: recovered.workoutId||null } : currentWorkoutMeta;
+    const link = recovered ? (recovered.planLink||null) : planLink;
     if (!rideLog.length) return;
     const startedAt = recovered ? recovered.startedAt : (sessionStart ? new Date(sessionStart).toISOString() : new Date(Date.now() - elapsedSec*1000).toISOString());
     const powers = rideLog.map(r=>Number(r.power)).filter(n=>!isNaN(n));
@@ -1499,6 +1597,8 @@ const supabase = createSupabaseClient();
     const sumP4t = rideLog.reduce((a,r)=>{ const p=Number(r.power); return isNaN(p)?a:a+Math.pow(p,4); },0);
     const np = powers.length ? Math.round(Math.pow(sumP4t/powers.length, 0.25)) : null;
     const IF = (np!=null && ftp>0) ? Math.round((np/ftp)*100)/100 : null;
+    // TSS = hours x IF^2 x 100, with IF from unrounded NP/FTP
+    const tss = (np!=null && ftp>0) ? Math.round(elapsedSec * Math.pow(np/ftp, 2) / 36) : null;
     const avgHr = hrs.length ? Math.round(hrs.reduce((a,b)=>a+b,0)/hrs.length) : null;
     const maxHr = hrs.length ? Math.max(...hrs) : null;
     const avgCadence = cadences.length ? Math.round(cadences.reduce((a,b)=>a+b,0)/cadences.length) : null;
@@ -1507,6 +1607,10 @@ const supabase = createSupabaseClient();
       id: 'ride_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
       workout_name: meta.name,
       category: meta.category,
+      workout_id: meta.workoutId || null,
+      plan_id: link ? link.planId : null,
+      plan_day_index: link ? link.dayIndex : null,
+      tss,
       started_at: startedAt,
       duration_sec: elapsedSec,
       avg_power: avgPower, np, intensity_factor: IF,
@@ -1626,7 +1730,10 @@ const supabase = createSupabaseClient();
     log = [];
     activeElapsedSec = 0;
     flatSteps = [];
-    currentWorkoutMeta = { name: 'Free Ride', category: null };
+    currentWorkoutMeta = { name: 'Free Ride', category: null, workoutId: null };
+    planLink = null;
+    intensityPct = 100;
+    renderIntensity();
     document.getElementById('workoutSelect').value = '';
     updateStartAvailability();
     renderStepReadout();
@@ -1758,7 +1865,7 @@ const supabase = createSupabaseClient();
   } else {
     autoReconnectDevices();
   }
-  loadData().then(()=>{
+  Promise.all([loadData(), loadActivePlanForLinking()]).then(()=>{
     drawOverviewChart();
     const loadParam = new URLSearchParams(window.location.search).get('load');
     if (loadParam && library.find(x=>x.id===loadParam)){

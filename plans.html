@@ -127,6 +127,8 @@
   .day-name{ width:36px; flex-shrink:0; color:var(--text-dim); font-size:12px; font-family:var(--mono); }
   .day-workout{ flex:1; font-size:13px; }
   .day-mini-chart{ display:block; width:100%; height:90px; margin-top:6px; border-radius:8px; overflow:hidden; background:var(--panel-2); }
+  .day-row.done .day-workout a{ color:var(--text-dim); }
+  .day-workout .done-tag{ color:var(--accent); font-size:11px; font-weight:600; margin-left:8px; }
   .day-workout.rest{ color:var(--text-dim); font-style:italic; }
   .day-workout a{ color:var(--text); text-decoration:none; }
   .day-workout a:hover{ color:var(--accent); }
@@ -288,6 +290,7 @@ const supabase = createSupabaseClient();
   let activePlanStartedAt = null; // ISO date string, Monday of week 1
   let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
   let sessionsFilter = '';
+  let doneDays = new Map(); // day-index -> ride ({tss}) for the followed plan, from rides linked to it
 
   function ridesPerWeek(plan){
     const week = (plan.weeks||[])[0];
@@ -323,7 +326,7 @@ const supabase = createSupabaseClient();
       const dayIdx = d % 7;
       const week = plan.weeks[weekIdx];
       const dayObj = week && (week.days||[])[dayIdx];
-      if (dayObj && dayObj.type === 'workout'){
+      if (dayObj && dayObj.type === 'workout' && !doneDays.has(d)){
         const isToday = d === daysSinceStart;
         return { weekNum: week.week || (weekIdx+1), deload: !!week.deload, dayObj, isToday, dayIndex: d };
       }
@@ -338,6 +341,28 @@ const supabase = createSupabaseClient();
       if (row.key === 'active_plan_started_at') activePlanStartedAt = row.value && row.value.v;
       if (row.key === 'active_plan_cursor_day') activePlanCursorDay = (row.value && row.value.v) || 0;
     });
+    await loadDoneDays();
+  }
+
+  // Rides saved from Live Ride carry the plan and day they were for; those days count as done.
+  async function loadDoneDays(){
+    doneDays = new Map();
+    if (!activePlanId || !activePlanStartedAt) return;
+    try {
+      const { data } = await supabase.from('completed_rides').select('plan_day_index,tss')
+        .eq('user_id', user.id).eq('plan_id', activePlanId).gte('started_at', activePlanStartedAt);
+      (data||[]).forEach(r=>{ if (r.plan_day_index!=null) doneDays.set(r.plan_day_index, r); });
+    } catch(e){ /* ticks are a bonus; the plan still works without them */ }
+  }
+  function sessionCounts(plan){
+    let total = 0, done = 0, tss = 0;
+    (plan.weeks||[]).forEach((w, wi)=> (w.days||[]).forEach((d, di)=>{
+      if (d.type !== 'workout' || d.workoutType === 'strength') return;
+      total++;
+      const r = doneDays.get(wi*7+di);
+      if (r){ done++; tss += r.tss||0; }
+    }));
+    return { total, done, tss };
   }
 
   async function followPlan(planId){
@@ -345,7 +370,9 @@ const supabase = createSupabaseClient();
     const startedAtIso = monday.toISOString().slice(0,10);
     activePlanId = planId;
     activePlanStartedAt = startedAtIso;
+    document.querySelectorAll('.plan-weeks').forEach(c=>{ delete c.dataset.rendered; });
     activePlanCursorDay = 0;
+    await loadDoneDays();
     await supabase.from('settings').upsert([
       { user_id:user.id, key:'active_plan_id', value:{v:planId}, updated_at:new Date().toISOString() },
       { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() },
@@ -407,6 +434,7 @@ const supabase = createSupabaseClient();
     const plan = plans.find(p=>p.id===activePlanId);
     if (!plan){ el.style.display = 'none'; return; }
     const totalWeeks = (plan.weeks||[]).length;
+    const counts = sessionCounts(plan);
     const next = getNextSession(plan, activePlanStartedAt, activePlanCursorDay);
     let nextHtml;
     if (!next){
@@ -433,13 +461,13 @@ const supabase = createSupabaseClient();
       nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + (next.deload ? ' · Deload' : '') + '): <b>' + escapeHtml(label) + '</b></div>'
         + '<div style="display:flex; gap:8px;">'
         + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
-        + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>'
+        + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+(isStrength ? '' : '&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>'
         + '</div>';
     }
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
       + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div></div>'
-      + '<div><span class="fb-week">'+totalWeeks+' week plan</span> <button class="ghost" id="unfollowBtn">Stop Following</button></div>'
+      + '<div><span class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</span> <button class="ghost" id="unfollowBtn">Stop Following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -517,8 +545,9 @@ const supabase = createSupabaseClient();
   function renderWeeks(plan){
     const container = document.getElementById('weeks-'+plan.id);
     if (container.dataset.rendered) { container.style.display = container.style.display==='none' ? 'block' : 'none'; return; }
-    container.innerHTML = (plan.weeks||[]).map(w=>{
-      const days = (w.days||[]).map(d=>{
+    const isActive = plan.id === activePlanId;
+    container.innerHTML = (plan.weeks||[]).map((w, wi)=>{
+      const days = (w.days||[]).map((d, di)=>{
         if (d.type === 'rest'){
           return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div><div class="day-workout rest">Rest day</div></div>';
         }
@@ -532,8 +561,12 @@ const supabase = createSupabaseClient();
           const mins = Math.round(wk.duration_sec/60);
           durLabel = mins >= 60 ? (Math.floor(mins/60)+'h '+(mins%60 ? (mins%60)+'m' : '')) : mins+'min';
         }
-        return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div>'
-          + '<div class="day-workout"><a href="'+targetPage+'?load='+encodeURIComponent(d.workoutId)+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+        const dayIndex = wi*7+di;
+        const doneRide = isActive ? doneDays.get(dayIndex) : null;
+        const href = targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
+        return '<div class="day-row'+(doneRide ? ' done' : '')+'"><div class="day-name">'+escapeHtml(d.day)+'</div>'
+          + '<div class="day-workout"><a href="'+href+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
+          + (doneRide ? '<span class="done-tag">✓ Done'+(doneRide.tss ? ' · '+doneRide.tss+' TSS' : '')+'</span>' : '')
           + (durLabel ? '<span class="tag">'+durLabel+'</span>' : '')
           + (tag ? '<span class="tag">'+tag+'</span>' : '')
           + (!isStrength && wk && wk.steps ? miniChartSVG(wk.steps) : '')
