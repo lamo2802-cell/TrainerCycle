@@ -4,7 +4,7 @@
 // Bike targets go out as % of FTP so the device scales them to the rider's own FTP; watt steps are
 // converted with the FTP given. Runs go out with pace ranges (as speed) from the threshold pace.
 import { showSheet } from './sheet.js?v=2';
-import { zonePaces } from './run.js?v=4';
+import { zonePaces } from './run.js?v=5';
 
 // ---- FIT encoding (little endian, protocol 1.0) ----
 const CRC_TABLE = [0x0000,0xCC01,0xD801,0x1400,0xF001,0x3C00,0x2800,0xE401,0xA001,0x6C00,0x7800,0xB401,0x5000,0x9C01,0x8801,0x4400];

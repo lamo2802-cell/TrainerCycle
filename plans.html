@@ -267,13 +267,13 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
-import { applySwaps } from './adapt.js?v=2';
+import { applySwaps } from './adapt.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
-import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=2';
-import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=4';
+import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=3';
+import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=5';
 import { showSheet } from './sheet.js?v=2';
-import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=1';
-import { openSwimLog, setSwimCss, SWIM_CSS_KEY } from './swim.js?v=1';
+import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=2';
+import { openSwimLog, setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){

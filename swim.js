@@ -5,7 +5,7 @@
 // steeply with speed). Without a distance (or a CSS) IF comes from how the swim felt instead.
 
 import { showSheet, notify } from './sheet.js?v=2';
-import { parseDuration } from './run.js?v=4';
+import { parseDuration } from './run.js?v=5';
 
 export const SWIM_CSS_KEY = 'swim_css';
 
@@ -148,14 +148,14 @@ const LOG_CSS = `
 `;
 function localIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
-// session: optional { dayIndex, date, workoutId } of a planned swim, with planId. Resolves with the saved record, or null.
-export async function openSwimLog(supabase, userId, { session = null, planId = null } = {}){
+// session: optional { dayIndex, date, workoutId } of a planned swim, with planId; date: the day to log it on. Resolves with the saved record, or null.
+export async function openSwimLog(supabase, userId, { session = null, planId = null, date: onDate = null } = {}){
   if (!document.getElementById('sl-style')){ const st = document.createElement('style'); st.id = 'sl-style'; st.textContent = LOG_CSS; document.head.appendChild(st); }
   const css = await loadSwimCss(supabase, userId);
   setSwimCss(css);
   const planned = session ? swimSession(session.workoutId) : null;
   const today = localIso(new Date());
-  const date = session && session.date <= today ? session.date : today;
+  const date = onDate && onDate <= today ? onDate : session && session.date <= today ? session.date : today;
   const form = document.createElement('div');
   form.className = 'rl-form';
   form.innerHTML = (planned ? '<p class="rl-note">'+planned.text+'</p>' : '')

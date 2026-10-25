@@ -311,13 +311,14 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=19';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=4';
-import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=1';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=5';
+import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
 import { ask } from './sheet.js?v=2';
-import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=2';
+import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
+import { loadDiary, diarySessions } from './diary.js?v=1';
 import { loadFollowState } from './plan-schedule.js?v=3';
-import { composeFollowed, loadPlanRow } from './run-plans.js?v=2';
-import { applySwaps } from './adapt.js?v=2';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=3';
+import { applySwaps } from './adapt.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -771,10 +772,10 @@ const supabase = createSupabaseClient();
   }
   // Store the sessions now, so the calendar isn't empty until Today or Calendar are next opened.
   async function storeFeedNow(){
-    const [follow, hol, wRes, sRes, fRes, pRes] = await Promise.all([loadFollowState(supabase, user.id), loadHolidays(supabase, user.id),
+    const [follow, hol, wRes, sRes, fRes, pRes, diary] = await Promise.all([loadFollowState(supabase, user.id), loadHolidays(supabase, user.id),
       supabase.from('workouts').select('id,name,steps,duration_sec'), supabase.from('strength_workouts').select('id,name'),
       supabase.from('settings').select('value').eq('user_id', user.id).eq('key', 'ftp').maybeSingle(),
-      supabase.from('settings').select('value').eq('user_id', user.id).eq('key', RUN_PACE_KEY).maybeSingle()]);
+      supabase.from('settings').select('value').eq('user_id', user.id).eq('key', RUN_PACE_KEY).maybeSingle(), loadDiary(supabase, user.id)]);
     setRunPace(pRes.data && pRes.data.value && pRes.data.value.v);
     const workouts = {};
     (wRes.data || []).forEach(w => { workouts[w.id] = w; });
@@ -784,7 +785,8 @@ const supabase = createSupabaseClient();
       const base = composeFollowed(await loadPlanRow(supabase, follow), follow, follow.runPlan).plan;
       plan = base ? applyHolidays(applySwaps(base, follow.swaps), follow.startedAt, follow.moves, hol || []) : null;
     }
-    await syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, (fRes.data && fRes.data.value && fRes.data.value.v) || 200), { force:true });
+    const ftp = (fRes.data && fRes.data.value && fRes.data.value.v) || 200;
+    await syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftp, diarySessions(diary, workouts, ftp, [])), { force:true });
   }
   document.getElementById('feedOnBtn').addEventListener('click', async e => {
     const btn = e.currentTarget; btn.disabled = true;
