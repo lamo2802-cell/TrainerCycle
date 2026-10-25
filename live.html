@@ -371,6 +371,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="running.html">Running</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html" class="active">Live Ride</a>
@@ -535,10 +536,10 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubsc
 import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=2';
+import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { addRuns } from './run.js?v=2';
+import { addRuns } from './run.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){

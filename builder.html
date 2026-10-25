@@ -255,6 +255,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="running.html">Running</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html" class="active">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -352,10 +353,10 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { notify, ask } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=2';
+import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { addRuns } from './run.js?v=2';
+import { addRuns } from './run.js?v=3';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);

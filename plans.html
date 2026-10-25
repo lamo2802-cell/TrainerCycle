@@ -167,6 +167,13 @@
   .ftp-prompt-text b{ font-size:14.5px; display:block; margin-bottom:4px; }
   .ftp-prompt-text p{ color:var(--text-dim); font-size:13px; margin:0; max-width:520px; line-height:1.4; }
   .ftp-prompt button{ white-space:nowrap; padding:11px 20px; }
+  .run-plan-banner{ display:flex; align-items:center; gap:12px; text-decoration:none; color:var(--text); background:linear-gradient(100deg, rgba(192,132,252,.12), transparent 65%), var(--panel);
+    border:1px solid rgba(192,132,252,.4); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
+  .run-plan-banner:hover{ border-color:#C084FC; }
+  .rpb-tag{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#C084FC; }
+  .rpb-text{ flex:1; min-width:0; color:var(--text-dim); } .rpb-text b{ color:var(--text); }
+  .rpb-go{ color:#C084FC; font-weight:600; font-size:13px; white-space:nowrap; }
+  @media (max-width:560px){ .run-plan-banner{ flex-wrap:wrap; } .rpb-go{ width:100%; } }
 </style>
 </head>
 <body>
@@ -187,6 +194,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html" class="active">Training Plans</a>
+        <a href="running.html">Running</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -209,6 +217,7 @@
       <a href="live.html?load=prebuilt-ramp-test-25"><button class="primary">Start Ramp Test</button></a>
     </div>
 
+    <div id="runPlanBanner"></div>
     <div id="followingBanner" style="display:none;"></div>
 
     <details class="phase-roadmap" id="phaseRoadmap" open>
@@ -251,10 +260,11 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
-import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=2';
+import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=2';
+import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=1';
+import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=3';
 import { showSheet } from './sheet.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -341,8 +351,11 @@ const supabase = createSupabaseClient();
 
   // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
   // The followed plan as the rider sees it: their run days added, then any adaptive swaps.
-  let activeHolidays = [];
-  function followed(plan){ return applyHolidays(applySwaps(addRuns(plan, activePlanRuns), activePlanSwaps), activePlanStartedAt, activePlanMoves, activeHolidays); }
+  let activeHolidays = [], activeRunPlan = null;
+  function followed(plan){
+    const base = composeFollowed(plan, { startedAt: activePlanStartedAt, runs: activePlanRuns }, activeRunPlan).plan;
+    return applyHolidays(applySwaps(base, activePlanSwaps), activePlanStartedAt, activePlanMoves, activeHolidays);
+  }
   function getNextSession(plan, startedAtIso, cursorDay){
     const n = nextSession(followed(plan), startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
     if (!n) return null; // plan complete
@@ -360,6 +373,9 @@ const supabase = createSupabaseClient();
     activePlanSwaps = st.swaps;
     activePlanRuns = st.runs;
     activeHolidays = await loadHolidays(supabase, user.id);
+    activeRunPlan = st.runPlan;
+    if (activePlanId === RUN_PLAN_ID){ activePlanId = null; activePlanStartedAt = null; } // a run plan on its own lives on the Running page
+    renderRunPlanBanner();
     await loadDoneDays();
   }
 
@@ -481,6 +497,14 @@ const supabase = createSupabaseClient();
     } catch(_){}
     renderFollowingBanner(); refreshWeeks(plan.id);
   }
+  function renderRunPlanBanner(){
+    const el = document.getElementById('runPlanBanner');
+    const rp = activeRunPlan, g = rp && RUN_GOALS[rp.goal];
+    el.innerHTML = '<a class="run-plan-banner" href="running.html"><span class="rpb-tag">Running</span><span class="rpb-text">'
+      + (g ? '<b>'+escapeHtml(g.label)+' plan</b> · race '+new Date(rp.raceDate+'T12:00:00').toLocaleDateString('en-GB',{ day:'numeric', month:'short' })+' · runs on '+daysLabel(rp.days)+(activePlanId ? ', on this plan\'s rest days' : '')
+        : '<b>Training for a race?</b> Build a 5K, 10K, half or marathon plan, on its own or alongside a cycling plan.')
+      + '</span><span class="rpb-go">'+(g ? 'Open' : 'Build a run plan')+' →</span></a>';
+  }
   function renderFollowingBanner(){
     const el = document.getElementById('followingBanner');
     document.getElementById('phaseRoadmap').open = !activePlanId; // tucked away once you're following a plan
@@ -524,8 +548,8 @@ const supabase = createSupabaseClient();
       + '<div class="fb-top">'
       + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div>'
       + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div>'
-      + '<div class="fb-week">'+(activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Runs on '+activePlanRuns.days.map(i=>DAY_SHORT[i]).join(', ') : 'No runs added')+'</div></div>'
-      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="runDaysBtn">'+(activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Run days' : 'Add runs')+'</button><button class="ghost" id="unfollowBtn">Stop following</button></div>'
+      + '<div class="fb-week">'+(activeRunPlan ? 'Runs from your '+escapeHtml((RUN_GOALS[activeRunPlan.goal]||{}).label || 'run')+' plan on rest days' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Runs on '+activePlanRuns.days.map(i=>DAY_SHORT[i]).join(', ') : 'No runs added')+'</div></div>'
+      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="runDaysBtn">'+(activeRunPlan ? 'Run plan' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Run days' : 'Add runs')+'</button><button class="ghost" id="unfollowBtn">Stop following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -537,7 +561,7 @@ const supabase = createSupabaseClient();
       btn.textContent = 'Unfollowing…';
       await unfollowPlan();
     });
-    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); chooseRunDays(plan); });
+    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); if (activeRunPlan) location.href = 'running.html'; else chooseRunDays(plan); });
     const logRunBtn = document.getElementById('logRunBtn');
     if (logRunBtn) logRunBtn.addEventListener('click', async e=>{
       e.stopPropagation();

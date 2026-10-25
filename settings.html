@@ -117,6 +117,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="running.html">Running</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
@@ -277,7 +278,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=17';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=2';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){
