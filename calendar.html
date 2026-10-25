@@ -276,6 +276,7 @@ import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY 
 import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=1';
 import { openExportSheet } from './export.js?v=1';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -337,6 +338,7 @@ const supabase = createSupabaseClient();
   function rebuildPlan(){
     const base = follow.startedAt ? composeFollowed(planRaw, follow, follow.runPlan).plan : null;
     plan = base ? applyHolidays(applySwaps(base, follow.swaps), follow.startedAt, follow.moves, holidays) : null;
+    syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftp));
   }
 
   // Planned sessions by effective date, with whether each is done/missed and its planned TSS.

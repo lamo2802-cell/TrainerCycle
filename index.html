@@ -364,6 +364,8 @@ import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=1';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
 import { openExportSheet } from './export.js?v=1';
+import { openWelcome } from './welcome.js?v=1';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -477,6 +479,7 @@ const supabase = createSupabaseClient();
       return;
     }
     const ftpW = ftp || 200;
+    syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftpW));
     const workoutsByName = {};
     Object.values(workouts).forEach(w=>{ if (w.steps && !workoutsByName[w.name]) workoutsByName[w.name] = w; });
     const { levels, byRide } = computeLevels(rides.filter(r => r.sport !== 'run' && r.source !== 'strava'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
@@ -515,8 +518,13 @@ const supabase = createSupabaseClient();
       { done: stravaOn, optional:true, title:'Connect Strava', text:'Optional. Rides upload automatically once connected.',
         actions:'<a class="t-btn sm" href="settings.html">Settings</a>' },
     ];
+    const isNew = !(follow && follow.planId) && !rides.length;
+    if (isNew){
+      html += '<div class="t-panel setup-card welcome-card"><div><b>Set up your first week</b><p>Three quick questions pick a plan that fits your week, then your first workout is waiting here.</p></div>'
+        + '<div class="hero-actions" style="margin:0;"><button class="t-btn primary" data-welcome>Get started</button></div></div>';
+    }
     const coreLeft = steps.filter(x=>!x.optional && !x.done).length;
-    if (coreLeft && !gsDismissed){
+    if (coreLeft && !gsDismissed && !isNew){
       const doneCount = steps.filter(x=>x.done).length;
       const firstTodo = steps.findIndex(x=>!x.done);
       html += '<div class="t-panel gs-card"><div class="t-label"><span>Getting started · '+doneCount+' of '+steps.length+'</span><button class="link-btn" data-gs-hide>Hide</button></div>'
@@ -686,6 +694,15 @@ const supabase = createSupabaseClient();
     el.innerHTML = html;
     el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in');
     countUp(el);
+    const welcomeBtn = el.querySelector('[data-welcome]');
+    const runWelcome = async ()=>{ const r = await openWelcome({ supabase, user, ftp }); if (r) renderToday(user); };
+    if (welcomeBtn){
+      welcomeBtn.addEventListener('click', runWelcome);
+      // the first time a new rider lands here, open it for them
+      let shown = true;
+      try { shown = !!localStorage.getItem('tc_welcome_shown_' + user.id); localStorage.setItem('tc_welcome_shown_' + user.id, '1'); } catch(_){}
+      if (!shown) runWelcome();
+    }
     const gsHide = el.querySelector('[data-gs-hide]');
     if (gsHide) gsHide.addEventListener('click', async ()=>{
       gsHide.closest('.gs-card').remove();
