@@ -158,6 +158,7 @@
   .sess .sd b{ display:block; color:var(--text); font-family:var(--sans); }
   .sess .sn{ font-weight:600; font-size:14px; } .sess .sn small{ font-weight:500; color:var(--text-dim); margin-left:6px; font-family:var(--mono); font-size:12px; }
   .sess .sx{ font-size:12.5px; color:var(--text-dim); line-height:1.5; margin-top:3px; }
+  .link-btn{ background:none; border:none; color:var(--accent); font-size:12.5px; padding:0; margin:0; width:auto; cursor:pointer; font-family:inherit; font-weight:600; }
   .sess .ss{ font-size:12px; white-space:nowrap; padding-top:2px; }
   .sess .ss.done{ color:var(--accent); font-weight:600; } .sess .ss.miss{ color:#E5484D; }
   .sess .ss button{ padding:6px 12px; }
@@ -238,6 +239,7 @@ import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, pa
 import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
   paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=1';
 import { applySwaps } from './adapt.js?v=2';
+import { openExportSheet } from './export.js?v=1';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -340,7 +342,8 @@ const supabase = createSupabaseClient();
           : date <= addDays(today, 0) ? '<span class="ss"><button class="primary" data-log="'+s.dayIndex+'" data-date="'+date+'" data-workout="'+esc(id)+'">Log run</button></span>'
           : '<span class="ss muted">'+(date === addDays(today, 1) ? 'Tomorrow' : '')+'</span>';
         return '<div class="sess'+(rs.kind === 'race' ? ' race' : '')+'"><div class="sd"><b>'+DAY_NAMES[di]+'</b>'+parseIso(date).getDate()+' '+parseIso(date).toLocaleString('en-GB',{ month:'short' })+'</div>'
-          + '<div><div class="sn">'+esc(rs.name)+'<small>'+fmtMins(rs.mins)+' · '+rs.tss+' TSS</small></div><div class="sx">'+esc(rs.text)+(s && s.dayObj.holiday ? ' Easy version while you\'re on holiday.' : '')+'</div></div>'+status+'</div>';
+          + '<div><div class="sn">'+esc(rs.name)+'<small>'+fmtMins(rs.mins)+' · '+rs.tss+' TSS</small></div><div class="sx">'+esc(rs.text)+(s && s.dayObj.holiday ? ' Easy version while you\'re on holiday.' : '')
+          + (!done && date >= today ? ' <button class="link-btn" data-export="'+esc(id)+'">Send to watch</button>' : '')+'</div></div>'+status+'</div>';
       }).join('');
       const [pn, pc] = PHASE[w.phase];
       html += '<details class="wk"'+(started ? (i === cur ? ' open' : '') : (i === 0 ? ' open' : ''))+'><summary><span class="wn">Week '+(i+1)+'</span>'
@@ -351,6 +354,7 @@ const supabase = createSupabaseClient();
     el.innerHTML = html;
     el.querySelector('#editPlanBtn').onclick = () => openBuilder(Object.assign({}, cfg));
     el.querySelector('#stopPlanBtn').onclick = stopPlan;
+    el.querySelectorAll('[data-export]').forEach(b => b.onclick = () => { const rs = runSession(b.dataset.export); if (rs) openExportSheet({ kind:'run', session:rs, T:pace }); });
     el.querySelectorAll('[data-log]').forEach(b => b.onclick = async () => {
       const saved = await openRunLog(supabase, user.id, { session:{ dayIndex:Number(b.dataset.log), date:b.dataset.date, workoutId:b.dataset.workout }, planId: follow.planId });
       if (saved){ runs.unshift(saved); doneDays.set(Number(b.dataset.log), saved); renderAll(); }

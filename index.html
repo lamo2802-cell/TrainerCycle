@@ -363,6 +363,7 @@ import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL
 import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=1';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
+import { openExportSheet } from './export.js?v=1';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -590,7 +591,8 @@ const supabase = createSupabaseClient();
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
-          : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')+'</div></div>';
+          : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
+        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Send to device</button>' : '')+'</div></div>';
     }
     const awayNow = holidayOn(today, holidays);
     if (awayNow && !todoToday && !ridTodayList.length){
@@ -707,6 +709,12 @@ const supabase = createSupabaseClient();
       const session = di !== '' ? sessions.find(x => x.dayIndex === Number(di)) : null;
       const saved = await openRunLog(supabase, user.id, { session: session ? { dayIndex: session.dayIndex, date: session.date, workoutId: session.dayObj.workoutId } : null, planId: plan ? plan.id : null });
       if (saved) renderToday(user);
+    }));
+    el.querySelectorAll('[data-export]').forEach(b=> b.addEventListener('click', ()=>{
+      const s = sessions.find(x => x.dayIndex === Number(b.dataset.export));
+      if (!s) return;
+      if (s.isRun) openExportSheet({ kind:'run', session:s.run, T:runPace });
+      else openExportSheet({ kind:'bike', workout:Object.assign({}, workouts[s.dayObj.workoutId], { name:s.name, steps:s.steps }), ftp:ftpW });
     }));
     el.querySelectorAll('[data-undo-swap]').forEach(b=> b.addEventListener('click', async ()=>{
       b.disabled = true;
