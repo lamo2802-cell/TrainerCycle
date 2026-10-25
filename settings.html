@@ -185,6 +185,26 @@
     </div>
 
     <div class="panel">
+      <div class="panel-title">Swim CSS pace</div>
+      <div class="panel-desc">Critical swim speed: the pace per 100 m you could hold for about 30 minutes. It's the swimming version of FTP. It sets the paces in your swim sessions and turns swims into TSS.</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="cssDisplay">—</span>
+        <span class="ftp-unit">/100 m</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="cssInput" placeholder="e.g. 1:45" inputmode="numeric">
+        <button class="primary" id="cssSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="cssMsg"></div>
+      <div class="panel-desc" style="margin:10px 0 0;">Not sure? Swim a 400 m and a 200 m time trial (rest in between) and enter both times:</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="t400Input" placeholder="400 m, e.g. 7:20" inputmode="numeric">
+        <input type="text" id="t200Input" placeholder="200 m, e.g. 3:25" inputmode="numeric">
+        <button id="cssTestBtn">Work it out</button>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">Threshold heart rate</div>
       <div class="panel-desc">The heart rate you could hold for about an hour on the bike. Rides from Strava with heart rate but no power use it to work out TSS. Leave it empty and we'll estimate it, from rides with both power and heart rate first, or from the highest heart rate we've seen.</div>
       <div class="ftp-row">
@@ -290,14 +310,15 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=18';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=3';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=19';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=4';
+import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=1';
 import { ask } from './sheet.js?v=2';
-import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
+import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=2';
 import { loadFollowState } from './plan-schedule.js?v=3';
-import { composeFollowed, loadPlanRow } from './run-plans.js?v=1';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=2';
 import { applySwaps } from './adapt.js?v=2';
-import { loadHolidays, applyHolidays } from './holidays.js?v=1';
+import { loadHolidays, applyHolidays } from './holidays.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -376,6 +397,36 @@ const supabase = createSupabaseClient();
     savePace(v);
   });
 
+  // ---- Swim CSS (seconds per 100 m) ----
+  async function loadCss(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', SWIM_CSS_KEY).eq('user_id', user.id).maybeSingle();
+      const v = data && data.value && Number(data.value.v);
+      document.getElementById('cssDisplay').textContent = v ? fmtSwimPace(v) : '—';
+      if (v) document.getElementById('cssInput').value = fmtSwimPace(v);
+    } catch(e){}
+  }
+  async function saveCss(v){
+    const msg = document.getElementById('cssMsg');
+    document.getElementById('cssDisplay').textContent = fmtSwimPace(v);
+    document.getElementById('cssInput').value = fmtSwimPace(v);
+    try {
+      const { error } = await supabase.from('settings').upsert({ user_id:user.id, key:SWIM_CSS_KEY, value:{v}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      if (error) throw error;
+      msg.textContent = 'Saved.';
+    } catch(e){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+  }
+  document.getElementById('cssSaveBtn').addEventListener('click', ()=>{
+    const v = parseSwimPace(document.getElementById('cssInput').value);
+    if (!v){ document.getElementById('cssMsg').textContent = 'Enter a pace per 100 m like 1:45.'; return; }
+    saveCss(v);
+  });
+  document.getElementById('cssTestBtn').addEventListener('click', ()=>{
+    const v = cssFromTimeTrial(parseDuration(document.getElementById('t400Input').value), parseDuration(document.getElementById('t200Input').value));
+    if (!v){ document.getElementById('cssMsg').textContent = 'Enter both times as minutes and seconds, like 7:20 and 3:25. The 400 m should be the slower one.'; return; }
+    saveCss(v);
+  });
+
   async function loadLthr(){
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','threshold_hr').eq('user_id', user.id).maybeSingle();
@@ -391,7 +442,7 @@ const supabase = createSupabaseClient();
     try {
       const { data } = await supabase.from('completed_rides').select('avg_hr,max_hr,np,intensity_factor,duration_sec,sport')
         .eq('user_id', user.id).gte('started_at', new Date(Date.now() - 365*86400000).toISOString());
-      const rows = (data || []).filter(r => r.sport !== 'run');
+      const rows = (data || []).filter(r => (r.sport || 'ride') === 'ride');
       const est = rows.filter(r => r.avg_hr && r.np && r.intensity_factor >= 0.75 && r.intensity_factor <= 1.05 && r.duration_sec >= 1200)
         .map(r => 60 + (r.avg_hr - 60) / r.intensity_factor).sort((a,b)=>a-b);
       let v = null, how = '';
@@ -557,6 +608,7 @@ const supabase = createSupabaseClient();
   await loadFtp();
   await loadWeight();
   loadPace();
+  loadCss();
 
   // ---- Power display smoothing ----
   (async ()=>{

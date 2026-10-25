@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TrainerCycle — Plan builder</title>
+<script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app-nav.css?v=5">
+<script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
+<meta name="theme-color" content="#10141A">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<style>
+  :root{
+    --bg: #10141A; --panel: #171D25; --panel-2: #1D242D; --line: #2A323D;
+    --text: #E7ECF2; --text-dim: #8C97A6; --accent: #45D6C4; --danger: #E5484D;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+
+  .page-banner{
+    height:260px; border-radius:10px; margin-bottom:20px; background-size:cover; background-position:center 40%;
+    position:relative; overflow:hidden;
+  }
+  @media (max-width:600px){ .page-banner{ height:180px; } }
+  .page-banner::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,13,17,0) 0%, rgba(10,13,17,0) 65%, var(--bg) 100%);
+  }
+
+  :root{ --topbar-h: calc(80px + env(safe-area-inset-top, 0px)); }
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; }
+  .app{ position:relative; min-height:100vh; }
+  .sidebar{
+    position:fixed; top:var(--topbar-h); left:0; bottom:0; width:340px; max-width:85vw;
+    background:var(--panel); border-right:1px solid var(--line);
+    padding:20px; overflow-y:auto; z-index:60;
+    transform:translateX(-100%); transition:transform .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar{ transform:translateX(0); }
+  .sidebar-backdrop{
+    position:fixed; top:var(--topbar-h); left:0; right:0; bottom:0; background:rgba(0,0,0,.5);
+    z-index:55; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-backdrop{ opacity:1; pointer-events:auto; }
+  .main{ padding:calc(96px + env(safe-area-inset-top, 0px)) 28px 60px; max-width:820px; margin:0 auto; }
+  .top-bar{
+    position:fixed; top:0; left:0; right:0; height:var(--topbar-h); z-index:50;
+    display:flex; align-items:center; padding:0 14px; padding-top:env(safe-area-inset-top, 0px);
+    background:var(--bg); border-bottom:1px solid var(--line);
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px;
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ border-color:var(--accent); }
+  html.standalone #fullscreenToggle{ display:none; }
+  .top-bar-logo-link{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; }
+  .top-logo{ height:60px; width:auto; border-radius:8px; display:block; }
+  .top-bar-spacer{ flex:1; }
+
+  .sub{ color:var(--text-dim); font-size:12.5px; margin:2px 0 20px; }
+  .block{ margin-bottom:24px; }
+  .block-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; }
+  .page-nav{ display:flex; flex-direction:column; gap:2px; }
+  .page-nav a{ padding:10px 10px; border-radius:6px; color:var(--text-dim); text-decoration:none; font-size:16px; }
+  .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
+  .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
+
+  .main{ max-width:1080px; }
+  h1{ font-size:22px; margin:0 0 6px; }
+  .page-sub{ color:var(--text-dim); font-size:13.5px; margin:0 0 22px; line-height:1.5; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; margin-bottom:16px; }
+  .panel-title{ font-size:15px; font-weight:600; margin-bottom:4px; }
+  .panel-desc{ color:var(--text-dim); font-size:12.5px; margin-bottom:16px; line-height:1.5; }
+  input[type=number], input[type=text]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font:inherit; font-size:14px; width:100%; }
+  select, input[type=date]{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font:inherit; font-size:14px; width:100%; color-scheme:dark; }
+  button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 14px; font-size:13.5px; cursor:pointer; font-family:inherit; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
+  button.danger{ color:#FF8A8D; }
+  button:disabled{ opacity:.5; cursor:default; }
+  .err{ color:#FF8A8D; font-size:12.5px; min-height:16px; margin-top:8px; }
+  .field{ margin-bottom:14px; }
+  .field > label, .field-label{ display:block; font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:7px; }
+  .field-hint{ font-size:12px; color:var(--text-dim); margin-top:6px; line-height:1.45; }
+  .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+  @media (max-width:600px){ .two-col{ grid-template-columns:1fr; } }
+  .seg{ display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button{ flex:1 1 0; min-width:72px; padding:9px 8px; border-radius:8px; font-weight:600; }
+  .seg button.on{ border-color:var(--accent); background:rgba(69,214,196,.12); }
+  .days7{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .days7 button{ padding:10px 0; border-radius:8px; font-weight:600; }
+  .days7 button.on{ border-color:var(--accent); background:rgba(69,214,196,.12); }
+  .opt-list{ display:grid; gap:6px; }
+  .opt{ text-align:left; padding:10px 12px; border-radius:9px; width:100%; }
+  .opt b{ display:block; font-size:13.5px; } .opt span{ font-size:12px; color:var(--text-dim); }
+  .opt.on{ border-color:var(--accent); background:rgba(69,214,196,.08); }
+
+  /* start choices */
+  .starts{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; }
+  @media (max-width:760px){ .starts{ grid-template-columns:1fr; } }
+  .start{ text-align:left; padding:16px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); cursor:pointer; color:var(--text); font:inherit; }
+  .start:hover{ border-color:var(--accent); }
+  .start .st-ic{ display:flex; gap:6px; margin-bottom:10px; }
+  .start .st-ic i{ width:10px; height:10px; border-radius:50%; display:block; }
+  .start b{ display:block; font-size:15px; margin-bottom:4px; }
+  .start span{ font-size:12.5px; color:var(--text-dim); line-height:1.45; }
+  .mine{ margin-top:18px; }
+  .mine a{ display:flex; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--line); color:var(--text); text-decoration:none; font-size:13.5px; }
+  .mine a:hover b{ color:var(--accent); }
+  .mine a span{ color:var(--text-dim); font-size:12.5px; }
+
+  /* editor */
+  .ed-head{ display:grid; grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:14px; }
+  @media (max-width:760px){ .ed-head{ grid-template-columns:1fr; } }
+  .legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--text-dim); margin:4px 0 14px; }
+  .legend i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:-1px; }
+  .wk{ border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; background:var(--panel); }
+  .wk-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .wk-top .wn{ font-weight:700; font-size:14px; }
+  .wk-top .wm{ font-family:var(--mono); font-size:12px; color:var(--text-dim); flex:1; }
+  .wk-top .ph{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 8px; border-radius:20px; background:var(--panel-2); color:var(--text-dim); }
+  .wk-top .ph.deload{ background:rgba(69,214,196,.15); color:var(--accent); }
+  .wk-acts{ display:flex; gap:6px; flex-wrap:wrap; }
+  .wk-acts button{ padding:5px 10px; font-size:12px; }
+  .wk-note{ font-size:12.5px; color:var(--text-dim); margin:-2px 0 10px; line-height:1.45; }
+  .cells{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .cell{ text-align:left; min-height:78px; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); font:inherit; cursor:pointer; display:flex; flex-direction:column; gap:3px; position:relative; overflow:hidden; }
+  .cell:hover{ border-color:var(--accent); }
+  .cell .dn{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  .cell .cn{ font-size:12.5px; font-weight:600; line-height:1.3; }
+  .cell .cm{ font-size:11px; color:var(--text-dim); font-family:var(--mono); margin-top:auto; }
+  .cell.rest{ background:transparent; border-style:dashed; }
+  .cell.rest .cn{ color:var(--text-dim); font-weight:500; }
+  .cell::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--sc, transparent); }
+  @media (max-width:760px){
+    .cells{ grid-template-columns:1fr; gap:4px; }
+    .cell{ min-height:0; flex-direction:row; align-items:center; gap:10px; padding:9px 10px 9px 12px; }
+    .cell .dn{ width:34px; flex-shrink:0; }
+    .cell .cn{ flex:1; }
+    .cell .cm{ margin:0; }
+  }
+  .ed-foot{ position:sticky; bottom:0; background:linear-gradient(180deg, rgba(16,20,26,0), var(--bg) 30%); padding:18px 0 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; z-index:5; }
+  html.has-appnav .ed-foot{ bottom:calc(64px + env(safe-area-inset-bottom, 0px)); }
+  @media (min-width:760px){ html.has-appnav .ed-foot{ bottom:0; } }
+  .ed-more{ display:flex; gap:8px; justify-content:flex-end; margin:4px 0 0; }
+  .ed-foot .msg{ font-size:12.5px; color:var(--text-dim); }
+  .add-week{ width:100%; padding:12px; border-style:dashed; color:var(--text-dim); margin-bottom:8px; }
+  /* day sheet */
+  .ds{ display:grid; gap:12px; }
+  .ds label{ display:block; font-size:12px; color:#8B96A5; margin-bottom:5px; text-transform:uppercase; letter-spacing:.05em; }
+  .ds select, .ds input{ width:100%; box-sizing:border-box; padding:10px 12px; border-radius:9px; border:1px solid #2A323D; background:#11161D; color:#E7ECF2; font:inherit; font-size:14.5px; margin:0; color-scheme:dark; }
+  .ds .seg button{ min-width:0; padding:8px 4px; font-size:12.5px; }
+  .ds .seg button:not(.on){ border-color:var(--line); }
+  .ds .prev{ font-size:12.5px; color:#B4BDC9; line-height:1.5; background:#11161D; border:1px solid #2A323D; border-radius:9px; padding:10px 12px; min-height:20px; }
+  .ds .prev b{ color:#E7ECF2; }
+  .ds .chk{ display:flex; gap:8px; align-items:center; font-size:13.5px; color:#B4BDC9; text-transform:none; letter-spacing:0; margin:0; }
+  .ds .chk input{ width:auto; }
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
+  <div class="top-bar-spacer"></div>
+  <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
+
+<div class="app sidebar-collapsed">
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="sidebar">
+    <p class="sub" style="margin-top:0;">Plan builder</p>
+    <div class="block">
+      <div class="block-title">Navigate</div>
+      <nav class="page-nav">
+        <a href="index.html">Today</a>
+        <a href="plans.html">Training Plans</a>
+        <a href="plan-builder.html" class="active">Plan builder</a>
+        <a href="trainerrun.html">TrainerRun</a>
+        <a href="calendar.html">Calendar</a>
+        <a href="builder.html">Workouts</a>
+        <a href="live.html">Live Ride</a>
+        <a href="trainerstrength.html">TrainerStrength</a>
+        <a href="rides.html">Rides</a>
+        <a href="settings.html">Settings</a>
+        <a href="help.html">How to Use</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1>Plan builder</h1>
+    <p class="page-sub">Build your own plan, week by week, from rides, runs, swims, bricks and strength. Start from scratch, from a triathlon or duathlon plan made for your race, or from one of the plans you already know.</p>
+    <div id="root"><div class="sk-stack" aria-label="Loading"><div class="sk sk-card"></div></div></div>
+  </div>
+</div>
+
+<script type="module">
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
+import { showSheet, notify, ask } from './sheet.js?v=2';
+import { parseIso, addDays, todayIso, mondayOnOrAfter, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
+import { setRunPace, RUN_PACE_KEY, runSession } from './run.js?v=4';
+import { setSwimCss, SWIM_CSS_KEY } from './swim.js?v=1';
+import { DAY_NAMES, RUN_TYPES, SWIM_TYPES, makeRun, makeSwim, runTypeOf, runMinsOf, swimTypeOf, swimMetresOf, assignSessionIds, registerPlanSessions,
+  sessionInfo, durationOf, MULTI_RACES, MULTI_LEVELS, buildMultiPlan, multiPlanDates, blankPlan, weekLoad, SPORT_COLOR } from './plan-kit.js?v=1';
+const supabase = createSupabaseClient();
+
+(async function(){
+  const user = await requireAuth(supabase);
+  renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
+  await requireSubscription(supabase, user);
+
+  const root = document.getElementById('root');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtH = secs => { const m = Math.round(secs/60); return m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '') : m+' min'; };
+  const CAT_LABEL = { recovery:'Recovery', endurance:'Endurance', tempo:'Tempo', sweet_spot:'Sweet spot', threshold:'Threshold', over_under:'Over/under', vo2max:'VO2 max', anaerobic:'Anaerobic', test:'FTP test' };
+  const SPORTS = [
+    { id:'rest', label:'Rest' }, { id:'cycling', label:'Ride' }, { id:'run', label:'Run' }, { id:'swim', label:'Swim' },
+    { id:'brick', label:'Brick' }, { id:'strength', label:'Strength' },
+  ];
+  const COLOR = { cycling:'#4C8BF5', run:SPORT_COLOR.run, swim:SPORT_COLOR.swim, brick:SPORT_COLOR.brick, strength:'#8C97A6', race:SPORT_COLOR.race };
+
+  // ---- data ----
+  const [wRes, sRes, pRes, setRes] = await Promise.all([
+    supabase.from('workouts').select('id,name,category,steps,duration_sec,user_id'),
+    supabase.from('strength_workouts').select('id,name'),
+    supabase.from('training_plans').select('id,name,description,focus,weeks,user_id,source,created_at').order('created_at', { ascending:true }),
+    supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['ftp', RUN_PACE_KEY, SWIM_CSS_KEY, 'active_plan_id']),
+  ]);
+  const library = (wRes.data || []).filter(w => w.steps);
+  const workouts = {};
+  library.forEach(w => { workouts[w.id] = w; });
+  const strength = sRes.data || [];
+  strength.forEach(w => { workouts[w.id] = { name:w.name, category:'strength' }; });
+  const plans = pRes.data || [];
+  const set = {}; (setRes.data || []).forEach(r => { set[r.key] = r.value && r.value.v; });
+  const ftp = Number(set.ftp) || 200;
+  setRunPace(set[RUN_PACE_KEY]); setSwimCss(set[SWIM_CSS_KEY]);
+  const activePlanId = set.active_plan_id || null;
+
+  let plan = null;      // the plan being edited: { id?, name, description, focus, start?, raceDate?, weeks }
+  let dirty = false;
+
+  // ---- start screen ----
+  function renderStart(){
+    plan = null;
+    const mine = plans.filter(p => p.user_id === user.id);
+    root.innerHTML = '<div class="panel"><div class="panel-title">Start a plan</div><div class="panel-desc">Whatever you pick, you can change any day of any week before you save it.</div>'
+      + '<div class="starts">'
+      + '<button class="start" data-start="multi"><div class="st-ic"><i style="background:'+COLOR.swim+'"></i><i style="background:'+COLOR.cycling+'"></i><i style="background:'+COLOR.run+'"></i></div><b>Triathlon or duathlon</b><span>Sprint, Olympic or 70.3 triathlon, or a sprint or standard duathlon. Built around your race date and training days, with bricks and a taper.</span></button>'
+      + '<button class="start" data-start="blank"><div class="st-ic"><i style="background:'+COLOR.cycling+'"></i><i style="background:'+COLOR.run+'"></i></div><b>Start from scratch</b><span>Pick how many weeks, then fill the days with whatever you like: just rides, just runs, or any mix.</span></button>'
+      + '<button class="start" data-start="copy"><div class="st-ic"><i style="background:'+COLOR.cycling+'"></i><i style="background:'+COLOR.strength+'"></i></div><b>Copy a plan</b><span>Start from one of the TrainerCycle plans and make it yours, for example by adding runs or swims.</span></button>'
+      + '</div>'
+      + (mine.length ? '<div class="mine"><div class="field-label">Your plans</div>'+mine.map(p => '<a href="plan-builder.html?id='+encodeURIComponent(p.id)+'"><b>'+esc(p.name)+'</b><span>'+(p.weeks||[]).length+' weeks'+(p.id === activePlanId ? ' · following' : '')+' · Edit →</span></a>').join('')+'</div>' : '')
+      + '</div>';
+    root.querySelector('[data-start="multi"]').onclick = openMultiSheet;
+    root.querySelector('[data-start="blank"]').onclick = openBlankSheet;
+    root.querySelector('[data-start="copy"]').onclick = openCopySheet;
+  }
+
+  async function openBlankSheet(){
+    const box = document.createElement('div');
+    box.className = 'ds';
+    box.innerHTML = '<div><label for="bName">Name</label><input id="bName" placeholder="e.g. Winter base"></div>'
+      + '<div><label for="bWeeks">Weeks</label><input id="bWeeks" type="number" min="1" max="24" value="6"></div>';
+    const v = await showSheet({ title:'New plan', content:box, buttons:[{ label:'Start building', value:'go', kind:'primary' }, { label:'Cancel', value:null }] });
+    if (v !== 'go') return;
+    const n = Math.max(1, Math.min(24, parseInt(box.querySelector('#bWeeks').value, 10) || 6));
+    plan = blankPlan(n);
+    plan.name = box.querySelector('#bName').value.trim() || 'My plan';
+    startEditing();
+  }
+
+  async function openCopySheet(){
+    const box = document.createElement('div');
+    box.className = 'ds';
+    const shared = plans.filter(p => !p.user_id), mine = plans.filter(p => p.user_id === user.id);
+    box.innerHTML = '<div><label for="cPlan">Plan</label><select id="cPlan">'
+      + (shared.length ? '<optgroup label="TrainerCycle plans">'+shared.map(p => '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</optgroup>' : '')
+      + (mine.length ? '<optgroup label="Your plans">'+mine.map(p => '<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'</optgroup>' : '')
+      + '</select></div>';
+    const v = await showSheet({ title:'Copy a plan', content:box, buttons:[{ label:'Copy it', value:'go', kind:'primary' }, { label:'Cancel', value:null }] });
+    if (v !== 'go') return;
+    const src = plans.find(p => p.id === box.querySelector('#cPlan').value);
+    if (!src) return;
+    plan = { name: src.name+' (my version)', description: src.description || '', focus: src.focus || 'custom', weeks: JSON.parse(JSON.stringify(src.weeks || [])) };
+    plan.weeks.forEach(w => { w.days = DAY_NAMES.map((d, i) => (w.days || [])[i] || { day:d, type:'rest' }); });
+    assignSessionIds(plan, 'draft'); registerPlanSessions(plan);
+    startEditing();
+  }
+
+  async function openMultiSheet(){
+    const box = document.createElement('div');
+    box.className = 'ds';
+    const defDate = addDays(mondayOnOrAfter(new Date()), 12*7 + 6);
+    let race = 'tri-olympic', level = 'regular', days = new Set([0,1,2,3,5,6]), openWater = false;
+    box.innerHTML = '<div><label>Race</label><div class="opt-list" id="mRace">'+MULTI_RACES.map(r => '<button type="button" class="opt" data-r="'+r.id+'"><b>'+r.label+'</b><span>'+r.legs+' · '+r.weeks+' week plan</span></button>').join('')+'</div></div>'
+      + '<div><label for="mDate">Race date</label><input type="date" id="mDate" min="'+addDays(todayIso(), 21)+'" value="'+defDate+'"><div class="field-hint" id="mDateHint"></div></div>'
+      + '<div><label>Days you can train</label><div class="days7" id="mDays">'+DAY_NAMES.map((d,i) => '<button type="button" data-d="'+i+'">'+d+'</button>').join('')+'</div>'
+      + '<div class="field-hint" id="mDaysHint"></div></div>'
+      + '<div><label>Experience</label><div class="seg" id="mLevel">'+MULTI_LEVELS.map(l => '<button type="button" data-l="'+l.id+'" title="'+esc(l.text)+'">'+l.label+'</button>').join('')+'</div></div>'
+      + '<label class="chk"><input type="checkbox" id="mOw"> I can swim in open water before the race</label>'
+      + '<div class="err" id="mErr"></div>';
+    const paint = () => {
+      box.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('on', b.dataset.r === race));
+      box.querySelectorAll('[data-d]').forEach(b => b.classList.toggle('on', days.has(Number(b.dataset.d))));
+      box.querySelectorAll('[data-l]').forEach(b => b.classList.toggle('on', b.dataset.l === level));
+      const tri = race.startsWith('tri');
+      box.querySelector('#mOw').closest('.chk').style.display = tri ? '' : 'none';
+      const R = MULTI_RACES.find(r => r.id === race), dv = box.querySelector('#mDate').value;
+      const wk = dv ? multiPlanDates(dv).weeks : 0;
+      box.querySelector('#mDateHint').textContent = !dv || wk < 4 ? '' : wk < R.weeks ? 'That\'s '+wk+' weeks away, less than the usual '+R.weeks+', so the plan is shorter than ideal.'
+        : 'The plan starts '+(wk > R.weeks + 4 ? 'about '+(R.weeks + 4)+' weeks before the race.' : 'next Monday and runs '+wk+' weeks.');
+      box.querySelector('#mDaysHint').textContent = days.size < 4 ? 'Pick at least 4 days.' : (tri ? (days.size >= 7 ? '3 swims, 2 rides and 2 runs a week, one ride a brick.' : days.size === 6 ? '2 swims, 2 rides and 2 runs a week, one ride a brick.' : days.size === 5 ? '2 swims, 2 rides and a long run each week.' : 'A swim, 2 rides and a long run each week.')
+        : 'Rides and runs on '+days.size+' days, with a brick most weekends.') + ' The long ride goes on Saturday if you train then.';
+    };
+    box.querySelector('#mDate').addEventListener('change', () => paint());
+    box.addEventListener('click', e => {
+      const r = e.target.closest('[data-r]'), d = e.target.closest('[data-d]'), l = e.target.closest('[data-l]');
+      if (r) race = r.dataset.r;
+      if (d){ const n = Number(d.dataset.d); if (days.has(n)) days.delete(n); else days.add(n); }
+      if (l) level = l.dataset.l;
+      paint();
+    });
+    paint();
+    const v = await showSheet({ title:'Triathlon and duathlon plans', content:box, buttons:[{ label:'Build my plan', value:'go', kind:'primary' }, { label:'Cancel', value:null }],
+      onAction: v => {
+        if (v !== 'go') return true;
+        const err = box.querySelector('#mErr'), date = box.querySelector('#mDate').value;
+        if (days.size < 4){ err.textContent = 'Pick at least 4 training days.'; return false; }
+        if (!date || date < addDays(todayIso(), 21)){ err.textContent = 'Pick a race date at least three weeks away.'; return false; }
+        const { weeks } = multiPlanDates(date);
+        if (weeks < 4){ err.textContent = 'That race is too soon for a plan. Pick a date at least four weeks away.'; return false; }
+        openWater = box.querySelector('#mOw').checked;
+        const p = buildMultiPlan({ race, raceDate: date, days:[...days], level, openWater }, library);
+        if (!p){ err.textContent = 'Couldn\'t build a plan for that. Try another date or more days.'; return false; }
+        plan = p;
+        return true;
+      } });
+    if (v !== 'go' || !plan) return;
+    assignSessionIds(plan, 'draft'); registerPlanSessions(plan);
+    startEditing();
+  }
+
+  // ---- editor ----
+  function startEditing(){ dirty = !plan.id; renderEditor(); window.scrollTo({ top:0 }); }
+  function cellHtml(d, wi, di){
+    const s = sessionInfo(d, workouts, ftp);
+    if (!s) return '<button class="cell rest" data-cell="'+wi+':'+di+'"><span class="dn">'+DAY_NAMES[di]+'</span><span class="cn">Rest</span></button>';
+    const color = COLOR[d.workoutType || 'cycling'] || COLOR.cycling;
+    const meta = [s.durationSec ? fmtH(s.durationSec) : '', s.kind === 'swim' && s.metres ? s.metres+' m' : '', s.tss ? s.tss+' TSS' : ''].filter(Boolean).join(' · ');
+    return '<button class="cell" style="--sc:'+color+'" data-cell="'+wi+':'+di+'"><span class="dn">'+DAY_NAMES[di]+'</span><span class="cn">'+esc(s.name)+'</span><span class="cm">'+(meta || (s.kind === 'strength' ? 'Strength' : ''))+'</span></button>';
+  }
+  function weekHtml(w, wi){
+    const l = weekLoad(w, workouts, ftp);
+    const ph = w.phase && w.phase !== 'race' ? w.phase : w.phase === 'race' ? 'race week' : '';
+    return '<div class="wk" data-week="'+wi+'"><div class="wk-top"><span class="wn">Week '+(wi+1)+'</span>'
+      + (w.deload ? '<span class="ph deload">Deload</span>' : ph ? '<span class="ph">'+esc(ph)+'</span>' : '')
+      + '<span class="wm">'+(l.secs ? fmtH(l.secs)+' · '+l.tss+' TSS' : 'All rest')+'</span>'
+      + '<div class="wk-acts"><button data-wact="deload">'+(w.deload ? 'Not a deload' : 'Deload')+'</button><button data-wact="copy" title="Copy this week into the next one">Copy to next</button><button data-wact="dup">Duplicate</button><button data-wact="del" class="danger" aria-label="Delete week '+(wi+1)+'">Delete</button></div></div>'
+      + (w.note ? '<div class="wk-note">'+esc(w.note)+'</div>' : '')
+      + '<div class="cells">'+w.days.map((d, di) => cellHtml(d, wi, di)).join('')+'</div></div>';
+  }
+  function renderEditor(){
+    renumber();
+    const own = plan.id && plans.some(p => p.id === plan.id && p.user_id === user.id);
+    const rs = raceStart(), rd = raceDay();
+    const startTxt = rs ? 'Starts '+parseIso(rs).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+      +' · race '+parseIso(rd.date).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' }) : '';
+    root.innerHTML = '<div class="panel"><div class="ed-head">'
+      + '<div class="field"><label for="pName">Plan name</label><input type="text" id="pName" maxlength="80" value="'+esc(plan.name)+'"></div>'
+      + '<div class="field"><label for="pDesc">Description</label><input type="text" id="pDesc" maxlength="240" value="'+esc(plan.description || '')+'" placeholder="What it\'s for, in a line"></div></div>'
+      + '<div class="legend">'+[['cycling','Ride'],['run','Run'],['swim','Swim'],['brick','Brick'],['strength','Strength'],['race','Race']].map(([k,l]) => '<span><i style="background:'+COLOR[k]+'"></i>'+l+'</span>').join('')
+      + (startTxt ? '<span>'+esc(startTxt)+'</span>' : '')+'</div>'
+      + '<div class="panel-desc" style="margin:0">Tap any day to change it. Runs and swims get paces from your threshold pace and CSS in Settings.</div></div>'
+      + '<div id="weeks">'+plan.weeks.map(weekHtml).join('')+'</div>'
+      + '<button class="add-week" id="addWeek">+ Add a week</button>'
+      + '<div class="ed-more">'+(own ? '<button class="danger" id="delPlan">Delete plan</button>' : '')+'<button id="cancelEd">'+(own ? 'Back to start' : 'Cancel')+'</button></div>'
+      + '<div class="ed-foot"><button class="primary" id="saveFollow">Save and follow</button><button id="saveOnly">Save</button>'
+      + '<span class="msg" id="edMsg"></span></div>';
+    root.querySelector('#pName').oninput = e => { plan.name = e.target.value; dirty = true; };
+    root.querySelector('#pDesc').oninput = e => { plan.description = e.target.value; dirty = true; };
+    root.querySelector('#addWeek').onclick = () => {
+      if (plan.weeks.length >= 24){ notify('Plans can be up to 24 weeks.'); return; }
+      plan.weeks.push({ week: plan.weeks.length+1, deload:false, days: DAY_NAMES.map(d => ({ day:d, type:'rest' })) });
+      changed();
+    };
+    root.querySelector('#saveOnly').onclick = () => save(false);
+    root.querySelector('#saveFollow').onclick = () => save(true);
+    root.querySelector('#cancelEd').onclick = async () => {
+      if (dirty && !(await ask('Your changes to this plan haven\'t been saved.', { title:'Leave without saving?', ok:'Leave', danger:true }))) return;
+      history.replaceState({}, '', location.pathname); renderStart();
+    };
+    const del = root.querySelector('#delPlan');
+    if (del) del.onclick = deletePlan;
+  }
+  // A race plan starts on the Monday that puts race day on the race's date.
+  function raceDay(){
+    for (let wi = 0; wi < plan.weeks.length; wi++) for (let di = 0; di < 7; di++){
+      const d = plan.weeks[wi].days[di];
+      if (d && d.workoutType === 'race' && d.race && d.race.date) return { date: d.race.date, dayIndex: wi*7 + di };
+    }
+    return null;
+  }
+  function raceStart(){ const r = raceDay(); return r ? addDays(r.date, -r.dayIndex) : null; }
+  function renumber(){ plan.weeks.forEach((w, i) => { w.week = i+1; }); }
+  function changed(){
+    dirty = true;
+    assignSessionIds(plan, plan.id || 'draft'); registerPlanSessions(plan);
+    const y = window.scrollY; renderEditor(); window.scrollTo({ top:y });
+  }
+  root.addEventListener('click', e => {
+    if (!plan) return;
+    const cell = e.target.closest('[data-cell]');
+    if (cell){ const [wi, di] = cell.dataset.cell.split(':').map(Number); openDaySheet(wi, di); return; }
+    const act = e.target.closest('[data-wact]');
+    if (!act) return;
+    const wi = Number(act.closest('[data-week]').dataset.week), w = plan.weeks[wi];
+    const copy = () => JSON.parse(JSON.stringify(w));
+    if (act.dataset.wact === 'deload') w.deload = !w.deload;
+    else if (act.dataset.wact === 'copy'){
+      if (wi === plan.weeks.length - 1){ if (plan.weeks.length >= 24) return; plan.weeks.push(Object.assign(copy(), { note:null })); }
+      else plan.weeks[wi+1] = Object.assign(copy(), { note: plan.weeks[wi+1].note || null, phase: plan.weeks[wi+1].phase });
+    } else if (act.dataset.wact === 'dup'){ if (plan.weeks.length >= 24) return; plan.weeks.splice(wi+1, 0, copy()); }
+    else if (act.dataset.wact === 'del'){ if (plan.weeks.length <= 1){ notify('A plan needs at least one week.'); return; } plan.weeks.splice(wi, 1); }
+    changed();
+  });
+
+  // ---- one day ----
+  function rideOptions(sel){
+    const byCat = {};
+    library.forEach(w => { (byCat[w.category] = byCat[w.category] || []).push(w); });
+    return Object.keys(CAT_LABEL).filter(c => byCat[c]).map(c => '<optgroup label="'+CAT_LABEL[c]+'">'
+      + byCat[c].sort((a,b) => durationOf(a) - durationOf(b)).map(w => '<option value="'+esc(w.id)+'"'+(w.id === sel ? ' selected' : '')+'>'+esc(w.name)+' · '+Math.round(durationOf(w)/60)+' min'+(w.user_id ? ' (yours)' : '')+'</option>').join('')+'</optgroup>').join('')
+      + (byCat.undefined || byCat.null ? '' : '');
+  }
+  async function openDaySheet(wi, di){
+    const d = plan.weeks[wi].days[di];
+    let sport = d.type !== 'workout' ? 'rest' : (d.workoutType || 'cycling');
+    const race = sport === 'race' ? d : null;
+    const box = document.createElement('div');
+    box.className = 'ds';
+    const runSpec = sport === 'run' || sport === 'brick' ? d.session : null;
+    const swimSpec = sport === 'swim' ? d.session : null;
+    const firstRide = (library.find(w => w.id === 'prebuilt-endurance-60') || library[0] || {}).id;
+    box.innerHTML = (race ? '<div class="prev"><b>'+esc(race.race.name)+'</b><br>Race day stays in the plan unless you choose something else here.</div>' : '')
+      + '<div class="seg" id="dSport">'+SPORTS.map(s => '<button type="button" data-s="'+s.id+'">'+s.label+'</button>').join('')+'</div>'
+      + '<div data-for="cycling brick"><label for="dRide">Ride</label><select id="dRide">'+rideOptions(sport === 'cycling' || sport === 'brick' ? d.workoutId : firstRide)+'</select></div>'
+      + '<div data-for="run" class="two-col"><div><label for="dRunType">Run</label><select id="dRunType">'+RUN_TYPES.filter(t => t.id !== 'brick').map(t => '<option value="'+t.id+'"'+(runSpec && sport === 'run' && runTypeOf(runSpec) === t.id ? ' selected' : '')+'>'+t.label+'</option>').join('')+'</select></div>'
+        + '<div><label for="dRunMins">Minutes</label><input id="dRunMins" type="number" min="10" max="240" step="5" value="'+(runSpec && sport === 'run' ? runMinsOf(runSpec) : 40)+'"></div></div>'
+      + '<div data-for="brick"><label for="dBrickMins">Then run (minutes)</label><input id="dBrickMins" type="number" min="5" max="90" step="5" value="'+(runSpec && sport === 'brick' ? runMinsOf(runSpec) : 15)+'"></div>'
+      + '<div data-for="swim" class="two-col"><div><label for="dSwimType">Swim</label><select id="dSwimType">'+SWIM_TYPES.map(t => '<option value="'+t.id+'"'+(swimSpec && swimTypeOf(swimSpec) === t.id ? ' selected' : '')+'>'+t.label+'</option>').join('')+'</select></div>'
+        + '<div><label for="dSwimM">Metres</label><input id="dSwimM" type="number" min="400" max="6000" step="100" value="'+(swimSpec ? swimMetresOf(swimSpec) : 1500)+'"></div></div>'
+      + '<div data-for="strength"><label for="dStr">Session</label><select id="dStr">'+strength.map(w => '<option value="'+esc(w.id)+'"'+(sport === 'strength' && d.workoutId === w.id ? ' selected' : '')+'>'+esc(w.name)+'</option>').join('')+'</select></div>'
+      + '<div class="prev" id="dPrev"></div>'
+      + '<label class="chk"><input type="checkbox" id="dAll"> Same on '+DAY_NAMES[di]+' in every week</label>';
+    const q = id => box.querySelector('#'+id);
+    function current(){
+      if (sport === 'rest') return { day: DAY_NAMES[di], type:'rest' };
+      if (sport === 'race' && race) return race;
+      if (sport === 'cycling') return { day: DAY_NAMES[di], type:'workout', workoutType:'cycling', workoutId: q('dRide').value };
+      if (sport === 'strength') return strength.length ? { day: DAY_NAMES[di], type:'workout', workoutType:'strength', workoutId: q('dStr').value } : { day: DAY_NAMES[di], type:'rest' };
+      if (sport === 'run') return { day: DAY_NAMES[di], type:'workout', workoutType:'run', workoutId:'preview-run', session: makeRun(q('dRunType').value, Number(q('dRunMins').value) || 40) };
+      if (sport === 'swim') return { day: DAY_NAMES[di], type:'workout', workoutType:'swim', workoutId:'preview-swim', session: makeSwim(q('dSwimType').value, Number(q('dSwimM').value) || 1500) };
+      return { day: DAY_NAMES[di], type:'workout', workoutType:'brick', workoutId: q('dRide').value, runId:'preview-brick', session: makeRun('brick', Number(q('dBrickMins').value) || 15) };
+    }
+    function paint(){
+      box.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === sport));
+      box.querySelectorAll('[data-for]').forEach(el => { el.style.display = el.dataset.for.split(' ').includes(sport) ? '' : 'none'; });
+      const c = current();
+      registerPlanSessions({ weeks:[{ days:[c] }] });
+      const s = sessionInfo(c, workouts, ftp);
+      q('dPrev').innerHTML = !s ? 'Rest day.' : '<b>'+esc(s.name)+'</b>'+(s.durationSec ? ' · '+fmtH(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')
+        + (s.kind === 'run' || s.kind === 'swim' || s.kind === 'brick' || s.kind === 'race' ? '<br>'+esc(s.text || '') : '');
+    }
+    box.addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (b){ sport = b.dataset.s; paint(); } });
+    box.addEventListener('input', paint);
+    box.addEventListener('change', paint);
+    paint();
+    const v = await showSheet({ title:'Week '+(wi+1)+' · '+['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][di], content:box,
+      buttons:[{ label:'Done', value:'save', kind:'primary' }, { label:'Cancel', value:null }] });
+    if (v !== 'save') return;
+    const next = current();
+    const targets = q('dAll').checked ? plan.weeks.map((_, i) => i) : [wi];
+    targets.forEach(i => { plan.weeks[i].days[di] = JSON.parse(JSON.stringify(next)); });
+    changed();
+  }
+
+  // ---- save, follow, delete ----
+  function cleanWeeks(){
+    return plan.weeks.map((w, i) => {
+      const out = { week: i+1, deload: !!w.deload, days: w.days.map((d, di) => d.type === 'workout' ? d : { day: DAY_NAMES[di], type:'rest' }) };
+      if (w.phase) out.phase = w.phase;
+      if (w.note) out.note = w.note;
+      return out;
+    });
+  }
+  async function save(follow){
+    const msg = root.querySelector('#edMsg');
+    const name = (plan.name || '').trim();
+    if (!name){ root.querySelector('#pName').focus(); msg.textContent = 'Give your plan a name.'; return; }
+    if (!plan.weeks.some(w => w.days.some(d => d.type === 'workout'))){ msg.textContent = 'Add at least one session first.'; return; }
+    const own = plan.id && plans.some(p => p.id === plan.id && p.user_id === user.id);
+    const id = own ? plan.id : 'cp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    assignSessionIds(plan, id);
+    const row = { id, user_id:user.id, source:'builder', name, description:(plan.description || '').trim(), focus: plan.focus || 'custom', weeks: cleanWeeks() };
+    root.querySelectorAll('.ed-foot button').forEach(b => { b.disabled = true; });
+    msg.textContent = 'Saving…';
+    try {
+      const { error } = await supabase.from('training_plans').upsert(row);
+      if (error) throw error;
+      plan.id = id; dirty = false;
+      const i = plans.findIndex(p => p.id === id);
+      if (i >= 0) plans[i] = Object.assign(plans[i], row); else plans.push(Object.assign({ created_at:new Date().toISOString() }, row));
+      history.replaceState({}, '', location.pathname+'?id='+encodeURIComponent(id));
+      if (follow){
+        // A race plan starts when it was built to (so race day lands right); anything else next Monday.
+        const rs = raceStart();
+        const start = rs && rs >= addDays(todayIso(), -6) ? rs : (parseIso(todayIso()).getDay() === 1 ? todayIso() : mondayOnOrAfter(new Date()));
+        await supabase.from('settings').delete().eq('user_id', user.id).in('key', FOLLOW_SETTING_KEYS.filter(k => k !== 'active_plan_id' && k !== 'active_plan_started_at' && k !== 'active_plan_cursor_day'));
+        const now = new Date().toISOString();
+        const { error: fe } = await supabase.from('settings').upsert([
+          { user_id:user.id, key:'active_plan_id', value:{ v:id }, updated_at:now },
+          { user_id:user.id, key:'active_plan_started_at', value:{ v:start }, updated_at:now },
+          { user_id:user.id, key:'active_plan_cursor_day', value:{ v:0 }, updated_at:now },
+        ], { onConflict:'user_id,key' });
+        if (fe) throw fe;
+        location.href = 'index.html';
+        return;
+      }
+      renderEditor();
+      root.querySelector('#edMsg').textContent = 'Saved. It\'s in Training plans too.';
+    } catch(e){
+      root.querySelectorAll('.ed-foot button').forEach(b => { b.disabled = false; });
+      msg.textContent = 'Couldn\'t save. Check your connection and try again.';
+    }
+  }
+  async function deletePlan(){
+    if (!(await ask(plan.id === activePlanId ? 'You\'re following this plan, so you\'ll stop following it too.' : 'This can\'t be undone.', { title:'Delete '+(plan.name || 'this plan')+'?', ok:'Delete', danger:true }))) return;
+    try {
+      if (plan.id === activePlanId) await supabase.from('settings').delete().eq('user_id', user.id).in('key', FOLLOW_SETTING_KEYS);
+      const { error } = await supabase.from('training_plans').delete().eq('id', plan.id).eq('user_id', user.id);
+      if (error) throw error;
+      plans.splice(plans.findIndex(p => p.id === plan.id), 1);
+      history.replaceState({}, '', location.pathname);
+      renderStart();
+    } catch(e){ notify('Check your connection and try again.', 'Couldn\'t delete that plan'); }
+  }
+  window.addEventListener('beforeunload', e => { if (plan && dirty){ e.preventDefault(); e.returnValue = ''; } });
+
+  // ?id= opens one of your plans (a TrainerCycle plan opens as a copy); ?new=multi|blank|copy opens a start option
+  const params = new URLSearchParams(location.search);
+  const openId = params.get('id');
+  const src = openId && plans.find(p => p.id === openId);
+  if (src){
+    plan = { id: src.user_id === user.id ? src.id : null, name: src.user_id === user.id ? src.name : src.name+' (my version)', description: src.description || '', focus: src.focus || 'custom',
+      weeks: JSON.parse(JSON.stringify(src.weeks || [])) };
+    plan.weeks.forEach(w => { w.days = DAY_NAMES.map((d, i) => (w.days || [])[i] || { day:d, type:'rest' }); });
+    if (!plan.id) assignSessionIds(plan, 'draft');
+    registerPlanSessions(plan);
+    renderEditor(); dirty = !plan.id;
+  } else {
+    renderStart();
+    const n = params.get('new');
+    if (n === 'multi') openMultiSheet(); else if (n === 'blank') openBlankSheet(); else if (n === 'copy') openCopySheet();
+  }
+
+  // ---- sidebar collapse ----
+  const appRoot = document.querySelector('.app');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  function applyCollapsed(collapsed){
+    appRoot.classList.toggle('sidebar-collapsed', collapsed);
+    sidebarToggle.innerHTML = collapsed ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  }
+  sidebarToggle.addEventListener('click', ()=> applyCollapsed(!appRoot.classList.contains('sidebar-collapsed')));
+  sidebarBackdrop.addEventListener('click', ()=> applyCollapsed(true));
+
+  // ---- fullscreen toggle ----
+  // ---- fullscreen toggle (not needed when already running as an installed app) ----
+  const fullscreenToggle = document.getElementById('fullscreenToggle');
+  if (!document.documentElement.classList.contains('standalone')){
+    fullscreenToggle.addEventListener('click', ()=>{
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+      else document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', ()=>{
+      fullscreenToggle.innerHTML = document.fullscreenElement ? '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>' : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+    });
+  }
+})();
+</script>
+</body>
+</html>

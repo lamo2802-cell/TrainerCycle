@@ -550,14 +550,15 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=18';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
-import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { addRuns } from './run.js?v=3';
+import { loadHolidays, applyHolidays } from './holidays.js?v=2';
+import { addRuns } from './run.js?v=4';
+import { isBikeDay } from './plan-kit.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -790,7 +791,7 @@ const supabase = createSupabaseClient();
     try {
       const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source').eq('user_id', user.id);
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run' && r.source !== 'strava'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
@@ -861,7 +862,7 @@ const supabase = createSupabaseClient();
     const { plan, state, doneDays } = activePlan;
     const weekAhead = addDays(todayIso(), 7);
     const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
-      filter: s => !s.dayObj.workoutType || s.dayObj.workoutType === 'cycling' });
+      filter: s => isBikeDay(s.dayObj) });
     return (next && next.date < weekAhead && next.dayObj.workoutId === workoutId) ? { planId: plan.id, dayIndex: next.dayIndex } : null;
   }
 
@@ -2109,7 +2110,7 @@ const supabase = createSupabaseClient();
       // Nothing chosen yet: if the plan has a ride due today, have it ready to go.
       const { plan, state, doneDays } = activePlan;
       const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
-        filter: x => !x.dayObj.workoutType || x.dayObj.workoutType === 'cycling' });
+        filter: x => isBikeDay(x.dayObj) });
       const wid = next && next.date === todayIso() && next.dayObj.workoutId;
       if (wid && library.find(x=>x.id===wid)){
         preselectedFromPlan = wid;

@@ -257,14 +257,14 @@ export async function syncStrava(supabase, userId, { force = false } = {}){
 
 export const syncStravaRuns = syncStrava;
 
-// Marks planned run sessions done by imported runs on the same day. sessions: from planSessions(),
-// with isRun/done set. Returns how many were linked.
+// Marks planned run and swim sessions done by imported runs and swims on the same day. sessions: from
+// planSessions(), with isRun/isSwim/done set. Returns how many were linked.
 export async function linkRunsToPlan(supabase, runs, sessions, planId){
   let n = 0;
   for (const r of runs){
-    if (r.sport !== 'run') continue;
+    if (r.sport !== 'run' && r.sport !== 'swim') continue;
     const day = localIso(new Date(r.started_at));
-    const s = sessions.find(x => x.isRun && !x.done && x.date === day);
+    const s = sessions.find(x => (r.sport === 'swim' ? x.isSwim : x.isRun) && !x.done && x.date === day);
     if (!s) continue;
     const { error } = await supabase.from('completed_rides').update({ plan_id: planId, plan_day_index: s.dayIndex }).eq('id', r.id);
     if (!error){ s.done = true; n++; }

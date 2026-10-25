@@ -97,6 +97,7 @@
       <nav class="page-nav">
         <a href="index.html">Today</a>
         <a href="plans.html">Training Plans</a>
+        <a href="plan-builder.html">Plan builder</a>
         <a href="trainerrun.html">TrainerRun</a>
         <a href="calendar.html">Calendar</a>
         <a href="builder.html">Workouts</a>
@@ -115,6 +116,8 @@
         <a href="#builder">Building a workout</a>
         <a href="#library">Using the library</a>
         <a href="#plans">Following a plan</a>
+        <a href="#plan-builder">Building your own plan</a>
+        <a href="#swims">Logging swims</a>
         <a href="#live">Riding live</a>
         <a href="#strength">Strength sessions</a>
         <a href="#rides">Reviewing rides</a>
@@ -163,6 +166,19 @@
     <p>Click a plan to expand its week-by-week breakdown, including rest days. Click any day's workout name and it jumps straight into Live Ride or TrainerStrength (whichever fits that day) with the session loaded and ready to go.</p>
     <p>Hit <b>Follow Plan</b> on one you want to commit to — it aligns to the coming Monday and shows a banner at the top of the page with your current week and next scheduled session, one tap away. Not feeling that particular session? <b>Skip</b> moves you on to the next one without losing your place in the plan. Finish a plan and, where there's a natural next step, we'll suggest it directly — no need to go hunting for what to do next.</p>
 
+    <h2 id="plan-builder">Building your own plan</h2>
+    <p>The <a href="plan-builder.html">Plan builder</a> (Training → Plan builder) makes a plan exactly how you want it, week by week. Start from scratch, copy one of the TrainerCycle plans, or pick <b>Triathlon or duathlon</b>.</p>
+    <ul>
+      <li>Tap any day to set it: a <b>ride</b> from the workout library, a <b>run</b> (easy, long, strides, tempo, intervals or hills, for however many minutes), a <b>swim</b> (easy, technique, endurance, CSS intervals, speed, open water or a CSS test, for however many metres), a <b>brick</b> (a ride followed straight away by a run) or a <b>strength</b> session. Tick <b>Same on this day in every week</b> to fill a whole column at once.</li>
+      <li>Each week has buttons to mark it as a deload, copy it into the next week, duplicate it or delete it.</li>
+      <li><b>Save and follow</b> makes it your plan: it shows on Today and the Calendar like any other, and rides, runs and swims you log tick its sessions off. Your plans also appear at the top of <a href="plans.html">Plans</a> with an Edit link.</li>
+    </ul>
+    <p><b>Triathlon and duathlon plans</b> are built around your race: sprint, Olympic or 70.3 triathlon, or a sprint or standard duathlon. Pick the race date, the days you can train and your experience, and you get base, build and peak weeks with a lighter week every fourth week, bricks on the long ride day, then a taper and race week. The race shows a countdown on Today. You can change any session before saving it.</p>
+
+    <h2 id="swims">Logging swims</h2>
+    <p>Log a swim from the <b>Ride</b> button (Log a swim), from Today, or from <a href="rides.html">Rides</a>: enter the time, distance, pool or open water and how it felt. If Strava is connected, swims come in by themselves.</p>
+    <p>Swims count towards your Fitness, Fatigue and Form. Swim TSS uses your <b>CSS</b> (critical swim speed), the swimming version of FTP, which you set in <a href="settings.html">Settings</a> from a 400 m and a 200 m time trial. It also sets the paces in plan swim sessions.</p>
+
     <h2 id="live">Riding live</h2>
     <h3>Connect your gear</h3>
     <ol>
@@ -209,7 +225,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=18';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=19';
 const supabase = createSupabaseClient();
 
 (async function(){

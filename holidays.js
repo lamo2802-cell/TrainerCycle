@@ -1,7 +1,8 @@
 // Holidays: date ranges the rider marks on the calendar (settings key `holidays`,
 // [{ id, name, start:'YYYY-MM-DD', end:'YYYY-MM-DD', mode }]). While away, the followed plan changes:
 //   off  - no training: every session those days becomes a rest day
-//   easy - easy sessions only: rides become a short endurance ride, runs an easy run, strength is dropped
+//   easy - easy sessions only: rides and bricks become a short endurance ride, runs an easy run, swims an easy swim, strength is
+//          dropped (race days are never changed)
 //   keep - keep the plan as it is (the days are still shown as away on the calendar)
 // applyHolidays() runs on the plan after addRuns() and applySwaps(), so the rest of the app just sees
 // rest days or easier sessions. The plan keeps its length; the week after a holiday picks up as planned.
@@ -11,10 +12,10 @@ import { showSheet } from './sheet.js?v=2';
 export const HOLIDAYS_KEY = 'holidays';
 export const HOLIDAY_MODES = [
   { id:'off',  label:'No training',        text:'A proper break. Sessions those days come off the plan.' },
-  { id:'easy', label:'Easy sessions only', text:'Rides become a 45 minute endurance ride and runs an easy 30 minutes.' },
+  { id:'easy', label:'Easy sessions only', text:'Rides become a 45 minute endurance ride, runs an easy 30 minutes and swims an easy 1500 m.' },
   { id:'keep', label:'Keep my plan',       text:'Training as normal, just marked on the calendar.' },
 ];
-const EASY_RIDE = 'prebuilt-endurance-45', EASY_DELOAD_RIDE = 'prebuilt-recovery-45', EASY_RUN = 'run-easy-30';
+const EASY_RIDE = 'prebuilt-endurance-45', EASY_DELOAD_RIDE = 'prebuilt-recovery-45', EASY_RUN = 'run-easy-30', EASY_SWIM = 'swim-easy-1500';
 
 export async function loadHolidays(supabase, userId){
   try {
@@ -40,10 +41,13 @@ export function applyHolidays(plan, startedAtIso, moves, holidays){
       if (!d || d.type !== 'workout') return d;
       const dayIndex = wi*7 + di;
       const h = holidayOn((moves && moves[dayIndex]) || addDays(start, dayIndex), active);
-      if (!h) return d;
+      if (!h || d.workoutType === 'race') return d; // a race abroad is still the race
       if (h.mode === 'off' || d.workoutType === 'strength') return { day: d.day, type:'rest', holiday: h.name || 'Holiday' };
-      const to = d.workoutType === 'run' ? EASY_RUN : (w.deload ? EASY_DELOAD_RIDE : EASY_RIDE);
-      return to === d.workoutId ? d : Object.assign({}, d, { workoutId: to, swappedFrom: d.swappedFrom || d.workoutId, holiday: h.name || 'Holiday' });
+      const to = d.workoutType === 'run' ? EASY_RUN : d.workoutType === 'swim' ? EASY_SWIM : (w.deload ? EASY_DELOAD_RIDE : EASY_RIDE);
+      if (to === d.workoutId) return d;
+      // a brick becomes a plain easy ride
+      const type = d.workoutType === 'brick' ? { workoutType:'cycling', runId:undefined, session:undefined } : {};
+      return Object.assign({}, d, type, { workoutId: to, swappedFrom: d.swappedFrom || d.workoutId, holiday: h.name || 'Holiday' });
     })
   })) });
 }

@@ -3,7 +3,8 @@
 // the calendar-feed edge function serves them as an .ics feed to whoever holds the rider's secret
 // link (settings key calendar_feed_token). Nothing is stored until the rider turns the feed on.
 import { planSessions, todayIso, addDays, plannedTss } from './plan-schedule.js?v=3';
-import { runSession } from './run.js?v=3';
+import { runSession } from './run.js?v=4';
+import { sessionInfo } from './plan-kit.js?v=1';
 
 export const FEED_TOKEN_KEY = 'calendar_feed_token';
 export const FEED_KEY = 'calendar_feed';
@@ -25,11 +26,18 @@ export function feedEvents(plan, follow, workouts, ftp){
         const r = runSession(d.workoutId);
         return r && { date:s.date, title:'Run: '+r.name, text:r.mins+' min · '+r.tss+' TSS. '+r.text, url:'https://trainercycle.com/trainerrun.html' };
       }
+      if (d.workoutType === 'swim' || d.workoutType === 'race'){
+        const x = sessionInfo(d, workouts, ftp);
+        return x && { date:s.date, title:(d.workoutType === 'swim' ? 'Swim: ' : '')+x.name, text:(x.durationSec ? mins(x.durationSec)+' min' : '')+(x.tss ? ' · '+x.tss+' TSS' : '')+'. '+x.text,
+          url:'https://trainercycle.com/calendar.html' };
+      }
       const w = workouts[d.workoutId] || {};
       if (d.workoutType === 'strength') return { date:s.date, title:'Strength: '+(w.name || 'session'), text:'TrainerStrength session.', url:'https://trainercycle.com/trainerstrength.html?load='+encodeURIComponent(d.workoutId) };
       const tss = w.steps ? plannedTss(w.steps, ftp) : null;
       const m = mins(w.duration_sec || durOf(w.steps));
-      return { date:s.date, title:'Ride: '+(w.name || d.workoutId), text:(m ? m+' min' : '')+(tss != null ? ' · '+tss+' TSS' : '')+(d.holiday ? '. Easy version while you\'re away.' : '.'),
+      const brick = d.workoutType === 'brick' ? runSession(d.runId) : null;
+      return { date:s.date, title:(brick ? 'Brick: ' : 'Ride: ')+(w.name || d.workoutId)+(brick ? ' + '+brick.mins+' min run' : ''),
+        text:(m ? m+' min' : '')+(tss != null ? ' · '+tss+' TSS' : '')+(d.holiday ? '. Easy version while you\'re away.' : '.')+(brick ? ' Then run straight off the bike: '+brick.text : ''),
         url:'https://trainercycle.com/live.html?load='+encodeURIComponent(d.workoutId) };
     }).filter(Boolean);
 }

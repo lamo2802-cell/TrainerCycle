@@ -7,7 +7,8 @@
 // On its own the run plan is the followed plan (id RUN_PLAN_ID). Alongside a cycling plan its runs are
 // laid onto that plan's rest days by date, and the race always gets its day.
 import { addDays, parseIso, isoDate, mondayOnOrAfter, todayIso, planStart } from './plan-schedule.js?v=3';
-import { registerRunSession, addRuns, fmtPace } from './run.js?v=3';
+import { registerRunSession, addRuns, fmtPace } from './run.js?v=4';
+import { registerPlanSessions } from './plan-kit.js?v=1';
 
 export const RUN_PLAN_KEY = 'run_plan';
 export const RUN_PLAN_ID = 'run-plan';
@@ -194,13 +195,16 @@ export function planWeekNote(plan, weekIdx){
 // follow: from loadFollowState(); runCfg: settings run_plan or null. Returns { plan, startedAt }.
 export function composeFollowed(cyclingRow, follow, runCfg){
   const rp = runCfg ? buildRunPlan(runCfg) : null;
+  registerPlanSessions(cyclingRow); // a plan from the plan builder carries its own run and swim sessions
   if (cyclingRow && follow.startedAt){
-    if (!rp) return { plan: addRuns(cyclingRow, follow.runs), startedAt: follow.startedAt };
+    // a plan with its own runs (a triathlon plan, say) already has the running it needs
+    if (!rp || hasOwnRuns(cyclingRow)) return { plan: addRuns(cyclingRow, follow.runs), startedAt: follow.startedAt };
     return { plan: mergeRunPlan(cyclingRow, follow.startedAt, rp), startedAt: follow.startedAt };
   }
   if (rp) return { plan: rp, startedAt: rp.start };
   return { plan: null, startedAt: null };
 }
+function hasOwnRuns(plan){ return (plan.weeks || []).some(w => (w.days || []).some(d => d && (d.workoutType === 'run' || d.workoutType === 'brick'))); }
 function mergeRunPlan(cyc, cycStartIso, rp){
   const cycStart = planStart(cycStartIso);
   const offset = Math.round((parseIso(rp.start) - parseIso(cycStart)) / 86400000);

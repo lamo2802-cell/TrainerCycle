@@ -298,7 +298,7 @@
   .adapt-body p{ margin:3px 0 10px; font-size:13px; color:var(--text-dim); line-height:1.45; }
   .adapt-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   .run-desc{ font-size:14px; color:var(--text-dim); line-height:1.5; margin:10px 0 2px; max-width:560px; }
-  .last-foot{ margin-top:10px; }
+  .last-foot{ margin-top:10px; display:flex; gap:16px; flex-wrap:wrap; }
   .adapted-note{ font-size:12.5px; color:var(--accent); margin-top:4px; }
   .setup-card{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; border-color:var(--accent); }
   .setup-card b{ display:block; font-size:15px; margin-bottom:3px; }
@@ -416,19 +416,21 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=18';
+import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=19';
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart } from './plan-schedule.js?v=3';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { notify } from './sheet.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
-import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=1';
-import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=1';
-import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
+import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=2';
+import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=2';
+import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=4';
 import { openExportSheet } from './export.js?v=2';
+import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=1';
+import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=1';
 import { openWelcome } from './welcome.js?v=1';
-import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -450,7 +452,7 @@ const supabase = createSupabaseClient();
 
   // ---- Today screen ----
   const ZONE_DOT = { recovery:'var(--z-recovery)', endurance:'var(--z-endurance)', tempo:'var(--z-tempo)', sweet_spot:'var(--z-threshold)',
-    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)', run:'#C084FC' };
+    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)', run:'#C084FC', swim:SPORT_COLOR.swim, race:SPORT_COLOR.race };
   const ZONES = [[60,'#5A6472'],[76,'#4C8BF5'],[91,'#3DBE7A'],[106,'#E8B93D'],[121,'#F08A3C'],[151,'#E5484D'],[Infinity,'#B14AED']];
   function zoneHex(pct){ for (const [max,c] of ZONES) if (pct < max) return c; return '#B14AED'; }
   const ADAPT_ICON = {
@@ -517,10 +519,10 @@ const supabase = createSupabaseClient();
         supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle(),
         loadHolidays(supabase, user.id),
-        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY])
+        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY])
       ]);
       holidays = hol || [];
-      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else paceDismissed = Number(r.value && r.value.v) || null; });
+      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else paceDismissed = Number(r.value && r.value.v) || null; });
       setRunPace(runPace);
       if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
@@ -544,15 +546,17 @@ const supabase = createSupabaseClient();
     syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftpW));
     const workoutsByName = {};
     Object.values(workouts).forEach(w=>{ if (w.steps && !workoutsByName[w.name]) workoutsByName[w.name] = w; });
-    const { levels, byRide } = computeLevels(rides.filter(r => r.sport !== 'run' && r.source !== 'strava'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
+    const { levels, byRide } = computeLevels(rides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
     const ridesByDate = new Map();
     rides.forEach(r=>{ const d = isoDate(new Date(r.started_at)); if (!ridesByDate.has(d)) ridesByDate.set(d, []); ridesByDate.get(d).push(r); });
     const sessions = plan ? planSessions(plan, follow.startedAt, follow.moves).map(s=>{
       const isStrength = s.dayObj.workoutType === 'strength', isRun = s.dayObj.workoutType === 'run';
+      const isSwim = s.dayObj.workoutType === 'swim', isBrick = s.dayObj.workoutType === 'brick', isRace = s.dayObj.workoutType === 'race';
       const run = isRun ? runSession(s.dayObj.workoutId) : null;
-      const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (workouts[s.dayObj.workoutId] || {});
-      return Object.assign(s, { name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : wk.category, isStrength, isRun, run, steps: wk.steps,
-        durationSec: wk.duration_sec, tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
+      const info = sessionInfo(s.dayObj, workouts, ftpW);
+      const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (isSwim || isRace || isBrick) ? { name: info.name, duration_sec: info.durationSec, steps: info.steps, category: info.category } : (workouts[s.dayObj.workoutId] || {});
+      return Object.assign(s, { name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category, isStrength, isRun, isSwim, isBrick, isRace, run, info, steps: wk.steps,
+        durationSec: wk.duration_sec, tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isRace || isBrick) ? info.tss : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
     }) : [];
     const daily = new Map();
     rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
@@ -645,11 +649,12 @@ const supabase = createSupabaseClient();
       return '<span class="lvl-chip" style="--zc:'+z.color+'" title="Your '+z.name+' level is '+fmtLevel(levels[wl.zone])+'">'+z.short+' '+fmtLevel(wl.level)+' · '+d.label+'</span>';
     }
     function sessionHero(s, heading){
-      const IF = !s.isStrength && s.steps ? workoutIf(s.steps, ftpW) : null;
+      const IF = !s.isStrength && !s.isBrick && s.steps ? workoutIf(s.steps, ftpW) : null;
       return '<div class="t-panel hero-card"><div class="t-label"><span>'+heading+'</span><a href="calendar.html">Calendar →</a></div>'
         + '<div class="hero-name">'+esc(s.name)+'</div>'
         + '<div class="hero-meta">'
-        + (s.isStrength ? '<span><b>Strength</b></span>' : s.isRun ? '<span><b>Run</b></span>' : '')
+        + (s.isStrength ? '<span><b>Strength</b></span>' : s.isRun ? '<span><b>Run</b></span>' : s.isSwim ? '<span><b>Swim</b></span>' : s.isBrick ? '<span><b>Brick</b></span>' : s.isRace ? '<span><b>Race</b></span>' : '')
+        + (s.isSwim && s.info.metres ? '<span><b>'+fmtMetres(s.info.metres)+'</b></span>' : '')
         + (s.durationSec ? '<span><b>'+fmtMins(s.durationSec)+'</b></span>' : '')
         + (s.tss ? '<span><b>'+s.tss+'</b>TSS</span>' : '')
         + (IF ? '<span><b>'+IF.toFixed(2)+'</b>IF</span>' : '')
@@ -659,10 +664,12 @@ const supabase = createSupabaseClient();
         + (s.dayObj.holiday ? '<div class="adapted-note">Easy version of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' while you\'re away</div>'
           : s.dayObj.swappedFrom ? '<div class="adapted-note">Adapted from '+esc((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
-        + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : '')
-        + '<div class="hero-actions">'+(s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
+        + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : (s.isSwim || s.isBrick || s.isRace) && s.info.text ? '<div class="run-desc">'+esc(s.info.text)+'</div>' : '')
+        + '<div class="hero-actions">'+(s.isRace ? '<a class="t-btn primary" href="calendar.html">See race week</a>'
+          : s.isSwim ? '<button class="t-btn primary" data-log-swim="'+s.dayIndex+'">Log swim</button>'
+          : s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
-        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Download file</button>' : '')+'</div></div>';
+        + (!s.isStrength && !s.isSwim && !s.isRace && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Download file</button>' : '')+'</div></div>';
     }
     const awayNow = holidayOn(today, holidays);
     if (awayNow && !todoToday && !ridTodayList.length){
@@ -670,7 +677,7 @@ const supabase = createSupabaseClient();
         + '<div class="hero-name">Enjoy '+esc(awayNow.name || 'your holiday')+'</div>'
         + '<div class="hero-sub">'+esc(holidayLabel(awayNow))+'. '+(awayNow.mode === 'off' ? 'No training planned while you\'re away.' : 'Nothing planned today.')
         + (nextS ? ' Next up: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'.' : '')+'</div>'
-        + '<div class="hero-actions"><button class="t-btn" data-log-run="">+ Log a run</button><a class="t-btn" href="builder.html">Ride anyway</a></div></div>';
+        + '<div class="hero-actions"><button class="t-btn" data-log-run="">+ Log a run</button><button class="t-btn" data-log-swim="">+ Log a swim</button><a class="t-btn" href="builder.html">Ride anyway</a></div></div>';
     } else if (todoToday){
       html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout');
     } else if (ridTodayList.length){
@@ -679,10 +686,11 @@ const supabase = createSupabaseClient();
         + '<div class="done-badge">✓ Done for today</div><div class="hero-name">'+esc(r.workout_name)+'</div>'
         + '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'
           + (r.sport === 'run' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span><span><b>'+fmtPace(r.duration_sec/(r.distance_m/1000))+'</b>/km</span>' : '')
-          + (r.sport !== 'run' && r.source === 'strava' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
-          + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+(r.sport !== 'run' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
+          + (r.sport === 'swim' && r.distance_m ? '<span><b>'+fmtMetres(r.distance_m)+'</b></span><span><b>'+fmtSwimPace(r.duration_sec/(r.distance_m/100))+'</b>/100 m</span>' : '')
+          + (r.sport === 'ride' && r.source === 'strava' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
+          + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+((r.sport || 'ride') === 'ride' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
         + (nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
-        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : 'See ride')+'</a></div></div>';
+        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : 'See ride')+'</a></div></div>';
     } else if (plan && nextS){
       html += sessionHero(nextS, 'Rest day · up next '+dayLabel(nextS.date));
     } else if (plan){
@@ -714,7 +722,13 @@ const supabase = createSupabaseClient();
     const { weeks: streak, since: streakStart } = weekStreak(rides);
     const streakSince = streakStart ? streakStart.toLocaleDateString('en-GB',{ day:'numeric', month:'short' }) : '';
     const rp = follow && follow.runPlan;
-    if (rp && rp.raceDate >= today && RUN_GOALS[rp.goal]){
+    const raceS = sessions.find(s => s.isRace && s.date >= today);
+    if (raceS){
+      const toGo = daysBetween(today, raceS.date);
+      html += '<a class="t-panel race-card" href="calendar.html"><div class="rc-days"><b>'+(toGo === 0 ? 'Today' : toGo)+'</b>'+(toGo === 0 ? 'race day' : toGo === 1 ? 'day to go' : 'days to go')+'</div>'
+        + '<div class="rc-body"><div class="rc-name">'+esc(raceS.name.replace(/^Race day: /, ''))+' · '+parseIso(raceS.date).toLocaleDateString('en-GB',{ weekday:'short', day:'numeric', month:'short' })+'</div>'
+        + '<div class="rc-sub">'+esc(plan.name)+'</div></div><span class="rc-go">Calendar →</span></a>';
+    } else if (rp && rp.raceDate >= today && RUN_GOALS[rp.goal]){
       const toGo = daysBetween(today, rp.raceDate), pred = predictTime(rp.goal, runPace);
       html += '<a class="t-panel race-card" href="trainerrun.html"><div class="rc-days"><b>'+(toGo === 0 ? 'Today' : toGo)+'</b>'+(toGo === 0 ? 'race day' : toGo === 1 ? 'day to go' : 'days to go')+'</div>'
         + '<div class="rc-body"><div class="rc-name">'+esc(RUN_GOALS[rp.goal].label)+' · '+parseIso(rp.raceDate).toLocaleDateString('en-GB',{ weekday:'short', day:'numeric', month:'short' })+'</div>'
@@ -741,16 +755,17 @@ const supabase = createSupabaseClient();
         + '<span class="track"><i style="width:'+(levels[z.key]/10*100).toFixed(1)+'%; background:'+z.color+'"></i></span><b>'+fmtLevel(levels[z.key])+'</b></div>').join('')+'</div>'
       + '<div class="lvl-note">Levels go up when you finish workouts at or above them. Pick Achievable or Productive workouts to keep moving.</div></div>';
     const last = rides[rides.length-1];
-    const lastIsRun = last && last.sport === 'run';
-    const lastBests = last && !lastIsRun ? newBests(last, rides.filter(r => r.sport !== 'run')) : [];
+    const lastIsRun = last && last.sport === 'run', lastIsSwim = last && last.sport === 'swim';
+    const lastBests = last && !lastIsRun && !lastIsSwim ? newBests(last, rides.filter(r => (r.sport || 'ride') === 'ride')) : [];
     const lastBestsHtml = lastBests.length ? '<div class="pb-chips">'+lastBests.map(b=>'<span class="pb-chip">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
-    html += '<div class="t-panel"><div class="t-label"><span>'+(lastIsRun ? 'Last run' : 'Last ride')+'</span><a href="rides.html">All activity →</a></div>'
+    html += '<div class="t-panel"><div class="t-label"><span>'+(lastIsRun ? 'Last run' : lastIsSwim ? 'Last swim' : 'Last ride')+'</span><a href="rides.html">All activity →</a></div>'
       + (last ? '<a class="last-ride" href="rides.html?ride='+encodeURIComponent(last.id)+'"><div><div class="nm">'+esc(last.workout_name)+'</div><div class="when">'+relDay(isoDate(new Date(last.started_at)))+'</div>'+lastBestsHtml+'</div>'
           + '<div class="stats"><span><b>'+fmtMins(last.duration_sec)+'</b>time</span>'
-          + (lastIsRun ? (last.distance_m ? '<span><b>'+fmtKm(last.distance_m)+'</b>km</span><span><b>'+fmtPace(last.duration_sec/(last.distance_m/1000))+'</b>/km</span>' : '')+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')
+          + (lastIsSwim ? (last.distance_m ? '<span><b>'+fmtMetres(last.distance_m)+'</b>swim</span><span><b>'+fmtSwimPace(last.duration_sec/(last.distance_m/100))+'</b>/100 m</span>' : '')+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')
+            : lastIsRun ? (last.distance_m ? '<span><b>'+fmtKm(last.distance_m)+'</b>km</span><span><b>'+fmtPace(last.duration_sec/(last.distance_m/1000))+'</b>/km</span>' : '')+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')
             : (last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')+(last.np!=null ? '<span><b>'+last.np+'</b>NP</span>' : '')+(last.intensity_factor!=null ? '<span><b>'+Number(last.intensity_factor).toFixed(2)+'</b>IF</span>' : ''))+'</div></a>'
         : '<div class="t-empty">No rides yet. Your first one will show up here.</div>')
-      + '<div class="last-foot"><button class="link-btn" data-log-run="">+ Log a run</button></div>'
+      + '<div class="last-foot"><button class="link-btn" data-log-run="">+ Log a run</button><button class="link-btn" data-log-swim="">+ Log a swim</button></div>'
       + '</div></div>';
 
     el.innerHTML = html;
@@ -787,6 +802,12 @@ const supabase = createSupabaseClient();
       const di = b.dataset.logRun;
       const session = di !== '' ? sessions.find(x => x.dayIndex === Number(di)) : null;
       const saved = await openRunLog(supabase, user.id, { session: session ? { dayIndex: session.dayIndex, date: session.date, workoutId: session.dayObj.workoutId } : null, planId: plan ? plan.id : null });
+      if (saved) renderToday(user);
+    }));
+    el.querySelectorAll('[data-log-swim]').forEach(b=> b.addEventListener('click', async ()=>{
+      const di = b.dataset.logSwim;
+      const session = di !== '' ? sessions.find(x => x.dayIndex === Number(di)) : null;
+      const saved = await openSwimLog(supabase, user.id, { session: session ? { dayIndex: session.dayIndex, date: session.date, workoutId: session.dayObj.workoutId } : null, planId: plan ? plan.id : null });
       if (saved) renderToday(user);
     }));
     el.querySelectorAll('[data-export]').forEach(b=> b.addEventListener('click', ()=>{
