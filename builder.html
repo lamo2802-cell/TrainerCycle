@@ -7,7 +7,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=2">
+<link rel="stylesheet" href="app-nav.css?v=3">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -729,7 +729,7 @@ const supabase = createSupabaseClient();
         + miniChartSVG(w.steps)
         + '<div class="lib-item-text">'
         + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
-        + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.tss!=null ? ('  ·  '+stats.tss+' TSS') : '') +'</div>'
+        + '<div class="lib-meta">'+fmtLen(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.tss!=null ? ('  ·  '+stats.tss+' TSS') : '') +'</div>'
         + (levelChip(w) ? '<div class="lib-levels">'+levelChip(w)+'</div>' : '')
         + '</div></div>'
         + (isOwn ? '<div class="lib-actions"><button class="ghost danger" data-del="'+w.id+'">Delete</button></div>' : '')
@@ -750,6 +750,7 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('librarySearch').addEventListener('input', renderLibrary);
 
+  function fmtLen(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? ' '+String(m%60).padStart(2,'0')+'m' : '') : m+' min'; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
   // ---- library row actions (delegated) ----

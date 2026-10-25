@@ -14,7 +14,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=2">
+<link rel="stylesheet" href="app-nav.css?v=3">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -145,6 +145,23 @@
   .t-panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
   .t-label{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:flex; justify-content:space-between; gap:10px; align-items:center; }
   .t-label a{ color:var(--accent); text-decoration:none; text-transform:none; letter-spacing:0; font-size:12.5px; }
+  .t-btn.sm{ padding:8px 14px; font-size:13px; border-radius:8px; }
+  .link-btn{ background:none; border:none; color:var(--accent); font-size:12.5px; padding:0; margin:0; width:auto; cursor:pointer; font-family:inherit; text-transform:none; letter-spacing:0; }
+  .gs-card{ border-color:var(--accent); }
+  .gs-bar{ height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; margin:2px 0 12px; }
+  .gs-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .gs-step{ display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .gs-step:first-of-type{ border-top:none; }
+  .gs-tick{ width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; font-family:var(--mono);
+    border:1px solid var(--line); color:var(--text-dim); }
+  .gs-step.done .gs-tick{ background:var(--accent); border-color:var(--accent); color:#08211E; }
+  .gs-step.done b{ color:var(--text-dim); font-weight:500; text-decoration:line-through; text-decoration-color:var(--text-dim); }
+  .gs-step.next .gs-tick{ border-color:var(--accent); color:var(--accent); }
+  .gs-body{ min-width:0; padding-top:3px; }
+  .gs-body b{ font-size:14.5px; }
+  .gs-body p{ margin:3px 0 8px; color:var(--text-dim); font-size:13px; line-height:1.4; }
+  .gs-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .gs-step:not(.next) .gs-actions .t-btn.primary{ background:var(--panel-2); color:var(--text); border-color:var(--line); }
   button.t-btn{ width:auto; margin:0; cursor:pointer; font-family:inherit; }
   .t-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 22px; border-radius:10px; font-weight:700; font-size:15px; text-decoration:none; border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
   .t-btn.primary{ background:var(--accent); border-color:var(--accent); color:#08211E; }
@@ -374,19 +391,23 @@ const supabase = createSupabaseClient();
     el.innerHTML = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div><div class="t-panel t-empty">Loading your training…</div>';
 
     const today = todayIso();
-    let ftpDismissed = null;
+    let ftpDismissed = null, gsDismissed = false, stravaOn = false;
     let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {};
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
-      const [ftpRes, st, wRes, sRes, rRes, dRes] = await Promise.all([
+      const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes] = await Promise.all([
         supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
         supabase.from('strength_workouts').select('id,name'),
         supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index,completed,workout_id,feel,power_bests')
           .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
-        supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle()
+        supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
+        supabase.from('settings').select('value').eq('key','getting_started_dismissed').eq('user_id', user.id).maybeSingle(),
+        supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle()
       ]);
+      gsDismissed = !!(gsRes && gsRes.data);
+      stravaOn = !!(stravaRes && stravaRes.data);
       if (dRes && dRes.data && dRes.data.value && typeof dRes.data.value.v === 'number') ftpDismissed = dRes.data.value.v;
       if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
       follow = st;
@@ -419,10 +440,30 @@ const supabase = createSupabaseClient();
 
     let html = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div>';
 
-    // First-run nudge: without an FTP every target is a guess.
-    if (!ftp){
-      html += '<div class="t-panel setup-card"><div><b>Set your FTP first</b><p>Every workout target is a % of your FTP. A 20-minute Ramp Test finds it for you, or enter it in Settings if you already know it.</p></div>'
-        + '<div class="hero-actions" style="margin:0;"><a class="t-btn primary" href="live.html?load=prebuilt-ramp-test-25">Take a Ramp Test</a><a class="t-btn" href="settings.html">Enter FTP</a></div></div>';
+    // Getting started: the handful of things that make everything else work, until they're done.
+    let trainerSeen = false;
+    try { trainerSeen = !!(localStorage.getItem('tc_last_trainer_id') || localStorage.getItem('tc_paired_trainer_name')); } catch(_){}
+    const steps = [
+      { done: !!ftp, title:'Set your FTP', text:'Every target is a % of it. A Ramp Test takes about 20 minutes.',
+        actions:'<a class="t-btn primary sm" href="live.html?load=prebuilt-ramp-test-25">Ramp Test</a><a class="t-btn sm" href="settings.html">Enter it</a>' },
+      { done: trainerSeen || rides.length > 0, title:'Connect your trainer', text:'Use Chrome or Edge on a computer or Android, then press Connect trainer on Live Ride.',
+        actions:'<a class="t-btn sm" href="live.html">Live Ride</a>' },
+      { done: !!(follow && follow.planId), title:'Pick a training plan', text:'A plan puts the right workout on each day. You can move sessions around later.',
+        actions:'<a class="t-btn sm" href="plans.html">See plans</a>' },
+      { done: rides.length > 0, title:'Ride your first workout', text:'Afterwards you\'ll see your power curve, time in zone and how it moved your levels.',
+        actions:'<a class="t-btn sm" href="builder.html">Find a workout</a>' },
+      { done: stravaOn, optional:true, title:'Connect Strava', text:'Optional. Rides upload automatically once connected.',
+        actions:'<a class="t-btn sm" href="settings.html">Settings</a>' },
+    ];
+    const coreLeft = steps.filter(x=>!x.optional && !x.done).length;
+    if (coreLeft && !gsDismissed){
+      const doneCount = steps.filter(x=>x.done).length;
+      const firstTodo = steps.findIndex(x=>!x.done);
+      html += '<div class="t-panel gs-card"><div class="t-label"><span>Getting started · '+doneCount+' of '+steps.length+'</span><button class="link-btn" data-gs-hide>Hide</button></div>'
+        + '<div class="gs-bar"><i style="width:'+(doneCount/steps.length*100)+'%"></i></div>'
+        + steps.map((x,i)=>'<div class="gs-step'+(x.done ? ' done' : '')+(i===firstTodo ? ' next' : '')+'"><span class="gs-tick">'+(x.done ? '✓' : (i+1))+'</span>'
+          + '<div class="gs-body"><b>'+x.title+'</b>'+(x.done ? '' : '<p>'+x.text+'</p><div class="gs-actions">'+x.actions+'</div>')+'</div></div>').join('')
+        + '</div>';
     }
 
     // FTP detection: a new FTP from recent hard efforts, or a nudge to retest when workouts feel easy.
@@ -535,6 +576,11 @@ const supabase = createSupabaseClient();
       + '</div></div>';
 
     el.innerHTML = html;
+    const gsHide = el.querySelector('[data-gs-hide]');
+    if (gsHide) gsHide.addEventListener('click', async ()=>{
+      gsHide.closest('.gs-card').remove();
+      try { await supabase.from('settings').upsert({ user_id:user.id, key:'getting_started_dismissed', value:{ v:true }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' }); } catch(_){}
+    });
     const acc = el.querySelector('[data-ftp-accept]'), dis = el.querySelector('[data-ftp-dismiss]');
     if (acc) acc.addEventListener('click', async ()=>{
       const v = Number(acc.dataset.ftpAccept);
