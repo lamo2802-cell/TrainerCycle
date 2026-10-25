@@ -1,4 +1,4 @@
-// Shareable ride card: the ride chart, key stats and the TrainerCycle logo as a 1080x1350 PNG (4:5, the
+// Shareable ride card: the TrainerCycle logo, the ride chart and key stats on the app's dark background as a 1080x1350 PNG (4:5, the
 // shape Strava and Instagram show without cropping). Made in the browser from the ride's samples; nothing
 // is uploaded. On phones that can share files it opens the share sheet (save to Photos, then add it to the
 // Strava activity); elsewhere it downloads.
@@ -11,9 +11,6 @@ const ZONES = [
 ];
 const zoneHex = pct => (ZONES.find(z => pct < z.max) || ZONES[ZONES.length - 1]).hex;
 
-function loadImg(src){
-  return new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
-}
 function fmtDur(sec){
   sec = Math.max(0, Math.round(sec || 0));
   const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
@@ -30,96 +27,108 @@ function fitText(ctx, text, maxW, size, weight, family){
   return text;
 }
 
+// The TrainerCycle dial (logo.svg), drawn straight onto the card so it sits on the background with no box.
+function dial(ctx, cx, cy, r){
+  const k = r / 42;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = C.line; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#3A4450'; ctx.lineWidth = 2.5 * k;
+  [[0, -36], [28.4, -18], [28.4, 18], [0, 36], [-28.4, 18], [-28.4, -18]].forEach(([x, y]) => { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + x * k, cy + y * k); ctx.stroke(); });
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 6 * k; ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, Math.atan2(22.6, -34.5)); ctx.stroke();
+  ctx.fillStyle = C.accent; ctx.beginPath(); ctx.arc(cx, cy, 8 * k, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = C.text; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + 16 * k, cy - 30 * k); ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
 // ride: completed_rides row. sec: per-second samples ({power, hr, target}). ftp: FTP at the time. pbs: [{label, w}].
 export async function rideImageBlob({ ride, sec, ftp, pbs = [] }){
   const sans = "Inter, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
   const mono = "'JetBrains Mono', ui-monospace, Menlo, monospace";
-  try { await Promise.all(['700 64px Inter', '600 28px Inter', '700 52px "JetBrains Mono"'].map(f => document.fonts.load(f))); } catch(_){}
-  const [photo, logo] = await Promise.all([loadImg('banner-rides.jpg'), loadImg('wordmark.svg')]);
+  try { await Promise.all(['700 84px Inter', '600 24px Inter', '700 58px "JetBrains Mono"', '500 22px "JetBrains Mono"'].map(f => document.fonts.load(f))); } catch(_){}
 
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
-  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#131922'); bg.addColorStop(1, '#0C1015');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 250, 0, W / 2, 250, 520);
+  glow.addColorStop(0, 'rgba(69,214,196,.16)'); glow.addColorStop(1, 'rgba(69,214,196,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
 
-  // photo across the top, fading into the background
-  if (photo){
-    const ph = 560, scale = Math.max(W / photo.width, ph / photo.height);
-    const dw = photo.width * scale, dh = photo.height * scale;
-    ctx.globalAlpha = .7; ctx.drawImage(photo, (W - dw) / 2, (ph - dh) / 2, dw, dh); ctx.globalAlpha = 1;
-    const g = ctx.createLinearGradient(0, 0, 0, ph);
-    g.addColorStop(0, 'rgba(16,20,26,.55)'); g.addColorStop(.55, 'rgba(16,20,26,.35)'); g.addColorStop(1, C.bg);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, ph);
-  }
-  if (logo){ const lh = 84; ctx.drawImage(logo, 64, 56, lh * logo.width / logo.height, lh); }
+  // logo: dial, wordmark, tagline
+  dial(ctx, W / 2, 230, 118);
+  ctx.font = '700 84px ' + sans; ctx.textBaseline = 'alphabetic';
+  const tw = ctx.measureText('Trainer').width, cwid = ctx.measureText('Cycle').width, lx = (W - tw - cwid) / 2;
+  ctx.fillStyle = C.text; ctx.fillText('Trainer', lx, 445);
+  ctx.fillStyle = C.accent; ctx.fillText('Cycle', lx + tw, 445);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = C.dim; ctx.font = '500 22px ' + mono; ctx.fillText('STRUCTURED INDOOR TRAINING', W / 2, 490);
 
-  // title
+  // workout and date
   const when = new Date(ride.started_at).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-  ctx.fillStyle = C.accent; ctx.font = '700 26px ' + sans; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(((ride.completed ? 'WORKOUT COMPLETE' : 'INDOOR RIDE') + ' · ' + when).toUpperCase(), 64, 340);
-  ctx.fillStyle = C.text;
-  fitText(ctx, ride.workout_name || 'Indoor ride', W - 128, 72, '700', sans);
-  ctx.fillText(ride.workout_name || 'Indoor ride', 64, 420);
+  ctx.fillStyle = C.text; fitText(ctx, ride.workout_name || 'Indoor ride', W - 160, 56, '700', sans);
+  ctx.fillText(ride.workout_name || 'Indoor ride', W / 2, 610);
+  ctx.fillStyle = C.accent; ctx.font = '600 24px ' + sans; ctx.fillText(when.toUpperCase(), W / 2, 654);
+  ctx.textAlign = 'left';
 
-  // chart
-  const cx = 64, cy = 470, cw = W - 128, ch = 360;
-  roundRect(ctx, cx, cy, cw, ch, 24); ctx.fillStyle = C.panel; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
-  const px = cx + 28, py = cy + 28, pw = cw - 56, phh = ch - 56, n = sec.length;
+  // chart: zone-coloured targets with the power trace glowing over them, straight on the background
+  const px = 80, py = 700, pw = W - 160, ph = 330, n = sec.length;
   if (n > 1){
-    const maxP = Math.max(100, ...sec.map(x => Math.max(x.power || 0, x.target || 0))) * 1.12;
-    const maxHr = Math.max(60, ...sec.map(x => x.hr || 0)) * 1.1;
+    const maxP = Math.max(100, ...sec.map(x => Math.max(x.power || 0, x.target || 0))) * 1.1;
     const xAt = i => px + i / (n - 1) * pw;
     if (ftp){
       const bw = pw / (n - 1) + 1;
-      ctx.globalAlpha = .45;
-      sec.forEach((x, i) => { if (!x.target) return; const h = Math.min(phh, x.target / maxP * phh); ctx.fillStyle = zoneHex(x.target / ftp * 100); ctx.fillRect(xAt(i), py + phh - h, bw, h); });
+      ctx.globalAlpha = .55;
+      sec.forEach((x, i) => { if (!x.target) return; const h = Math.min(ph, x.target / maxP * ph); ctx.fillStyle = zoneHex(x.target / ftp * 100); ctx.fillRect(xAt(i), py + ph - h, bw, h); });
       ctx.globalAlpha = 1;
     }
-    const line = (vals, max, color, lw) => {
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round';
-      let on = false;
-      vals.forEach((v, i) => { if (v == null){ on = false; return; } const y = py + phh - v / max * phh; if (!on){ ctx.moveTo(xAt(i), y); on = true; } else ctx.lineTo(xAt(i), y); });
-      ctx.stroke();
-    };
     const k = Math.max(2, Math.round(n / 600)); // smooth to roughly one point per pixel
     const sm = sec.map((x, i) => { let a = 0, c = 0; for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++){ a += sec[j].power || 0; c++; } return a / c; });
-    if (sec.some(x => x.hr)) line(sec.map(x => x.hr || null), maxHr, 'rgba(229,72,77,.85)', 2.5);
-    line(sm, maxP, C.accent, 4);
+    ctx.save();
+    ctx.shadowColor = 'rgba(69,214,196,.6)'; ctx.shadowBlur = 18;
+    ctx.beginPath(); sm.forEach((v, i) => { const y = py + ph - v / maxP * ph; if (i) ctx.lineTo(xAt(i), y); else ctx.moveTo(xAt(i), y); });
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.restore();
   }
+  ctx.fillStyle = C.line; ctx.fillRect(px, py + ph, pw, 2);
 
-  // stats
-  const kj = ride.avg_power != null ? Math.round(ride.avg_power * ride.duration_sec / 1000) : null;
+  // key stats in one row
   const stats = [
-    [fmtDur(ride.duration_sec), 'Time'],
-    [ride.tss, 'TSS'],
-    [ride.np != null ? ride.np + ' W' : null, 'Normalized power'],
-    [ride.avg_power != null ? ride.avg_power + ' W' : null, 'Avg power'],
-    [ride.intensity_factor != null ? Number(ride.intensity_factor).toFixed(2) : null, 'Intensity'],
-    [ride.avg_hr ? ride.avg_hr + ' bpm' : kj != null ? kj + ' kJ' : null, ride.avg_hr ? 'Avg heart rate' : 'Work'],
-  ].filter(s => s[0] != null && s[0] !== '').slice(0, 6);
-  const cols = 3, gx = 64, gy = 870, gw = (W - 128 - 2 * 20) / cols, gh = 132;
-  stats.forEach(([v, l], i) => {
-    const x = gx + (i % cols) * (gw + 20), y = gy + Math.floor(i / cols) * (gh + 20);
-    roundRect(ctx, x, y, gw, gh, 20); ctx.fillStyle = C.panel; ctx.fill(); ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = C.text; fitText(ctx, String(v), gw - 48, 52, '700', mono); ctx.fillText(String(v), x + 24, y + 70);
-    ctx.fillStyle = C.dim; ctx.font = '600 24px ' + sans; ctx.fillText(l.toUpperCase(), x + 24, y + 108);
+    [fmtDur(ride.duration_sec), 'Time', 1.5],
+    [ride.tss, 'TSS', 0.9],
+    [ride.np != null ? ride.np + ' W' : ride.avg_power != null ? ride.avg_power + ' W' : null, ride.np != null ? 'NP' : 'Avg power', 1.3],
+    [ride.intensity_factor != null ? Number(ride.intensity_factor).toFixed(2) : null, 'IF', 1],
+  ].filter(s => s[0] != null && s[0] !== '');
+  const tot = stats.reduce((a, s) => a + s[2], 0);
+  let sx = px;
+  stats.forEach(([v, l, wt]) => {
+    const cw = pw * wt / tot;
+    ctx.fillStyle = C.text; fitText(ctx, String(v), cw - 24, 58, '700', mono); ctx.fillText(String(v), sx, 1130);
+    ctx.fillStyle = C.dim; ctx.font = '600 22px ' + sans; ctx.fillText(l.toUpperCase(), sx, 1170);
+    sx += cw;
   });
 
-  // personal bests, or the footer line
-  let fy = gy + Math.ceil(stats.length / cols) * (gh + 20) + 18;
+  // new bests, centred
   if (pbs.length){
-    ctx.font = '700 24px ' + sans;
-    let x = 64;
-    for (const b of pbs.slice(0, 3)){
-      const t = 'New ' + b.label + ' best · ' + b.w + ' W', tw = ctx.measureText(t).width + 36;
-      if (x + tw > W - 64) break;
-      roundRect(ctx, x, fy, tw, 48, 24); ctx.fillStyle = 'rgba(232,185,61,.16)'; ctx.fill(); ctx.strokeStyle = 'rgba(232,185,61,.6)'; ctx.stroke();
-      ctx.fillStyle = '#F2CD6B'; ctx.fillText(t, x + 18, fy + 33);
-      x += tw + 12;
+    ctx.font = '700 22px ' + sans;
+    const chips = [];
+    let total = 0;
+    for (const b of pbs){
+      const t = 'New ' + b.label + ' best · ' + b.w + ' W', w = ctx.measureText(t).width + 32;
+      if (total + w + (chips.length ? 12 : 0) > pw) break;
+      chips.push([t, w]); total += w + (chips.length > 1 ? 12 : 0);
     }
+    let x = (W - total) / 2;
+    chips.forEach(([t, w]) => {
+      roundRect(ctx, x, 1212, w, 44, 22); ctx.fillStyle = 'rgba(232,185,61,.14)'; ctx.fill(); ctx.strokeStyle = 'rgba(232,185,61,.55)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#F2CD6B'; ctx.fillText(t, x + 16, 1242);
+      x += w + 12;
+    });
   }
-  ctx.fillStyle = C.dim; ctx.font = '600 26px ' + sans; ctx.textAlign = 'right';
-  ctx.fillText('Trained with TrainerCycle · trainercycle.com', W - 64, H - 52);
+
+  ctx.textAlign = 'center'; ctx.fillStyle = C.dim; ctx.font = '600 24px ' + sans;
+  ctx.fillText('trainercycle.com', W / 2, H - 46);
   ctx.textAlign = 'left';
 
   return new Promise(res => cv.toBlob(res, 'image/png'));
