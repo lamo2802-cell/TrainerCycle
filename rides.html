@@ -317,6 +317,7 @@ import { notify, ask } from './sheet.js?v=2';
 import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=3';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
+import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -720,13 +721,14 @@ const supabase = createSupabaseClient();
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
-    current = { ride, sec, ftp };
+    current = { ride, sec, ftp, pbs:[] };
     const w = workoutFor(ride);
     const kj = ride.avg_power!=null ? Math.round(ride.avg_power*ride.duration_sec/1000) : null;
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
 
     let html = '<button class="back" data-back>‹ Rides</button>';
     const pbs = newBests(ride, rides.some(r=>r.id===ride.id) ? rides.map(r=> r.id===ride.id ? Object.assign({}, r, { power_bests: ride.power_bests }) : r) : rides.concat([ride]));
+    current.pbs = pbs;
     const pbHtml = pbs.length ? '<div class="pb-chips">'+pbs.map(b=>'<span class="pb-chip" title="Previous best '+b.prev+' W">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
     if (opts.justSaved){
       const kjDone = ride.avg_power!=null ? Math.round(ride.avg_power*ride.duration_sec/1000) : null;
@@ -739,7 +741,7 @@ const supabase = createSupabaseClient();
     if (opts.justSaved) html += '<div id="ftpNote"></div>';
     html += '<div class="d-head"><div><h1>'+escapeHtml(ride.workout_name)+(ride.completed ? '' : '<span class="tag">Partial</span>')+'</h1>'
       + '<div class="when">'+fmtDate(ride.started_at)+(ride.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div>'+(opts.justSaved ? '' : pbHtml)+'</div>'
-      + '<div class="d-actions"><button data-tcx="'+ride.id+'">Export TCX</button>'
+      + '<div class="d-actions">'+(sec.length ? '<button data-ride-img>Download ride image</button>' : '')+'<button data-tcx="'+ride.id+'">Download TCX</button>'
       + (ride.strava_uploaded_at ? '<button disabled style="opacity:.7; cursor:default;">On Strava ✓</button>' : '<button data-strava="'+ride.id+'">Upload to Strava</button>')
       + '</div></div>';
     html += '<div class="d-stats">'
@@ -1049,6 +1051,19 @@ const supabase = createSupabaseClient();
       + '</Activity></Activities>\n'
       + '</TrainingCenterDatabase>';
   }
+
+  // Ride image for Strava or social: chart, stats and logo, made on the device
+  document.getElementById('detailView').addEventListener('click', async (e)=>{
+    const btn = e.target.closest('[data-ride-img]');
+    if (!btn || !current) return;
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Making image…';
+    try {
+      const how = await shareRideImage({ ride:current.ride, sec:current.sec, ftp:current.ftp, pbs:current.pbs.map(b=>({ label:pbLabel(b.d), w:b.w })) });
+      if (how === 'downloaded') notify('Saved. On Strava, open the activity, tap Edit and add it as a photo.', 'Ride image ready');
+    } catch(_){ notify('Couldn\'t make the image on this device. Try again, or use another browser.'); }
+    btn.disabled = false; btn.textContent = label;
+  });
 
   document.getElementById('detailView').addEventListener('click', (e)=>{
     const id = e.target.dataset.tcx;

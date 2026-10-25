@@ -186,5 +186,5 @@ export function openExportSheet({ kind = 'bike', workout, ftp, session, T } = {}
     if (b.dataset.ex === 'zwo') download(workoutToZwo(workout, ftp), slug(name)+'.zwo', 'application/xml');
     else download(kind === 'run' ? runToFit(session, T) : workoutToFit(workout, ftp), slug(name)+'.fit', 'application/octet-stream');
   });
-  return showSheet({ title:'Send "'+name+'" to a device', content: box, buttons:[{ label:'Done', value:true }] });
+  return showSheet({ title:'Download "'+name+'"', content: box, buttons:[{ label:'Done', value:true }] });
 }

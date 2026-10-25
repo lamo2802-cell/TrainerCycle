@@ -94,27 +94,76 @@
   .page-nav a:hover{ background:var(--panel-2); color:var(--text); }
   .page-nav a.active{ background:var(--panel-2); color:var(--accent); font-weight:600; }
 
-  .brand{ display:flex; align-items:center; gap:16px; margin-bottom:6px; }
-  .brand img{ width:64px; height:64px; border-radius:14px; }
-  .brand h1{ font-size:34px; margin:0; letter-spacing:-0.02em; }
-  .brand h1 span{ color:var(--accent); }
-  .tagline{ color:var(--text-dim); font-size:14px; margin-bottom:28px; text-align:center; max-width:420px; }
-
-  .hero{ width:100%; max-width:760px; border-radius:16px; overflow:hidden; border:1px solid var(--line); margin-bottom:36px; }
-  .hero img{ width:100%; display:block; }
-
   .footer-links{ margin-top:40px; display:flex; gap:16px; font-size:12px; }
   .footer-links a{ color:var(--text-dim); text-decoration:none; }
   .footer-links a:hover{ color:var(--accent); }
 
-  .marketing-features{
-    display:grid; grid-template-columns:1fr; gap:14px; width:100%; max-width:640px; margin-bottom:28px;
+  /* ---- Landing page (signed out). Hidden until we know you're signed out, and never painted when a saved
+     login exists, so it can't flash on the way to Today. ---- */
+  #signinSection{ display:none; }
+  html:not(.has-appnav) #signinSection{ display:flex; }
+  html:not(.has-appnav) body{ overflow-x:hidden; }
+  .lp{ flex-direction:column; align-items:center; width:100vw; margin-top:-16px; }
+  .lp h1, .lp h2{ letter-spacing:-0.02em; }
+  .lp-kicker{ display:block; font-size:12px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); margin-bottom:12px; }
+  .lp-primary{ padding:15px 28px; border-radius:12px; border:none; background:var(--accent); color:#08211E; font-weight:700; font-size:16px; cursor:pointer; font-family:inherit; box-shadow:0 8px 28px rgba(69,214,196,.25); }
+  .lp-primary:hover{ filter:brightness(1.08); }
+
+  .lp-hero{ position:relative; width:100%; min-height:min(82vh, 720px); display:flex; align-items:flex-end; overflow:hidden; }
+  .lp-hero-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:62% 40%; }
+  .lp-hero::after{ content:''; position:absolute; inset:0; background:linear-gradient(90deg, rgba(16,20,26,.97) 0%, rgba(16,20,26,.88) 38%, rgba(16,20,26,.15) 72%), linear-gradient(0deg, var(--bg) 0%, rgba(16,20,26,0) 30%); }
+  .lp-hero-copy{ position:relative; z-index:1; max-width:1120px; width:100%; margin:0 auto; padding:80px 32px 72px; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:18px; }
+  .lp-hero-copy h1{ font-size:clamp(36px, 5vw, 58px); line-height:1.04; margin:0; max-width:560px; }
+  .lp-hero-copy p{ font-size:17px; line-height:1.55; color:#C3CBD6; margin:0; max-width:520px; }
+  .lp-hero-copy .lp-kicker{ margin:0; }
+  .lp-hero-copy small{ color:var(--text-dim); font-size:13px; }
+  @media (max-width:759px){
+    .lp-hero{ min-height:0; flex-direction:column; align-items:stretch; }
+    .lp-hero-img{ position:relative; inset:auto; height:300px; }
+    .lp-hero::after{ background:linear-gradient(0deg, var(--bg) 0%, rgba(16,20,26,0) 45%); height:300px; bottom:auto; }
+    .lp-hero-copy{ padding:0 20px 48px; margin-top:-40px; }
   }
-  @media (min-width:620px){ .marketing-features{ grid-template-columns:1fr 1fr; } }
-  .feature{ display:flex; gap:12px; align-items:flex-start; text-align:left; }
-  .feature-icon{ font-size:22px; flex-shrink:0; line-height:1.3; }
-  .feature b{ display:block; font-size:14px; margin-bottom:3px; }
-  .feature p{ color:var(--text-dim); font-size:12.5px; line-height:1.4; margin:0; }
+
+  .lp-feature{ width:100%; max-width:1120px; box-sizing:border-box; padding:72px 32px; display:grid; grid-template-columns:minmax(0, 5fr) minmax(0, 7fr); gap:56px; align-items:center; }
+  .lp-feature.flip{ grid-template-columns:minmax(0, 7fr) minmax(0, 5fr); }
+  .lp-feature.flip .lp-copy{ order:2; }
+  .lp-copy h2{ font-size:clamp(26px, 3.2vw, 38px); line-height:1.12; margin:0 0 14px; }
+  .lp-copy p{ color:#B4BDC9; font-size:16px; line-height:1.6; margin:0 0 20px; }
+  .lp-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .lp-list li{ display:flex; gap:10px; align-items:flex-start; font-size:15px; line-height:1.45; text-align:left; }
+  .lp-list svg{ width:20px; height:20px; flex-shrink:0; margin-top:1px; fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .lp-shot{ display:flex; justify-content:center; }
+  .lp-shot img{ display:block; max-width:100%; height:auto; }
+  .lp-shot picture{ display:contents; }
+  @media (max-width:859px){ .lp-laptop img[src$="today.webp"]{ width:min(280px, 78vw); border-radius:30px; border:8px solid #1A2029; box-shadow:0 30px 80px rgba(0,0,0,.55); } }
+  .lp-laptop img{ border-radius:14px; border:1px solid var(--line); box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 6px #1A2029; }
+  .lp-phone img{ width:300px; border-radius:34px; border:8px solid #1A2029; box-shadow:0 30px 80px rgba(0,0,0,.55); }
+  @media (max-width:859px){
+    .lp-feature, .lp-feature.flip{ grid-template-columns:1fr; gap:32px; padding:48px 20px; }
+    .lp-feature.flip .lp-copy{ order:0; }
+    .lp-phone img{ width:min(280px, 78vw); }
+  }
+
+  .lp-band{ position:relative; width:100%; min-height:420px; display:flex; align-items:center; justify-content:center; text-align:center; background-size:cover; background-position:center; margin:32px 0; }
+  .lp-band::before{ content:''; position:absolute; inset:0; background:linear-gradient(0deg, var(--bg) 0%, rgba(16,20,26,.35) 30%, rgba(16,20,26,.35) 70%, var(--bg) 100%); }
+  .lp-band > div{ position:relative; z-index:1; max-width:680px; padding:0 24px; }
+  .lp-band h2{ font-size:clamp(28px, 4vw, 44px); line-height:1.1; margin:0 0 12px; text-shadow:0 2px 24px rgba(0,0,0,.6); }
+  .lp-band p{ font-size:17px; color:#D6DCE4; margin:0; text-shadow:0 2px 16px rgba(0,0,0,.6); }
+  .lp-price-band{ min-height:760px; margin-bottom:0; }
+  .lp-band > .lp-price{ background:rgba(23,29,37,.92); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:20px; padding:36px 32px; margin:0 16px; max-width:440px !important; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .lp-price .lp-kicker{ margin:0; }
+  .lp-amount b{ font-size:56px; letter-spacing:-0.03em; }
+  .lp-amount span{ font-size:18px; color:var(--text-dim); margin-left:4px; }
+  .lp-price .trial-badge{ margin:0; }
+  .lp-price .lp-list{ margin:8px 0 6px; align-self:stretch; }
+  .lp-price .lp-primary{ align-self:stretch; }
+  .lp-price small{ color:var(--text-dim); font-size:12px; line-height:1.5; }
+
+  /* signed out: a Log in button instead of the side menu */
+  html:not(.has-appnav) #sidebarToggle{ display:none; }
+  .top-login{ display:none; }
+  @media (max-width:759px){ html:not(.has-appnav) .top-bar-logo-link{ position:static; transform:none; } html:not(.has-appnav) .top-logo{ height:46px; } }
+  html:not(.has-appnav) .top-login{ display:block; margin-left:auto; margin-right:8px; padding:9px 16px; border-radius:10px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer; font-family:inherit; }
   .trial-badge{
     display:inline-block; background:var(--panel-2); border:1px solid var(--accent); color:var(--accent);
     font-size:12px; font-weight:600; padding:4px 12px; border-radius:12px; margin-bottom:16px;
@@ -275,6 +324,7 @@
   <button class="icon-btn" id="sidebarToggle" aria-label="Toggle menu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a href="index.html" class="top-bar-logo-link" aria-label="TrainerCycle home"><img src="wordmark.svg" class="top-logo" alt="TrainerCycle"></a>
   <div class="top-bar-spacer"></div>
+  <button type="button" class="top-login" data-get-started>Log in</button>
   <button class="icon-btn" id="fullscreenToggle" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 
@@ -303,43 +353,56 @@
   </div>
 
   <div class="main">
-    <div class="brand">
-      <img src="logo.svg" alt="TrainerCycle logo">
-      <h1>Trainer<span>Cycle</span></h1>
-    </div>
-    <p class="tagline">Structured indoor training, built around your FTP — cycling and strength, all in one place.</p>
+    <div id="signinSection" class="lp">
+      <section class="lp-hero">
+        <img src="hero.jpg" alt="" class="lp-hero-img">
+        <div class="lp-hero-copy">
+          <span class="lp-kicker">Indoor cycling · TrainerRun · TrainerStrength</span>
+          <h1>Structured training that adapts to you.</h1>
+          <p>Plans built around your FTP, rides that control your smart trainer, and runs and strength that fit around them. One subscription, one calendar.</p>
+          <button type="button" class="lp-primary" data-get-started>Start your 7-day free trial</button>
+          <small>7 days free, then &pound;4.99/month. Cancel any time.</small>
+        </div>
+      </section>
 
-    <div class="hero">
-      <img src="hero.jpg" alt="Cyclist with live workout dashboard overlay">
-    </div>
+      <section class="lp-feature">
+        <div class="lp-copy"><span class="lp-kicker">Today</span><h2>Open the app. Your session is waiting.</h2><p>Every day starts with what to ride, why it matters this week, and how your fitness is trending.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Today's workout with its profile, TSS and difficulty</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Your week at a glance with a training streak</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Fitness, fatigue and form so you know when to push</span></li></ul></div>
+        <div class="lp-shot lp-laptop"><picture><source media="(max-width:859px)" srcset="showcase/today-phone.webp"><img src="showcase/today.webp" alt="The Today screen showing a Sweet Spot workout and the week ahead" loading="lazy" decoding="async"></picture></div>
+      </section>
+      <section class="lp-feature flip">
+        <div class="lp-copy"><span class="lp-kicker">Live ERG rides</span><h2>Your trainer holds the power. You hold on.</h2><p>Connect a Bluetooth smart trainer and every interval sets its own resistance. Change things mid-ride without stopping.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>ERG control for FTMS smart trainers, plus heart rate</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Add or cut 30 seconds, or make an interval easier</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Spoken cues before every change, so you can keep your head down</span></li></ul></div>
+        <div class="lp-shot lp-laptop"><img src="showcase/live.webp" alt="A live ride with power target, interval timer and the full workout profile" loading="lazy" decoding="async"></div>
+      </section>
+      <section class="lp-band" style="background-image:url('banner-rides.jpg')">
+        <div><h2>Every indoor interval is for the road outside.</h2><p>Train with purpose through the winter and turn up to the climbs ready.</p></div>
+      </section>
 
-    <div id="signinSection" style="display:none;">
-      <div class="marketing-features">
-        <div class="feature">
-          <span class="feature-icon">⚡</span>
-          <div><b>Live ERG control</b><p>Real Bluetooth trainer control — the resistance actually holds your target power, not just displays it.</p></div>
+      <section class="lp-feature">
+        <div class="lp-copy"><span class="lp-kicker">Calendar and adaptive plans</span><h2>A plan that bends when life does.</h2><p>Pick a plan for your goal and it lands on your calendar. Then it keeps adjusting to how you're actually doing.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Plans from base to race, set up in three questions</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Drag sessions to another day, add holidays and it rearranges</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Feeling tired or flying? It swaps sessions to match</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Subscribe to your plan in Google, Apple or Outlook Calendar</span></li></ul></div>
+        <div class="lp-shot lp-laptop"><img src="showcase/calendar.webp" alt="The calendar month view with planned and completed sessions" loading="lazy" decoding="async"></div>
+      </section>
+      <section class="lp-feature flip">
+        <div class="lp-copy"><span class="lp-kicker">TrainerRun</span><h2>Running, built into the same plan.</h2><p>Set a race and TrainerRun builds the weeks to get you there, slotting runs around your rides so nothing clashes.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Race plans for 5K, 10K, half marathon and marathon</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Pace zones and finish-time predictions from your runs</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Runs count towards your fitness and form, just like rides</span></li></ul></div>
+        <div class="lp-shot lp-phone"><img src="showcase/run.webp" alt="TrainerRun showing a half marathon plan 116 days out" loading="lazy" decoding="async"></div>
+      </section>
+      <section class="lp-feature">
+        <div class="lp-copy"><span class="lp-kicker">TrainerStrength</span><h2>Strength that makes you a better rider.</h2><p>Guided sessions take you set by set with rest timers, and they sit in your plan alongside your rides.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Set-by-set guidance with automatic rest timers</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Sessions with or without weights</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Built into cycling plans so the whole week counts</span></li></ul></div>
+        <div class="lp-shot lp-phone"><img src="showcase/strength.webp" alt="A TrainerStrength session on goblet squats, set 1 of 3" loading="lazy" decoding="async"></div>
+      </section>
+      <section class="lp-feature flip">
+        <div class="lp-copy"><span class="lp-kicker">Progress</span><h2>See every watt of progress.</h2><p>Each ride gets a full breakdown, and TrainerCycle notices when you've got stronger.</p><ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Power curve, time in zone and interval breakdown</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Personal bests and records across every ride</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Progression levels and automatic FTP detection</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Strava both ways: rides go up, outdoor rides and runs come in</span></li></ul></div>
+        <div class="lp-shot lp-laptop"><img src="showcase/ride.webp" alt="A ride summary with personal bests, power and heart rate chart" loading="lazy" decoding="async"></div>
+      </section>
+      <section class="lp-band lp-price-band" style="background-image:url('banner-plans.jpg')">
+        <div class="lp-price">
+          <span class="lp-kicker">One plan. Everything included.</span>
+          <div class="lp-amount"><b>&pound;4.99</b><span>/month</span></div>
+          <div class="trial-badge">7 days free for new subscribers</div>
+          <ul class="lp-list"><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Every training plan and adaptive adjustments</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Live ERG rides and the full workout library</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>TrainerRun race plans and pace zones</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>TrainerStrength sessions</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Ride analysis, records and FTP detection</span></li><li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Strava sync and your plan in your calendar</span></li></ul>
+          <button type="button" class="lp-primary" data-get-started>Start your 7-day free trial</button>
+          <small>Cancel any time from Settings. Live rides need Chrome or Edge on a computer or Android, and a Bluetooth smart trainer. An Android app is coming to Google Play.</small>
         </div>
-        <div class="feature">
-          <span class="feature-icon">🚴</span>
-          <div><b>Cycling + strength, together</b><p>Structured rides and strength sessions in one app, built around your FTP.</p></div>
-        </div>
-        <div class="feature">
-          <span class="feature-icon">📅</span>
-          <div><b>Plans that mix both</b><p>Multi-week training plans combining cycling and strength, plus a full workout library.</p></div>
-        </div>
-        <div class="feature">
-          <span class="feature-icon">🔗</span>
-          <div><b>Automatic Strava sync</b><p>Every ride uploads on its own once you connect your Strava account — no extra steps.</p></div>
-        </div>
-      </div>
-
-      <div class="signin-card">
-        <h2>Get started</h2>
-        <div class="trial-badge">New subscribers: 7 days free, then £4.99/month</div>
-        <p>Sign up to build workouts, connect your trainer, and start tracking your training.</p>
-        <button id="heroGetStartedBtn" style="width:100%; padding:12px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#08211E; font-weight:700; font-size:15px; cursor:pointer;">Get Started</button>
-        <div style="font-size:11.5px; color:var(--accent); margin-top:14px; line-height:1.4;">📱 Android app coming soon to Google Play — use it right here in the browser in the meantime, works just as well.</div>
-      </div>
+      </section>
     </div>
 
     <div class="today" id="todaySection" style="display:none;"></div>
@@ -363,7 +426,7 @@ import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL
 import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=1';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
-import { openExportSheet } from './export.js?v=1';
+import { openExportSheet } from './export.js?v=2';
 import { openWelcome } from './welcome.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=2';
@@ -371,13 +434,12 @@ const supabase = createSupabaseClient();
 
 (async function(){
   function showSignedOut(){
+    document.documentElement.classList.remove('has-appnav'); // a stale saved login made the page guess signed in
     document.getElementById('signinSection').style.display = 'flex';
-    document.getElementById('signinSection').style.justifyContent = 'center';
     document.getElementById('sidebarLoginBlock').style.display = '';
   }
   async function showSignedIn(user){
     document.getElementById('signinSection').style.display = 'none';
-    document.querySelectorAll('.brand, .tagline, .hero').forEach(el=>{ el.style.display = 'none'; });
     document.getElementById('todaySection').style.display = '';
     renderToday(user);
     document.getElementById('sidebarLoginBlock').style.display = 'none';
@@ -600,7 +662,7 @@ const supabase = createSupabaseClient();
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRun ? '<button class="t-btn primary" data-log-run="'+s.dayIndex+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
-        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Send to device</button>' : '')+'</div></div>';
+        + (!s.isStrength && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+s.dayIndex+'">Download file</button>' : '')+'</div></div>';
     }
     const awayNow = holidayOn(today, holidays);
     if (awayNow && !todoToday && !ridTodayList.length){
@@ -782,10 +844,10 @@ const supabase = createSupabaseClient();
     });
   }
 
-  document.getElementById('heroGetStartedBtn').addEventListener('click', async ()=>{
+  document.querySelectorAll('[data-get-started]').forEach(b => b.addEventListener('click', async ()=>{
     const user = await requireAuth(supabase);
     if (!handled){ handled = true; await showSignedIn(user); }
-  });
+  }));
   document.getElementById('sidebarLoginBtn').addEventListener('click', async ()=>{
     const user = await requireAuth(supabase);
     if (!handled){ handled = true; await showSignedIn(user); }

@@ -275,7 +275,7 @@ import { applySwaps, undoSwap } from './adapt.js?v=2';
 import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=3';
 import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=1';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=1';
-import { openExportSheet } from './export.js?v=1';
+import { openExportSheet } from './export.js?v=2';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -681,7 +681,7 @@ const supabase = createSupabaseClient();
       + (s.dayObj.swappedFrom && !s.dayObj.holiday ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
       + (s.isRun ? '<p class="run-desc">'+escapeHtml(s.run.text)+'</p>' : '')
       + '<div class="actions"><button id="sheetCloseBtn">Close</button>'
-        +(!s.isStrength && (s.isRun || (workouts[s.dayObj.workoutId]||{}).steps) ? '<button id="exportBtn">Send to device</button>' : '')+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
+        +(!s.isStrength && (s.isRun || (workouts[s.dayObj.workoutId]||{}).steps) ? '<button id="exportBtn">Download file</button>' : '')+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
         : '<a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a>')+'</div>';
     sheet.style.display = 'flex';
     document.getElementById('sheetCloseBtn').onclick = closeSheet;

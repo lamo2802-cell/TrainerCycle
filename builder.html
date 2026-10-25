@@ -345,7 +345,7 @@
     <div class="preview-steps" id="previewSteps"></div>
     <div class="preview-actions">
       <button class="primary" id="previewLoadLiveBtn">Load to Live Ride</button>
-      <button id="previewExportBtn">Send to device</button>
+      <button id="previewExportBtn">Download file</button>
     </div>
   </div>
 </div>
@@ -358,7 +358,7 @@ import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-sch
 import { applySwaps } from './adapt.js?v=2';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 import { addRuns } from './run.js?v=3';
-import { openExportSheet } from './export.js?v=1';
+import { openExportSheet } from './export.js?v=2';
 const supabase = createSupabaseClient();
 (async function(){
   const user = await requireAuth(supabase);

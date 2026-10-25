@@ -239,7 +239,7 @@ import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, pa
 import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
   paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=1';
 import { applySwaps } from './adapt.js?v=2';
-import { openExportSheet } from './export.js?v=1';
+import { openExportSheet } from './export.js?v=2';
 import { loadHolidays, applyHolidays } from './holidays.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -343,7 +343,7 @@ const supabase = createSupabaseClient();
           : '<span class="ss muted">'+(date === addDays(today, 1) ? 'Tomorrow' : '')+'</span>';
         return '<div class="sess'+(rs.kind === 'race' ? ' race' : '')+'"><div class="sd"><b>'+DAY_NAMES[di]+'</b>'+parseIso(date).getDate()+' '+parseIso(date).toLocaleString('en-GB',{ month:'short' })+'</div>'
           + '<div><div class="sn">'+esc(rs.name)+'<small>'+fmtMins(rs.mins)+' · '+rs.tss+' TSS</small></div><div class="sx">'+esc(rs.text)+(s && s.dayObj.holiday ? ' Easy version while you\'re on holiday.' : '')
-          + (!done && date >= today ? ' <button class="link-btn" data-export="'+esc(id)+'">Send to watch</button>' : '')+'</div></div>'+status+'</div>';
+          + (!done && date >= today ? ' <button class="link-btn" data-export="'+esc(id)+'">Download file</button>' : '')+'</div></div>'+status+'</div>';
       }).join('');
       const [pn, pc] = PHASE[w.phase];
       html += '<details class="wk"'+(started ? (i === cur ? ' open' : '') : (i === 0 ? ' open' : ''))+'><summary><span class="wn">Week '+(i+1)+'</span>'
