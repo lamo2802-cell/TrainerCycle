@@ -111,14 +111,13 @@
   button.ghost:hover{ color:var(--text); border-color:var(--line); }
   button:disabled{ opacity:.4; cursor:not-allowed; }
 
-  .lib-filters{ display:flex; gap:6px; margin-bottom:10px; }
-  .lib-filters select{ font-size:12px; padding:5px 6px; }
+  .lib-filters{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .lib-filters select{ font-size:12px; padding:5px 6px; width:auto; flex:1 1 140px; }
   #libraryList{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
   .lib-item{ padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--panel); cursor:pointer; }
   .lib-item .lib-actions{ margin-top:10px; }
-  .lib-item:hover{ background:var(--panel-2); margin:0 -8px; padding:10px 8px; border-radius:6px; }
+  .lib-item:hover{ background:var(--panel-2); border-color:#3A4452; }
   .lib-tag{ display:inline-block; font-size:12px; padding:2px 9px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:8px; }
-  .lib-item:first-child{ border-top:none; }
   .lib-name{ font-weight:600; font-size:17px; }
   .lib-meta{ color:var(--text-dim); font-size:14px; font-family:var(--mono); margin:3px 0 6px; }
   .lib-item-row{ display:flex; gap:10px; align-items:center; }
@@ -183,6 +182,48 @@
   .legend{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
   .legend-item{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim); }
   .legend-dot{ width:8px; height:8px; border-radius:2px; }
+
+  /* ---- "How long have you got?" picker ---- */
+  .page-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .page-head h1{ font-size:24px; margin:0; }
+  .picker{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
+  .picker-q{ font-size:16px; font-weight:600; }
+  .picker-q + .picker-opts{ margin-bottom:8px; }
+  .picker-opts{ display:grid; gap:10px; }
+  .picker-durs{ grid-template-columns:repeat(auto-fit, minmax(84px, 1fr)); }
+  .picker-feels{ grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); }
+  .pick-btn{ display:flex; flex-direction:column; justify-content:center; gap:2px; min-height:64px; padding:10px 14px; border-radius:10px; border:1.5px solid var(--line); background:var(--panel-2); color:var(--text); text-align:left; }
+  .pick-btn:hover{ border-color:#3A4452; }
+  .pick-btn[aria-pressed="true"]{ background:rgba(69,214,196,.12); border-color:var(--accent); }
+  .picker-durs .pick-btn{ align-items:center; text-align:center; min-height:72px; }
+  .pick-big{ font-family:var(--mono); font-size:24px; font-weight:600; }
+  .pick-label{ font-size:15px; font-weight:600; }
+  .pick-sub{ font-size:12px; color:var(--text-dim); }
+  .plan-nudge{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; border:1px solid var(--line); border-radius:10px; color:#B4BDC9; margin-bottom:22px; font-size:14px; }
+  .plan-nudge .pn-text{ flex:1; min-width:200px; }
+  .plan-nudge b{ color:var(--text); }
+  .plan-nudge a{ color:var(--accent); text-decoration:none; font-size:13.5px; padding:6px 0; }
+  .section-row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .section-h{ font-size:17px; font-weight:600; }
+  .section-sub{ color:var(--text-dim); font-size:13px; }
+  #bestFits{ display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; margin-bottom:36px; }
+  .fit-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; }
+  .fit-card:hover{ border-color:#3A4452; }
+  .fit-chart{ display:block; width:100%; height:96px; background:#131920; }
+  .fit-body{ padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px; }
+  .fit-name{ font-weight:600; font-size:17px; }
+  .fit-meta{ display:flex; align-items:center; gap:6px; color:var(--text-dim); font-size:12.5px; }
+  .cat-dot{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
+  .fit-stats{ display:flex; gap:22px; align-items:baseline; font-family:var(--mono); }
+  .fit-stats .big{ font-size:22px; font-weight:600; }
+  .fit-stats .v{ font-size:15px; }
+  .fit-stats .u{ color:var(--text-dim); font-size:11.5px; margin-left:4px; }
+  .fit-ride{ margin-top:2px; padding:11px; border-radius:8px; border:1px solid var(--accent); background:transparent; color:var(--accent); font-weight:600; font-size:14px; }
+  .fit-ride:hover{ background:rgba(69,214,196,.1); }
+  .fits-empty{ grid-column:1/-1; padding:36px 20px; text-align:center; border:1px dashed var(--line); border-radius:12px; color:var(--text-dim); }
+  .lib-empty{ padding:36px 20px; text-align:center; border:1px dashed var(--line); border-radius:12px; color:var(--text-dim); grid-column:1/-1; }
+  .link-btn{ background:none; border:none; color:var(--accent); padding:0; font-size:inherit; cursor:pointer; }
+  .link-btn:hover{ text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -213,14 +254,44 @@
   </div>
 
   <div class="main">
+    <div class="page-head">
+      <h1>Workouts</h1>
+      <a href="create-workout.html"><button class="primary" style="width:auto; padding:9px 18px;">Create Workout</button></a>
+    </div>
+
+    <section class="picker" aria-label="Find a workout">
+      <div class="picker-q" id="durQ">How long have you got?</div>
+      <div class="picker-opts picker-durs" id="pickerDurs" role="group" aria-labelledby="durQ"></div>
+      <div class="picker-q" id="feelQ">How should it feel?</div>
+      <div class="picker-opts picker-feels" id="pickerFeels" role="group" aria-labelledby="feelQ"></div>
+    </section>
+
+    <div class="plan-nudge" id="planNudge" style="display:none;"></div>
+
+    <div class="section-row">
+      <div class="section-h">Best fits</div>
+      <div class="section-sub" id="fitsSub"></div>
+    </div>
+    <div id="bestFits"><div class="empty-note">Loading…</div></div>
+
     <div class="block">
-      <div class="block-top-row">
-        <div class="block-title">Workout Library</div>
-        <a href="create-workout.html"><button class="primary" style="width:auto; padding:9px 18px;">Create Workout</button></a>
+      <div class="section-row">
+        <div class="section-h">All workouts</div>
+        <div class="section-sub" id="libCount"></div>
       </div>
+      <div id="saveMsg"></div>
       <input type="text" id="librarySearch" placeholder="Search workouts…" style="margin-bottom:10px;">
       <div class="lib-filters">
-        <select id="filterCategory">
+        <select id="filterDuration" aria-label="Duration">
+          <option value="">Any length</option>
+          <option value="0-30">Up to 30 min</option>
+          <option value="30-45">30–45 min</option>
+          <option value="45-60">45–60 min</option>
+          <option value="60-75">60–75 min</option>
+          <option value="75-90">75–90 min</option>
+          <option value="90-">Over 90 min</option>
+        </select>
+        <select id="filterCategory" aria-label="Type">
           <option value="">All types</option>
           <option value="recovery">Recovery</option>
           <option value="endurance">Endurance</option>
@@ -233,7 +304,7 @@
           <option value="test">FTP Test</option>
           <option value="custom">Custom (mine)</option>
         </select>
-        <select id="sortBy">
+        <select id="sortBy" aria-label="Sort">
           <option value="duration_asc">Duration ↑</option>
           <option value="duration_desc">Duration ↓</option>
           <option value="if_asc">Intensity ↑</option>
@@ -311,7 +382,7 @@ const supabase = createSupabaseClient();
     } catch(e){
       const cached = localStorage.getItem(ftpCacheKey);
       if (cached) ftp = parseFloat(cached) || 100;
-      showMsg('ftpMsg','Offline — showing last saved FTP.', true);
+      showMsg('saveMsg','Offline — showing last saved FTP.', true);
     }
     // Library (RLS returns shared prebuilt rows plus this user's own rows)
     try {
@@ -325,7 +396,10 @@ const supabase = createSupabaseClient();
       showMsg('saveMsg','Offline — showing last synced library.', true);
     }
     renderFtp();
+    renderPicker();
+    renderFits();
     renderLibrary();
+    renderPlanNudge();
   }
   async function saveFtp(v){
     ftp = v;
@@ -349,6 +423,7 @@ const supabase = createSupabaseClient();
 
   function showMsg(elId, text, isError){
     const el = document.getElementById(elId);
+    if (!el) return;
     el.innerHTML = '<div class="msg ' + (isError?'error':'ok') + '">' + text + '</div>';
     setTimeout(()=>{ el.innerHTML=''; }, 3500);
   }
@@ -407,7 +482,8 @@ const supabase = createSupabaseClient();
     });
     const np = (hasPower && totalDur>0) ? Math.pow(sumP4t/totalDur, 0.25) : null;
     const IF = (np!=null && ftp>0) ? np/ftp : null;
-    return { totalDur, np: np!=null?Math.round(np):null, IF: IF!=null?Math.round(IF*100)/100:null };
+    const tss = IF!=null ? Math.round(totalDur/3600 * IF * IF * 100) : null;
+    return { totalDur, np: np!=null?Math.round(np):null, IF: IF!=null?Math.round(IF*100)/100:null, tss };
   }
 
   // ---- rendering ----
@@ -415,7 +491,7 @@ const supabase = createSupabaseClient();
     // FTP is now edited on the Settings page — this page just reads the value for calculations.
   }
 
-  function miniChartSVG(steps){
+  function profileSVG(steps, cls){
     const flat = flatten(steps);
     const total = flat.reduce((a,s)=>a+(s.duration||0),0) || 1;
     let x = 0;
@@ -428,13 +504,153 @@ const supabase = createSupabaseClient();
       x += w;
       return bar;
     }).join('');
-    return '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="lib-chart">'+bars+'</svg>';
+    return '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="'+cls+'" aria-hidden="true">'+bars+'</svg>';
+  }
+  function miniChartSVG(steps){ return profileSVG(steps, 'lib-chart'); }
+
+  // ---- remembered choices (picker + library filters), per device ----
+  const prefsKey = 'tc_workouts_prefs_' + user.id;
+  let prefs = { dur:60, feel:'steady', filterDuration:'', filterCategory:'', sortBy:'duration_asc' };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem(prefsKey) || '{}')); } catch(_){}
+  function savePrefs(){ try { localStorage.setItem(prefsKey, JSON.stringify(prefs)); } catch(_){} }
+
+  const CATEGORY_COLORS = {
+    recovery:'#7D8796', endurance:'#4C8BF5', tempo:'#3DBE7A', sweet_spot:'#B9C24A', threshold:'#E8B93D',
+    over_under:'#EFA03C', vo2max:'#F08A3C', anaerobic:'#E5484D', test:'#B14AED'
+  };
+  function catDot(cat){ return '<span class="cat-dot" style="background:'+(CATEGORY_COLORS[cat]||'var(--accent)')+'"></span>'; }
+
+  // ---- "How long have you got?" picker ----
+  const PICK_DURS = [
+    { v:30, big:'30', unit:'min' }, { v:45, big:'45', unit:'min' }, { v:60, big:'60', unit:'min' },
+    { v:75, big:'75', unit:'min' }, { v:90, big:'90', unit:'min' }, { v:0, big:'2h+', unit:'long ride' }
+  ];
+  const FEELS = [
+    { id:'easy',   label:'Easy',        sub:'Recovery, endurance',          cats:['recovery','endurance'] },
+    { id:'steady', label:'Steady',      sub:'Tempo, sweet spot',            cats:['tempo','sweet_spot'] },
+    { id:'hard',   label:'Hard',        sub:'Threshold, VO2, over-unders',  cats:['threshold','over_under','vo2max','anaerobic'] },
+    { id:'test',   label:'Test my FTP', sub:'Ramp or 20-minute test',       cats:['test'] }
+  ];
+  const LONG_RIDE_MIN = 100; // "2h+" shows rides of at least this many minutes
+  const FIT_GRACE_SEC = 90;  // a 61-minute workout still counts as fitting a 60-minute slot
+
+  // Custom workouts have no category, so bucket them by intensity instead.
+  function feelOf(w, stats){
+    if (w.category){
+      const f = FEELS.find(f=>f.cats.includes(w.category));
+      return f ? f.id : null;
+    }
+    if (stats.IF == null) return null;
+    return stats.IF < 0.70 ? 'easy' : stats.IF < 0.86 ? 'steady' : 'hard';
   }
 
+  function renderPicker(){
+    document.getElementById('pickerDurs').innerHTML = PICK_DURS.map(d=>
+      '<button class="pick-btn" data-dur="'+d.v+'" aria-pressed="'+(prefs.dur===d.v)+'"><span class="pick-big">'+d.big+'</span><span class="pick-sub">'+d.unit+'</span></button>'
+    ).join('');
+    document.getElementById('pickerFeels').innerHTML = FEELS.map(f=>
+      '<button class="pick-btn" data-feel="'+f.id+'" aria-pressed="'+(prefs.feel===f.id)+'"><span class="pick-label">'+f.label+'</span><span class="pick-sub">'+f.sub+'</span></button>'
+    ).join('');
+  }
+  document.getElementById('pickerDurs').addEventListener('click', e=>{
+    const b = e.target.closest('[data-dur]'); if (!b) return;
+    prefs.dur = parseInt(b.dataset.dur, 10); savePrefs(); renderPicker(); renderFits();
+  });
+  document.getElementById('pickerFeels').addEventListener('click', e=>{
+    const b = e.target.closest('[data-feel]'); if (!b) return;
+    prefs.feel = b.dataset.feel; savePrefs(); renderPicker(); renderFits();
+  });
+
+  function bestFits(){
+    const feel = FEELS.find(f=>f.id===prefs.feel) || FEELS[1];
+    const long = prefs.dur === 0;
+    const slot = prefs.dur*60;
+    const cands = library.map(w=>({ w, stats:computeStats(w.steps) }))
+      .filter(it => feelOf(it.w, it.stats) === feel.id)
+      .filter(it => long ? it.stats.totalDur >= LONG_RIDE_MIN*60 : it.stats.totalDur <= slot + FIT_GRACE_SEC)
+      .sort((a,b)=> long ? a.stats.totalDur - b.stats.totalDur
+                         : (slot - a.stats.totalDur) - (slot - b.stats.totalDur) || a.w.name.localeCompare(b.w.name));
+    // Prefer variety: the closest fit from each type first, then fill with the next closest.
+    const picks = [], seenCats = new Set();
+    for (const it of cands){ const k = it.w.category||'custom'; if (!seenCats.has(k)){ seenCats.add(k); picks.push(it); } if (picks.length===3) break; }
+    for (const it of cands){ if (picks.length===3) break; if (!picks.includes(it)) picks.push(it); }
+    return picks.sort((a,b)=> cands.indexOf(a) - cands.indexOf(b));
+  }
+
+  function fmtLong(sec){
+    const m = Math.round(sec/60);
+    return m < 60 ? { big:String(m), unit:'min' } : { big:Math.floor(m/60)+':'+String(m%60).padStart(2,'0'), unit:'h' };
+  }
+
+  function renderFits(){
+    const el = document.getElementById('bestFits');
+    const feel = FEELS.find(f=>f.id===prefs.feel) || FEELS[1];
+    const long = prefs.dur === 0;
+    document.getElementById('fitsSub').textContent = (long ? '2 hours or more' : 'Up to '+prefs.dur+' min') + ' · ' + feel.label;
+    const picks = bestFits();
+    if (!picks.length){
+      el.innerHTML = '<div class="fits-empty">Nothing '+(long?'that long':'that short')+' for '+feel.label.toLowerCase()+' yet. Try a '+(long?'shorter':'longer')+' slot, or browse everything below.</div>';
+      return;
+    }
+    el.innerHTML = picks.map(({w, stats})=>{
+      const d = fmtLong(stats.totalDur);
+      const spareMin = Math.round((prefs.dur*60 - stats.totalDur)/60);
+      const spare = long ? 'Long ride' : (spareMin < 1 ? 'Fits exactly' : spareMin+' min to spare');
+      return '<div class="fit-card" data-preview="'+w.id+'">'
+        + profileSVG(w.steps, 'fit-chart')
+        + '<div class="fit-body">'
+        + '<div><div class="fit-name">'+escapeHtml(w.name)+'</div>'
+        + '<div class="fit-meta">'+catDot(w.category)+categoryLabel(w.category)+' · '+spare+'</div></div>'
+        + '<div class="fit-stats"><div><span class="big">'+d.big+'</span><span class="u">'+d.unit+'</span></div>'
+        + (stats.IF!=null ? '<div><span class="v">'+stats.IF.toFixed(2)+'</span><span class="u">IF</span></div>' : '')
+        + (stats.tss!=null ? '<div><span class="v">'+stats.tss+'</span><span class="u">TSS</span></div>' : '')
+        + '</div>'
+        + '<button class="fit-ride" data-ride="'+w.id+'">Ride this</button>'
+        + '</div></div>';
+    }).join('');
+  }
+  document.getElementById('bestFits').addEventListener('click', e=>{
+    const ride = e.target.closest('[data-ride]');
+    if (ride){ window.location.href = 'live.html?load=' + encodeURIComponent(ride.dataset.ride); return; }
+    const card = e.target.closest('[data-preview]');
+    if (card) showWorkoutPreview(card.dataset.preview);
+  });
+
+  // ---- next session from a followed plan (same rules as plans.html) ----
+  async function renderPlanNudge(){
+    const el = document.getElementById('planNudge');
+    try {
+      const { data } = await supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', ['active_plan_id','active_plan_started_at','active_plan_cursor_day']);
+      const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
+      if (!v.active_plan_id || !v.active_plan_started_at) return;
+      const { data: plan } = await supabase.from('training_plans').select('id,name,weeks').eq('id', v.active_plan_id).maybeSingle();
+      if (!plan) return;
+      const start = new Date(v.active_plan_started_at); start.setHours(0,0,0,0);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const daysSinceStart = Math.max(0, Math.round((today - start)/86400000));
+      const weeks = plan.weeks || [];
+      let next = null;
+      for (let d = Math.max(daysSinceStart, v.active_plan_cursor_day||0); d < weeks.length*7; d++){
+        const day = ((weeks[Math.floor(d/7)]||{}).days||[])[d%7];
+        if (day && day.type === 'workout'){ next = { day, isToday: d===daysSinceStart }; break; }
+      }
+      if (!next || next.day.workoutType === 'strength') return;
+      const w = library.find(x=>x.id===next.day.workoutId);
+      if (!w) return;
+      const mins = Math.round(computeStats(w.steps).totalDur/60);
+      el.innerHTML = '<span class="pn-text">'+(next.isToday ? 'Today' : 'Next')+' in '+escapeHtml(plan.name)+': <b>'+escapeHtml(w.name)+'</b>, '+mins+' min</span>'
+        + '<a href="live.html?load='+encodeURIComponent(w.id)+'">Ride this instead</a>';
+      el.style.display = 'flex';
+    } catch(_){ /* the nudge is optional; stay hidden if anything fails */ }
+  }
+
+  // ---- full library list ----
   function renderLibrary(){
     const el = document.getElementById('libraryList');
-    if (!library.length){ el.innerHTML = '<div class="empty-note">No saved workouts yet.</div>'; return; }
+    const countEl = document.getElementById('libCount');
+    if (!library.length){ el.innerHTML = '<div class="empty-note">No saved workouts yet.</div>'; countEl.textContent=''; return; }
 
+    const durVal = document.getElementById('filterDuration').value;
     const filterVal = document.getElementById('filterCategory').value;
     const sortVal = document.getElementById('sortBy').value;
     const searchVal = document.getElementById('librarySearch').value.trim().toLowerCase();
@@ -444,6 +660,10 @@ const supabase = createSupabaseClient();
       return { w, stats };
     });
 
+    if (durVal){
+      const [lo, hi] = durVal.split('-').map(x => x==='' ? Infinity : parseInt(x,10)*60);
+      items = items.filter(it => it.stats.totalDur > lo && it.stats.totalDur <= hi + FIT_GRACE_SEC);
+    }
     if (filterVal){
       items = items.filter(it => filterVal==='custom' ? !it.w.category : it.w.category===filterVal);
     }
@@ -460,7 +680,19 @@ const supabase = createSupabaseClient();
       return 0;
     });
 
-    if (!items.length){ el.innerHTML = '<div class="empty-note">No workouts match this filter.</div>'; return; }
+    const filtered = !!(durVal || filterVal || searchVal);
+    countEl.textContent = filtered ? (items.length+' of '+library.length) : (library.length+' workouts');
+
+    if (!items.length){
+      el.innerHTML = '<div class="lib-empty">No workouts match these filters. <button class="link-btn" id="clearFiltersBtn">Clear filters</button></div>';
+      document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
+        document.getElementById('filterDuration').value = '';
+        document.getElementById('filterCategory').value = '';
+        document.getElementById('librarySearch').value = '';
+        onFilterChange();
+      });
+      return;
+    }
 
     el.innerHTML = items.map(({w, stats})=>{
       const isOwn = w.user_id === user.id;
@@ -469,14 +701,24 @@ const supabase = createSupabaseClient();
         + miniChartSVG(w.steps)
         + '<div class="lib-item-text">'
         + '<div class="lib-name">'+escapeHtml(w.name)+'<span class="lib-tag">'+categoryLabel(w.category)+'</span></div>'
-        + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.np!=null ? ('  ·  NP '+stats.np+'W') : '') +'</div>'
+        + '<div class="lib-meta">'+fmtDur(stats.totalDur)+ (stats.IF!=null ? ('  ·  IF '+stats.IF.toFixed(2)) : '') + (stats.tss!=null ? ('  ·  '+stats.tss+' TSS') : '') +'</div>'
         + '</div></div>'
         + (isOwn ? '<div class="lib-actions"><button class="ghost danger" data-del="'+w.id+'">Delete</button></div>' : '')
         + '</div>';
     }).join('');
   }
-  document.getElementById('filterCategory').addEventListener('change', renderLibrary);
-  document.getElementById('sortBy').addEventListener('change', renderLibrary);
+  function onFilterChange(){
+    prefs.filterDuration = document.getElementById('filterDuration').value;
+    prefs.filterCategory = document.getElementById('filterCategory').value;
+    prefs.sortBy = document.getElementById('sortBy').value;
+    savePrefs();
+    renderLibrary();
+  }
+  for (const [id, key] of [['filterDuration','filterDuration'],['filterCategory','filterCategory'],['sortBy','sortBy']]){
+    const sel = document.getElementById(id);
+    if ([...sel.options].some(o=>o.value===prefs[key])) sel.value = prefs[key];
+    sel.addEventListener('change', onFilterChange);
+  }
   document.getElementById('librarySearch').addEventListener('input', renderLibrary);
 
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -539,6 +781,7 @@ const supabase = createSupabaseClient();
     if (t.dataset.del !== undefined){
       if (confirm('Delete this workout?')){
         await deleteWorkoutFromLibrary(t.dataset.del);
+        renderFits();
         renderLibrary();
       }
       return;
