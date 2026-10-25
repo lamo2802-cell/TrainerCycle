@@ -629,17 +629,20 @@ const supabase = createSupabaseClient();
       const today = new Date(); today.setHours(0,0,0,0);
       const daysSinceStart = Math.max(0, Math.round((today - start)/86400000));
       const weeks = plan.weeks || [];
+      const { data: done } = await supabase.from('completed_rides').select('plan_day_index')
+        .eq('user_id', user.id).eq('plan_id', plan.id).gte('started_at', v.active_plan_started_at);
+      const doneDays = new Set((done||[]).map(r=>r.plan_day_index));
       let next = null;
       for (let d = Math.max(daysSinceStart, v.active_plan_cursor_day||0); d < weeks.length*7; d++){
         const day = ((weeks[Math.floor(d/7)]||{}).days||[])[d%7];
-        if (day && day.type === 'workout'){ next = { day, isToday: d===daysSinceStart }; break; }
+        if (day && day.type === 'workout' && !doneDays.has(d)){ next = { day, isToday: d===daysSinceStart, dayIndex: d }; break; }
       }
       if (!next || next.day.workoutType === 'strength') return;
       const w = library.find(x=>x.id===next.day.workoutId);
       if (!w) return;
       const mins = Math.round(computeStats(w.steps).totalDur/60);
       el.innerHTML = '<span class="pn-text">'+(next.isToday ? 'Today' : 'Next')+' in '+escapeHtml(plan.name)+': <b>'+escapeHtml(w.name)+'</b>, '+mins+' min</span>'
-        + '<a href="live.html?load='+encodeURIComponent(w.id)+'">Ride this instead</a>';
+        + '<a href="live.html?load='+encodeURIComponent(w.id)+'&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex+'">Ride this instead</a>';
       el.style.display = 'flex';
     } catch(_){ /* the nudge is optional; stay hidden if anything fails */ }
   }

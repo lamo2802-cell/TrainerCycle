@@ -85,7 +85,7 @@
   .ride-date{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-top:2px; }
   .ride-tag{ display:inline-block; font-size:10.5px; padding:1px 7px; border-radius:10px; background:var(--panel-2); border:1px solid var(--line); color:var(--accent); margin-left:6px; }
   .ride-tag.partial{ color:var(--text-dim); }
-  .ride-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+  .ride-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
   @media (max-width:480px){ .ride-stats{ grid-template-columns:repeat(2,1fr); } }
   .ride-stat{ background:var(--panel-2); border-radius:6px; padding:8px; text-align:center; }
   .ride-stat .val{ font-family:var(--mono); font-size:16px; font-weight:600; }
@@ -275,11 +275,13 @@ const supabase = createSupabaseClient();
         + '</div></div>'
         + '<div class="ride-stats">'
         + '<div class="ride-stat"><div class="val">'+fmtDur(r.duration_sec)+'</div><div class="lbl">Duration</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.tss ?? '—')+'</div><div class="lbl">TSS</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_power ?? '—')+'</div><div class="lbl">Avg Power</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.np ?? '—')+'</div><div class="lbl">NP</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</div><div class="lbl">IF</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_hr ?? '—')+'</div><div class="lbl">Avg HR</div></div>'
         + '<div class="ride-stat"><div class="val">'+(r.avg_cadence ?? '—')+'</div><div class="lbl">Avg Cadence</div></div>'
+        + '<div class="ride-stat"><div class="val">'+(r.avg_power!=null ? Math.round(r.avg_power*r.duration_sec/1000) : '—')+'</div><div class="lbl">Work (kJ)</div></div>'
         + '</div>'
         + '<div class="ride-chart-wrap" id="chartwrap-'+r.id+'" style="display:none;">'
         + '<div class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--z-threshold); opacity:.75;"></i>Target intensity zone</span></div>'
