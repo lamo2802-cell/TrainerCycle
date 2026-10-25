@@ -351,13 +351,13 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=18';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
-import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { addRuns } from './run.js?v=3';
+import { loadHolidays, applyHolidays } from './holidays.js?v=2';
+import { addRuns } from './run.js?v=4';
 import { openExportSheet } from './export.js?v=2';
 const supabase = createSupabaseClient();
 (async function(){
@@ -424,7 +424,7 @@ const supabase = createSupabaseClient();
       const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source').eq('user_id', user.id);
       const byId = {}, byName = {};
       library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run' && r.source !== 'strava'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
     renderFtp();
     renderPicker();

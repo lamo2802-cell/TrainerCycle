@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { mountAppNav } from './app-nav.js?v=2';
+import { mountAppNav } from './app-nav.js?v=3';
 
 export function createSupabaseClient(){
   return createClient(

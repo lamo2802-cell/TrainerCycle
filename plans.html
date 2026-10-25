@@ -174,6 +174,11 @@
   .rpb-text{ flex:1; min-width:0; color:var(--text-dim); } .rpb-text b{ color:var(--text); }
   .rpb-go{ color:#C084FC; font-weight:600; font-size:13px; white-space:nowrap; }
   @media (max-width:560px){ .run-plan-banner{ flex-wrap:wrap; } .rpb-go{ width:100%; } }
+  .run-plan-banner.pb{ background:linear-gradient(100deg, rgba(56,189,248,.12), transparent 65%), var(--panel); border-color:rgba(56,189,248,.4); }
+  .run-plan-banner.pb:hover{ border-color:#38BDF8; } .run-plan-banner.pb .rpb-tag, .run-plan-banner.pb .rpb-go{ color:#38BDF8; }
+  .plan-tag.yours{ background:rgba(56,189,248,.16); color:#38BDF8; }
+  .edit-link{ font-size:12px; color:var(--text-dim); text-decoration:none; margin-left:10px; white-space:nowrap; }
+  .edit-link:hover{ color:var(--accent); }
 </style>
 </head>
 <body>
@@ -217,6 +222,7 @@
       <a href="live.html?load=prebuilt-ramp-test-25"><button class="primary">Start Ramp Test</button></a>
     </div>
 
+    <a class="run-plan-banner pb" href="plan-builder.html"><span class="rpb-tag">Plan builder</span><span class="rpb-text"><b>Build your own plan</b> from rides, runs, swims and strength, or get a triathlon or duathlon plan for your race.</span><span class="rpb-go">Build a plan →</span></a>
     <div id="runPlanBanner"></div>
     <div id="followingBanner" style="display:none;"></div>
 
@@ -259,13 +265,15 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=18';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=2';
-import { loadHolidays, applyHolidays } from './holidays.js?v=1';
-import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=1';
-import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=3';
+import { loadHolidays, applyHolidays } from './holidays.js?v=2';
+import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=2';
+import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=4';
 import { showSheet } from './sheet.js?v=2';
+import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=1';
+import { openSwimLog, setSwimCss, SWIM_CSS_KEY } from './swim.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -276,7 +284,7 @@ const supabase = createSupabaseClient();
   const FOCUS_LABELS = {
     recovery:'Recovery', endurance:'Endurance', sweet_spot:'Sweet Spot',
     threshold:'Threshold', vo2max:'VO2 Max', over_under:'Over/Under',
-    tempo:'Tempo', anaerobic:'Anaerobic', test:'FTP Test', strength:'Strength'
+    tempo:'Tempo', anaerobic:'Anaerobic', test:'FTP Test', strength:'Strength', multisport:'Multisport', custom:'Custom'
   };
   function focusLabel(f){ return FOCUS_LABELS[f] || f || ''; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -341,7 +349,19 @@ const supabase = createSupabaseClient();
   function ridesPerWeek(plan){
     const week = (plan.weeks||[])[0];
     if (!week) return 0;
-    return (week.days||[]).filter(d=>d.type==='workout' && d.workoutType!=='strength').length;
+    return (week.days||[]).filter(d=>d.type==='workout' && isBikeDay(d)).length;
+  }
+  // "3 rides · 2 runs · 2 swims a week" from the plan's busiest week
+  function sportsPerWeek(plan){
+    let best = null;
+    (plan.weeks||[]).forEach(w => {
+      const n = { ride:0, run:0, swim:0, strength:0 };
+      (w.days||[]).forEach(d => { if (d.type !== 'workout') return;
+        if (d.workoutType === 'run') n.run++; else if (d.workoutType === 'swim') n.swim++; else if (d.workoutType === 'strength') n.strength++;
+        else if (d.workoutType === 'brick'){ n.ride++; n.run++; } else if (d.workoutType !== 'race') n.ride++; });
+      if (!best || n.ride+n.run+n.swim > best.ride+best.run+best.swim) best = n;
+    });
+    return best || { ride:0, run:0, swim:0, strength:0 };
   }
   function strengthPerWeek(plan){
     const week = (plan.weeks||[])[0];
@@ -440,11 +460,16 @@ const supabase = createSupabaseClient();
       const { data: planData, error: planErr } = await supabase.from('training_plans').select('*').order('created_at',{ascending:true});
       if (planErr) throw planErr;
       plans = planData || [];
+      plans.forEach(registerPlanSessions); // plans from the plan builder carry their own runs and swims
 
       const { data: workoutData, error: wErr } = await supabase.from('workouts').select('id,name,category,duration_sec,steps');
       if (wErr) throw wErr;
       (workoutData||[]).forEach(w=>{ workoutNames[w.id] = w; });
 
+      try {
+        const { data: c } = await supabase.from('settings').select('value').eq('key', SWIM_CSS_KEY).eq('user_id', user.id).maybeSingle();
+        setSwimCss(c && c.value && c.value.v);
+      } catch(_){}
       const { data: strengthData, error: sErr } = await supabase.from('strength_workouts').select('id,name');
       if (sErr) throw sErr;
       (strengthData||[]).forEach(w=>{ workoutNames[w.id] = { name: w.name, category: 'strength' }; });
@@ -513,6 +538,8 @@ const supabase = createSupabaseClient();
     if (!plan){ el.style.display = 'none'; return; }
     const totalWeeks = (plan.weeks||[]).length;
     const counts = sessionCounts(plan);
+    // a plan with its own runs (from the plan builder) doesn't take extra run days
+    const ownRuns = (plan.weeks||[]).some(w => (w.days||[]).some(d => d && (d.workoutType === 'run' || d.workoutType === 'brick')));
     const next = getNextSession(plan, activePlanStartedAt, activePlanCursorDay);
     let nextHtml;
     if (!next){
@@ -532,7 +559,9 @@ const supabase = createSupabaseClient();
       }
     } else {
       const run = next.dayObj.workoutType === 'run' ? runSession(next.dayObj.workoutId) : null;
-      const wk = run ? { name: run.name+' · '+run.mins+' min' } : workoutNames[next.dayObj.workoutId];
+      const info = sessionInfo(next.dayObj, workoutNames, 200);
+      const isSwim = next.dayObj.workoutType === 'swim', isRace = next.dayObj.workoutType === 'race';
+      const wk = run ? { name: run.name+' · '+run.mins+' min' } : (isSwim || isRace || next.dayObj.workoutType === 'brick') ? { name: info.name } : workoutNames[next.dayObj.workoutId];
       const label = wk ? wk.name : next.dayObj.workoutId;
       const isStrength = next.dayObj.workoutType === 'strength';
       const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
@@ -540,16 +569,18 @@ const supabase = createSupabaseClient();
       nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + (next.deload ? ' · Deload' : '') + '): <b>' + escapeHtml(label) + '</b></div>'
         + '<div style="display:flex; gap:8px;">'
         + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
-        + (run ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logRunBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log run</button>'
+        + (isRace ? '<a href="calendar.html"><button class="primary" style="width:auto; padding:9px 18px;">Calendar</button></a>'
+          : isSwim ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logSwimBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log swim</button>'
+          : run ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logRunBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log run</button>'
           : '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+(isStrength ? '' : '&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>')
         + '</div>';
     }
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
       + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div>'
-      + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div>'
-      + '<div class="fb-week">'+(activeRunPlan ? 'Runs from your '+escapeHtml((RUN_GOALS[activeRunPlan.goal]||{}).label || 'run')+' plan on rest days' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Runs on '+activePlanRuns.days.map(i=>DAY_SHORT[i]).join(', ') : 'No runs added')+'</div></div>'
-      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="runDaysBtn">'+(activeRunPlan ? 'Run plan' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Run days' : 'Add runs')+'</button><button class="ghost" id="unfollowBtn">Stop following</button></div>'
+      + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' sessions done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div>'
+      + (ownRuns ? '' : '<div class="fb-week">'+(activeRunPlan ? 'Runs from your '+escapeHtml((RUN_GOALS[activeRunPlan.goal]||{}).label || 'run')+' plan on rest days' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Runs on '+activePlanRuns.days.map(i=>DAY_SHORT[i]).join(', ') : 'No runs added')+'</div>')+'</div>'
+      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a>'+(ownRuns ? '<a href="plan-builder.html?id='+encodeURIComponent(plan.id)+'"><button class="ghost">Edit plan</button></a>' : '<button class="ghost" id="runDaysBtn">'+(activeRunPlan ? 'Run plan' : activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Run days' : 'Add runs')+'</button>')+'<button class="ghost" id="unfollowBtn">Stop following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -561,12 +592,20 @@ const supabase = createSupabaseClient();
       btn.textContent = 'Unfollowing…';
       await unfollowPlan();
     });
-    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); if (activeRunPlan) location.href = 'trainerrun.html'; else chooseRunDays(plan); });
+    const runDaysBtn = document.getElementById('runDaysBtn');
+    if (runDaysBtn) runDaysBtn.addEventListener('click', e=>{ e.stopPropagation(); if (activeRunPlan) location.href = 'trainerrun.html'; else chooseRunDays(plan); });
     const logRunBtn = document.getElementById('logRunBtn');
     if (logRunBtn) logRunBtn.addEventListener('click', async e=>{
       e.stopPropagation();
       const b = e.currentTarget;
       const saved = await openRunLog(supabase, user.id, { session:{ dayIndex:Number(b.dataset.dayIndex), date:b.dataset.date, workoutId:b.dataset.workout }, planId: plan.id });
+      if (saved){ doneDays.set(Number(b.dataset.dayIndex), saved); renderFollowingBanner(); refreshWeeks(plan.id); }
+    });
+    const logSwimBtn = document.getElementById('logSwimBtn');
+    if (logSwimBtn) logSwimBtn.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const b = e.currentTarget;
+      const saved = await openSwimLog(supabase, user.id, { session:{ dayIndex:Number(b.dataset.dayIndex), date:b.dataset.date, workoutId:b.dataset.workout }, planId: plan.id });
       if (saved){ doneDays.set(Number(b.dataset.dayIndex), saved); renderFollowingBanner(); refreshWeeks(plan.id); }
     });
     const skipBtn = document.getElementById('skipSessionBtn');
@@ -598,17 +637,21 @@ const supabase = createSupabaseClient();
       const weekCount = (p.weeks||[]).length;
       const rpw = ridesPerWeek(p);
       const spw = strengthPerWeek(p);
+      const sp = sportsPerWeek(p);
       const isFollowing = p.id === activePlanId;
+      const mine = p.user_id === user.id;
+      const mix = [sp.ride ? sp.ride+' ride'+(sp.ride===1?'':'s') : '', sp.run ? sp.run+' run'+(sp.run===1?'':'s') : '', sp.swim ? sp.swim+' swim'+(sp.swim===1?'':'s') : '', sp.strength ? sp.strength+' strength' : ''].filter(Boolean).join(' · ');
       return '<div class="plan-card" data-plan="'+p.id+'">'
         + '<div class="plan-top"><div>'
         + '<span class="plan-name">'+escapeHtml(p.name)+'</span>'
-        + (p.focus ? '<span class="plan-tag">'+focusLabel(p.focus)+'</span>' : '')
+        + (mine ? '<span class="plan-tag yours">Yours</span>' : p.focus ? '<span class="plan-tag">'+focusLabel(p.focus)+'</span>' : '')
         + (isFollowing ? '<span class="plan-tag" style="background:var(--accent); color:#08211E;">Following</span>' : '')
         + '</div>'
         + '<button class="follow-btn'+(isFollowing?' following':'')+'" data-follow="'+p.id+'">'+(isFollowing?'Following':'Follow plan')+'</button>'
         + '</div>'
         + '<div class="plan-desc">'+escapeHtml(p.description||'')+'</div>'
-        + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+rpw+' ride'+(rpw===1?'':'s')+'/week'+(spw>0?' + '+spw+' strength':'')+'</div>'
+        + '<div class="plan-meta">'+weekCount+' week'+(weekCount===1?'':'s')+' · '+(sp.run || sp.swim ? mix+' a week' : rpw+' ride'+(rpw===1?'':'s')+'/week'+(spw>0?' + '+spw+' strength':''))
+        + '<a class="edit-link" href="plan-builder.html?id='+encodeURIComponent(p.id)+'" onclick="event.stopPropagation()">'+(mine ? 'Edit' : 'Customise')+' →</a></div>'
         + '<div class="plan-weeks" id="weeks-'+p.id+'" style="display:none;"></div>'
         + '</div>';
     }
@@ -618,11 +661,12 @@ const supabase = createSupabaseClient();
     // unlabeled group at the end, so nothing silently disappears if data is incomplete.
     const byPhase = {};
     const noPhase = [];
-    visible.forEach(p=>{
+    const yours = visible.filter(p => p.user_id === user.id);
+    visible.filter(p => p.user_id !== user.id).forEach(p=>{
       if (p.phase && PHASE_ORDER.includes(p.phase)){ (byPhase[p.phase] = byPhase[p.phase]||[]).push(p); }
       else noPhase.push(p);
     });
-    let html = '';
+    let html = yours.length ? '<div class="phase-group-title">Your plans</div>' + yours.map(cardHtml).join('') : '';
     PHASE_ORDER.forEach(phase=>{
       if (byPhase[phase] && byPhase[phase].length){
         html += '<div class="phase-group-title">'+PHASE_LABELS[phase]+'</div>' + byPhase[phase].map(cardHtml).join('');
@@ -643,10 +687,11 @@ const supabase = createSupabaseClient();
           return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div><div class="day-workout rest">Rest day</div></div>';
         }
         const run = d.workoutType === 'run' ? runSession(d.workoutId) : null;
-        const wk = run ? { name: run.name, duration_sec: run.mins*60 } : workoutNames[d.workoutId];
+        const other = d.workoutType === 'swim' || d.workoutType === 'brick' || d.workoutType === 'race' ? sessionInfo(d, workoutNames, 200) : null;
+        const wk = run ? { name: run.name, duration_sec: run.mins*60 } : other ? { name: other.name, duration_sec: other.durationSec, steps: other.steps } : workoutNames[d.workoutId];
         const label = wk ? wk.name : d.workoutId;
         const isStrength = d.workoutType === 'strength';
-        const tag = isStrength ? 'Strength' : run ? 'Run' : (wk && wk.category ? focusLabel(wk.category) : '');
+        const tag = isStrength ? 'Strength' : run ? 'Run' : other ? { swim:'Swim', brick:'Brick', race:'Race' }[other.kind] : (wk && wk.category ? focusLabel(wk.category) : '');
         const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
         let durLabel = '';
         if (!isStrength && wk && wk.duration_sec){
@@ -656,7 +701,7 @@ const supabase = createSupabaseClient();
         const dayIndex = wi*7+di;
         const doneRide = isActive ? doneDays.get(dayIndex) : null;
         const movedTo = (isActive && activePlanMoves[dayIndex]) || null;
-        const href = run ? 'calendar.html' : targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
+        const href = run || (other && other.kind !== 'brick') ? 'calendar.html' : targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
         return '<div class="day-row'+(doneRide ? ' done' : '')+'"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+href+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (movedTo && !doneRide ? '<span class="tag">moved to '+shortDate(movedTo)+'</span>' : '')

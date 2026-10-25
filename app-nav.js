@@ -17,6 +17,8 @@ const ICONS = {
   workouts:'<path d="M3 20V14h3v6M9 20V9h3v11M15 20V4h3v16"/>',
   run:'<circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 2v4M6.5 11.5l3.5-3 4 1 2.5 3"/>',
   strength:'<path d="M4 10v4M20 10v4M7 7v10M17 7v10M7 12h10"/>',
+  swim:'<circle cx="16" cy="6" r="2"/><path d="M3 18c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0 3-1 4.5 0M6 14l4-5 3 2 2-2"/>',
+  builder:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M14 13h4M14 16h3"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
   help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.3-1.1.9-1.1 1.7v.4M12 17h.01"/>',
   signout:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
@@ -28,12 +30,13 @@ const ICONS = {
 const MAIN = [
   { id:'today', href:'index.html', label:'Today', match:/\/(index\.html)?$/ },
   { id:'calendar', href:'calendar.html', label:'Calendar', match:/\/calendar\.html$/ },
-  { id:'training', menu:'training', label:'Training', match:/\/(plans|builder|create-workout|trainerrun)\.html$/ },
+  { id:'training', menu:'training', label:'Training', match:/\/(plans|plan-builder|builder|create-workout|trainerrun)\.html$/ },
   { id:'progress', href:'rides.html', label:'Progress', match:/\/rides\.html$/ },
 ];
 const MENUS = {
   training:{ title:'Training', items:[
     { href:'plans.html', icon:'plans', label:'Training plans', text:'Your plan, or pick a new one' },
+    { href:'plan-builder.html', icon:'builder', label:'Plan builder', text:'Build your own, or a triathlon or duathlon plan' },
     { href:'builder.html', icon:'workouts', label:'Workouts', text:'Library and workout builder' },
     { href:'trainerrun.html', icon:'run', label:'TrainerRun', text:'Run plan, paces and races' },
     { href:'trainerstrength.html', icon:'strength', label:'TrainerStrength', text:'Strength sessions' },
@@ -43,6 +46,7 @@ const MENUS = {
     { href:'builder.html', icon:'workouts', label:'Pick a workout', text:'Ride something from the library' },
     { href:'trainerstrength.html', icon:'strength', label:'TrainerStrength', text:'Strength session' },
     { href:'trainerrun.html', icon:'run', label:'TrainerRun', text:'Your run plan and today\'s run' },
+    { href:'rides.html?log=swim', icon:'swim', label:'Log a swim', text:'Pool or open water' },
   ]},
   account:{ title:'', items:[
     { href:'settings.html', icon:'settings', label:'Settings' },
