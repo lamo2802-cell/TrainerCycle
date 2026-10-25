@@ -123,17 +123,32 @@ Deno.serve(async (req) => {
       const d = await resp.json();
       const bests: Record<string, number> = {};
       for (const e of d.best_efforts ?? []) { const m = RUN_EFFORTS[e.name]; if (m && e.elapsed_time > 0) bests[m] = Math.round(e.elapsed_time); }
-      return { run_bests: bests };
+      return { run_bests: bests, route_polyline: d.map?.summary_polyline ?? "" };
     };
-    // Earlier imports from before bests were fetched: fill them in with whatever calls are left.
+    // The route of an activity imported before routes were stored ("" = looked, no route).
+    // deno-lint-ignore no-explicit-any
+    const fetchRoute = async (r: any) => {
+      const sid = String(r.external_id).replace("strava:", "");
+      calls++;
+      const resp = await fetch(`https://www.strava.com/api/v3/activities/${sid}`, { headers: { Authorization: `Bearer ${fresh.access_token}` } });
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      return { route_polyline: d.map?.summary_polyline ?? "" };
+    };
+    // Earlier imports from before bests or routes were fetched: fill them in with whatever calls are left.
     const backfill = async () => {
       if (calls >= DETAIL_CALLS) return;
-      const { data: old } = await admin.from("completed_rides").select("id,external_id,sport,np,power_bests,run_bests")
+      const { data: old } = await admin.from("completed_rides").select("id,external_id,sport,np,power_bests,run_bests,route_polyline")
         .eq("user_id", user.id).eq("source", "strava").order("started_at", { ascending: false }).limit(200);
-      for (const r of (old ?? []).filter((r: { sport: string; np: number | null; power_bests: unknown; run_bests: unknown }) =>
-        r.sport === "run" ? r.run_bests == null : (r.np && r.power_bests == null))) {
+      type Old = { sport: string; np: number | null; power_bests: unknown; run_bests: unknown; route_polyline: string | null };
+      const needsBests = (r: Old) => r.sport === "run" ? r.run_bests == null : r.sport === "ride" && !!r.np && r.power_bests == null;
+      for (const r of (old ?? []).filter((r: Old) => needsBests(r) || ((r.sport === "ride" || r.sport === "run") && r.route_polyline == null))) {
         if (calls >= DETAIL_CALLS) break;
-        try { const patch = await fetchBests(r); if (patch) await admin.from("completed_rides").update(patch).eq("id", r.id); } catch (_) { /* try again next sync */ }
+        try {
+          const patch: Record<string, unknown> = needsBests(r) ? (await fetchBests(r)) ?? {} : {};
+          if (r.route_polyline == null && patch.route_polyline === undefined && calls < DETAIL_CALLS) Object.assign(patch, (await fetchRoute(r)) ?? {});
+          if (Object.keys(patch).length) await admin.from("completed_rides").update(patch).eq("id", r.id);
+        } catch (_) { /* try again next sync */ }
       }
     };
 
@@ -226,6 +241,7 @@ Deno.serve(async (req) => {
         // swim TSS uses IF cubed (see swim.js)
         tss: dur > 0 ? Math.round(dur / 3600 * Math.pow(IF, sport === "swim" ? 3 : 2) * 100) : null, intensity_factor: Math.round(IF * 100) / 100,
         completed: true, samples: [], power_bests: null, run_bests: null,
+        route_polyline: sport === "swim" ? null : (a.map?.summary_polyline ?? ""),
       };
     }).filter((r) => r.duration_sec > 0);
     if (!rows.length) { await backfill(); await saveSince(); return json({ imported: [] }); }

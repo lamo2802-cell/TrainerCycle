@@ -91,6 +91,8 @@
   .ride-row .mini.run svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tag.run{ color:#C084FC; border-color:rgba(192,132,252,.5); }
   .tag.swim{ color:#38BDF8; border-color:rgba(56,189,248,.5); }
+  .tag.strength{ color:#B4BDC9; border-color:rgba(180,189,201,.45); }
+  .ride-row .mini.run.strength{ color:#B4BDC9; }
   .ride-row .mini.run.swim{ color:#38BDF8; }
   a.ghost-btn{ text-decoration:none; display:inline-flex; align-items:center; }
   .rec-grid{ display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; margin-top:14px; }
@@ -304,7 +306,7 @@
       <div class="page-head">
         <h1>Rides</h1>
         <div class="head-actions"><a class="ghost-btn" id="recordsBtn" href="?view=records">Records</a><button class="ghost-btn" id="logRideBtn">+ Log a ride</button><button class="ghost-btn" id="logRunBtn">+ Log a run</button><button class="ghost-btn" id="logSwimBtn">+ Log a swim</button>
-        <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="rides">Rides</button><button data-f="runs">Runs</button><button data-f="swims">Swims</button><button data-f="partial">Partial</button></div></div>
+        <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="rides">Rides</button><button data-f="runs">Runs</button><button data-f="swims">Swims</button><button data-f="strength">Strength</button><button data-f="partial">Partial</button></div></div>
       </div>
       <div class="summary" id="summary"></div>
       <div id="ridesList"><div class="sk-stack" aria-label="Loading"><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div></div></div>
@@ -318,12 +320,14 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { notify, ask } from './sheet.js?v=2';
 import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=5';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
-import { openRideLog } from './diary.js?v=1';
+import { openRideLog } from './diary.js?v=2';
+import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -436,7 +440,8 @@ const supabase = createSupabaseClient();
   // ---- list: summary + rides grouped by week ----
   function isRun(r){ return r.sport === 'run'; }
   function isSwim(r){ return r.sport === 'swim'; }
-  const isBike = r => !isRun(r) && !isSwim(r);
+  function isStrength(r){ return r.sport === 'strength'; }
+  const isBike = r => !isRun(r) && !isSwim(r) && !isStrength(r);
   const FEEL_WORDS = ['', 'Easy', 'Moderate', 'Hard', 'Very hard', 'All out'];
   // Best times within this run (from Strava), flagged when they're a record.
   function runBestsHtml(r){
@@ -463,6 +468,7 @@ const supabase = createSupabaseClient();
       + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + (hasRoute(r) ? routePanelHtml() : '')
       + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
@@ -480,6 +486,27 @@ const supabase = createSupabaseClient();
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR')
       + '</div>'
       + '<div class="panel empty-note">Swims count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your CSS pace when there\'s a distance, or how it felt when there isn\'t' : '')+'. Set your CSS in Settings.</div>';
+  }
+  function strengthDetailHtml(r){
+    const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
+    const sets = r.samples && r.samples[0] && r.samples[0].sets != null ? r.samples[0] : null;
+    return '<button class="back" data-back>‹ Rides</button>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag strength">Strength</span>'+(r.completed ? '' : '<span class="tag">Partial</span>')+'</h1>'
+      + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
+      + '<div class="d-actions"><a class="ghost-btn" href="trainerstrength.html?load='+encodeURIComponent(r.workout_id || '')+'">Do it again</a><button data-del-run="'+r.id+'" data-what="session">Delete session</button></div></div>'
+      + '<div class="d-stats">'
+      + stat(fmtDur(r.duration_sec),'Duration') + stat(sets ? sets.sets+' / '+sets.of : null,'Sets done') + stat(r.tss,'TSS')
+      + '</div>'
+      + '<div class="panel empty-note">Strength sessions count a little towards your Fitness, Fatigue and Form: about 36 TSS an hour.</div>';
+  }
+  const STRENGTH_ICON = '<svg viewBox="0 0 24 24"><path d="M6 7v10M18 7v10M3 9.5v5M21 9.5v5M6 12h12"/></svg>';
+  function strengthRowHtml(r){
+    const sets = r.samples && r.samples[0] && r.samples[0].sets != null ? r.samples[0] : null;
+    return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:#8C97A6"></span>'
+      + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+'<span class="tag strength">Strength</span>'+(r.completed ? '' : '<span class="tag">Partial</span>')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+      + '<span class="mini run strength">'+STRENGTH_ICON+(sets ? sets.sets+' sets' : '')+'</span>'
+      + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(sets ? sets.sets : '—')+'</b>sets</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span></span>'
+      + '</button>';
   }
   const SWIM_ICON = '<svg viewBox="0 0 24 24"><circle cx="16" cy="6" r="2"/><path d="M3 18c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0 3-1 4.5 0M6 14l4-5 3 2 2-2"/></svg>';
   function swimRowHtml(r){
@@ -512,6 +539,7 @@ const supabase = createSupabaseClient();
       + (r.np ? stat(r.np,'NP (W)') + stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : r.avg_power ? stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : '')
       + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + (hasRoute(r) ? routePanelHtml() : '')
       + '<div class="panel empty-note">'+(manual ? 'Logged by hand' : 'Brought in from Strava')+'. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Rides outside Live Ride don\'t change your workout levels.</div>';
   }
   const BIKE_ICON = '<svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M14 5h2"/></svg>';
@@ -538,6 +566,7 @@ const supabase = createSupabaseClient();
     if (filter==='rides') items = items.filter(isBike);
     if (filter==='runs') items = items.filter(isRun);
     if (filter==='swims') items = items.filter(isSwim);
+    if (filter==='strength') items = items.filter(isStrength);
     if (filter==='partial') items = items.filter(r=>!r.completed);
     if (!items.length){ el.innerHTML = '<div class="empty-note">No rides match this filter.</div>'; return; }
 
@@ -554,12 +583,13 @@ const supabase = createSupabaseClient();
       const title = weeksAgo === 0 ? 'This week' : weeksAgo === 1 ? 'Last week'
         : 'Week of ' + new Date(g.key+'T00:00:00').toLocaleDateString(undefined,{ day:'numeric', month:'short' });
       const time = g.rides.reduce((a,r)=>a+(r.duration_sec||0),0), tss = g.rides.reduce((a,r)=>a+(r.tss||0),0);
-      const nRuns = g.rides.filter(isRun).length, nSwims = g.rides.filter(isSwim).length, nRides = g.rides.length - nRuns - nSwims;
-      const counts = [nRides ? nRides+' ride'+(nRides===1?'':'s') : '', nRuns ? nRuns+' run'+(nRuns===1?'':'s') : '', nSwims ? nSwims+' swim'+(nSwims===1?'':'s') : ''].filter(Boolean).join(' · ');
+      const nRuns = g.rides.filter(isRun).length, nSwims = g.rides.filter(isSwim).length, nStr = g.rides.filter(isStrength).length, nRides = g.rides.length - nRuns - nSwims - nStr;
+      const counts = [nRides ? nRides+' ride'+(nRides===1?'':'s') : '', nRuns ? nRuns+' run'+(nRuns===1?'':'s') : '', nSwims ? nSwims+' swim'+(nSwims===1?'':'s') : '', nStr ? nStr+' strength' : ''].filter(Boolean).join(' · ');
       return '<div class="week-head"><span class="t">'+title+'</span><span class="s">'+counts+' · '+fmtHm(time)+' · '+tss+' TSS</span></div>'
         + g.rides.map(r=>{
           if (isRun(r)) return runRowHtml(r);
           if (isSwim(r)) return swimRowHtml(r);
+          if (isStrength(r)) return strengthRowHtml(r);
           const pct0 = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
           const pct = pct0 == null && isImported(r) ? 70 : pct0;
           return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
@@ -761,9 +791,10 @@ const supabase = createSupabaseClient();
       if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Rides</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
-    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); return; }
+    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline, '#C084FC'); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
-    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); return; }
+    if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); return; }
+    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;

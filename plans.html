@@ -572,7 +572,7 @@ const supabase = createSupabaseClient();
         + (isRace ? '<a href="calendar.html"><button class="primary" style="width:auto; padding:9px 18px;">Calendar</button></a>'
           : isSwim ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logSwimBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log swim</button>'
           : run ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logRunBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log run</button>'
-          : '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+(isStrength ? '' : '&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>')
+          : '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>')
         + '</div>';
     }
     el.innerHTML = '<div class="following-banner">'

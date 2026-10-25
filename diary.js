@@ -45,7 +45,7 @@ export function registerDiary(list){
 }
 
 export const notesOn = (date, list) => (list || []).filter(it => it.kind === 'note' && it.date === date);
-const SPORT_OF = { cycling:'ride', run:'run', swim:'swim' };
+const SPORT_OF = { cycling:'ride', run:'run', swim:'swim', strength:'strength' };
 
 // Planned items as session objects the pages can show next to plan sessions. rides: completed_rides rows
 // with started_at, sport and plan_id; each ride ticks off at most one planned item.
