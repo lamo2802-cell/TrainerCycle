@@ -108,6 +108,8 @@
   .position-box svg{ width:100%; display:block; }
   .position-label{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
   .position-box.single{ max-width:200px; margin:0 auto; }
+  .exercise-demo{ width:100%; aspect-ratio:1; object-fit:contain; display:block; border-radius:8px; background:#fff; }
+  .position-box.single:has(.exercise-demo){ max-width:280px; }
   .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
   .stage-target{ font-family:var(--mono); font-size:clamp(15px, 4vw, 22px); color:var(--accent); margin-bottom:6px; }
   .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
@@ -485,14 +487,32 @@ const supabase = createSupabaseClient();
   // Tracks the currently running rAF loop so switching exercises (or clearing the display)
   // cancels the previous animation instead of letting it keep running into a stale/detached SVG.
   let positionsAnimToken = 0;
+  // Licensed exercise demos live in strength-media/<key>.gif. Keys listed here show the demo;
+  // anything else (or a demo that fails to load) falls back to the vector figure above.
+  const EXERCISE_MEDIA = new Set([]);
   function renderPositions(key, container){
     positionsAnimToken++;
     const myToken = positionsAnimToken;
     const pose = POSES[key];
-    if (!pose){ container.innerHTML = ''; return; }
+    if (!pose && !EXERCISE_MEDIA.has(key)){ container.innerHTML = ''; return; }
+    const isHold = pose && pose.hold;
 
-    container.innerHTML = '<div class="position-box single"><div></div><div class="position-label">'+(pose.hold ? 'Hold position' : 'Rep motion')+'</div></div>';
+    container.innerHTML = '<div class="position-box single"><div></div><div class="position-label">'+(isHold ? 'Hold position' : 'Rep motion')+'</div></div>';
     const svgHost = container.querySelector('.position-box.single > div');
+
+    if (EXERCISE_MEDIA.has(key)){
+      const img = document.createElement('img');
+      img.className = 'exercise-demo';
+      img.alt = key.replace(/_/g,' ') + ' demonstration';
+      img.src = 'strength-media/' + key + '.gif';
+      img.addEventListener('error', ()=>{
+        if (myToken !== positionsAnimToken) return;
+        EXERCISE_MEDIA.delete(key);
+        renderPositions(key, container);
+      });
+      svgHost.appendChild(img);
+      return;
+    }
 
     if (pose.hold || !pose.tempo || reduceMotion){
       svgHost.innerHTML = poseSVG(pose.hold || pose.start);
