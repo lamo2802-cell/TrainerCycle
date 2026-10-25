@@ -154,6 +154,10 @@
   .day-workout a:hover{ color:var(--accent); }
   .day-workout .tag{ color:var(--text-dim); font-size:11px; margin-left:6px; }
   .day-workout .tag.adapted{ color:var(--accent); }
+  .run-days{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; }
+  .run-days button{ width:auto; margin:0; padding:10px 0; border-radius:9px; border:1px solid #2A323D; background:#1D242D; color:#E7ECF2; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .run-days button.on{ border-color:#C084FC; background:rgba(192,132,252,.16); }
+  .run-days button:disabled{ opacity:.35; cursor:default; }
   .empty-note{ color:var(--text-dim); font-size:13px; }
   .ftp-prompt{
     display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
@@ -249,6 +253,8 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
 import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=2';
 import { applySwaps } from './adapt.js?v=1';
+import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=1';
+import { showSheet } from './sheet.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -316,6 +322,7 @@ const supabase = createSupabaseClient();
   let activePlanStartedAt = null; // ISO date string, Monday of week 1
   let activePlanCursorDay = 0; // earliest day-index (0-based from started_at) to consider for "next session" - advanced by Skip
   let activePlanMoves = {}; // day-index -> 'YYYY-MM-DD' for sessions moved on the Calendar
+  let activePlanRuns = null; // { days:[0..6] } run days the rider added to the followed plan
   let activePlanSwaps = {}; // day-index -> workout id for adaptive swaps the rider accepted on Today
   let sessionsFilter = '';
   let doneDays = new Map(); // day-index -> ride ({tss}) for the followed plan, from rides linked to it
@@ -332,8 +339,10 @@ const supabase = createSupabaseClient();
   }
 
   // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
+  // The followed plan as the rider sees it: their run days added, then any adaptive swaps.
+  function followed(plan){ return applySwaps(addRuns(plan, activePlanRuns), activePlanSwaps); }
   function getNextSession(plan, startedAtIso, cursorDay){
-    const n = nextSession(applySwaps(plan, activePlanSwaps), startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
+    const n = nextSession(followed(plan), startedAtIso, { cursorDay, moves: activePlanMoves, doneDays });
     if (!n) return null; // plan complete
     return Object.assign(n, { isToday: n.date === todayIso() });
   }
@@ -347,6 +356,7 @@ const supabase = createSupabaseClient();
     activePlanCursorDay = st.cursorDay;
     activePlanMoves = st.moves;
     activePlanSwaps = st.swaps;
+    activePlanRuns = st.runs;
     await loadDoneDays();
   }
 
@@ -374,8 +384,9 @@ const supabase = createSupabaseClient();
     activePlanCursorDay = 0;
     activePlanMoves = {};
     activePlanSwaps = {};
+    activePlanRuns = null;
     await loadDoneDays();
-    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves','active_plan_swaps']);
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves','active_plan_swaps', RUN_PLAN_KEY]);
     await supabase.from('settings').upsert([
       { user_id:user.id, key:'active_plan_id', value:{v:planId}, updated_at:new Date().toISOString() },
       { user_id:user.id, key:'active_plan_started_at', value:{v:startedAtIso}, updated_at:new Date().toISOString() },
@@ -390,6 +401,7 @@ const supabase = createSupabaseClient();
     activePlanCursorDay = 0;
     activePlanMoves = {};
     activePlanSwaps = {};
+    activePlanRuns = null;
     await supabase.from('settings').delete().eq('user_id', user.id).in('key', FOLLOW_SETTING_KEYS);
     render();
   }
@@ -438,6 +450,34 @@ const supabase = createSupabaseClient();
       counts.map(c=>'<option value="'+c+'">'+c+' ride'+(c===1?'':'s')+'/week</option>').join('');
   }
 
+  const DAY_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  function refreshWeeks(planId){
+    const c = document.getElementById('weeks-'+planId);
+    if (c && c.dataset.rendered){ delete c.dataset.rendered; const shown = c.style.display !== 'none'; renderWeeks(plans.find(p=>p.id===planId)); if (!shown) c.style.display = 'none'; }
+  }
+  // Pick which days to run on. Runs only land on the plan's rest days, so other days are greyed out.
+  async function chooseRunDays(plan){
+    const restDays = new Set();
+    (plan.weeks||[]).forEach(w => (w.days||[]).forEach((d, di)=>{ if (d && d.type === 'rest') restDays.add(di); }));
+    let chosen = new Set((activePlanRuns && activePlanRuns.days) || []);
+    const box = document.createElement('div');
+    box.innerHTML = '<p style="font-size:13.5px; color:#B4BDC9; margin:0 0 12px; line-height:1.5;">Runs go on rest days. The first is an easy run, the second a long run and a third is easy with strides, all shorter in deload weeks. They count towards your training load.</p>'
+      + '<div class="run-days">'+DAY_SHORT.map((n,i)=>'<button type="button" data-d="'+i+'"'+(restDays.has(i) ? '' : ' disabled')+' class="'+(chosen.has(i) ? 'on' : '')+'">'+n+'</button>').join('')+'</div>';
+    box.addEventListener('click', e=>{
+      const b = e.target.closest('[data-d]'); if (!b || b.disabled) return;
+      const d = Number(b.dataset.d);
+      if (chosen.has(d)) chosen.delete(d); else if (chosen.size < 3) chosen.add(d);
+      box.querySelectorAll('[data-d]').forEach(x=> x.classList.toggle('on', chosen.has(Number(x.dataset.d))));
+    });
+    const v = await showSheet({ title:'Run days', content:box, buttons:[{ label:'Save', value:'save', kind:'primary' }, { label:'Cancel', value:null }] });
+    if (v !== 'save') return;
+    activePlanRuns = chosen.size ? { days:[...chosen].sort((a,b)=>a-b) } : null;
+    try {
+      if (activePlanRuns) await supabase.from('settings').upsert({ user_id:user.id, key:RUN_PLAN_KEY, value:{v:activePlanRuns}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      else await supabase.from('settings').delete().eq('user_id', user.id).eq('key', RUN_PLAN_KEY);
+    } catch(_){}
+    renderFollowingBanner(); refreshWeeks(plan.id);
+  }
   function renderFollowingBanner(){
     const el = document.getElementById('followingBanner');
     document.getElementById('phaseRoadmap').open = !activePlanId; // tucked away once you're following a plan
@@ -464,7 +504,8 @@ const supabase = createSupabaseClient();
         nextHtml = retestHtml + '<div class="fb-next-text">Plan complete — nice work! Pick a new plan below, or keep training freely.</div>';
       }
     } else {
-      const wk = workoutNames[next.dayObj.workoutId];
+      const run = next.dayObj.workoutType === 'run' ? runSession(next.dayObj.workoutId) : null;
+      const wk = run ? { name: run.name+' · '+run.mins+' min' } : workoutNames[next.dayObj.workoutId];
       const label = wk ? wk.name : next.dayObj.workoutId;
       const isStrength = next.dayObj.workoutType === 'strength';
       const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
@@ -472,14 +513,16 @@ const supabase = createSupabaseClient();
       nextHtml = '<div class="fb-next-text">' + whenLabel + ' (Week ' + next.weekNum + (next.deload ? ' · Deload' : '') + '): <b>' + escapeHtml(label) + '</b></div>'
         + '<div style="display:flex; gap:8px;">'
         + '<button class="ghost" id="skipSessionBtn" data-day-index="'+next.dayIndex+'">Skip</button>'
-        + '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+(isStrength ? '' : '&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>'
+        + (run ? '<button class="primary" style="width:auto; padding:9px 18px;" id="logRunBtn" data-day-index="'+next.dayIndex+'" data-date="'+next.date+'" data-workout="'+next.dayObj.workoutId+'">Log run</button>'
+          : '<a href="'+targetPage+'?load='+encodeURIComponent(next.dayObj.workoutId)+(isStrength ? '' : '&plan='+encodeURIComponent(plan.id)+'&day='+next.dayIndex)+'"><button class="primary" style="width:auto; padding:9px 18px;">Load Session</button></a>')
         + '</div>';
     }
     el.innerHTML = '<div class="following-banner">'
       + '<div class="fb-top">'
       + '<div><div class="fb-label">Currently following</div><div class="fb-plan-name">'+escapeHtml(plan.name)+'</div>'
-      + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div></div>'
-      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="unfollowBtn">Stop following</button></div>'
+      + '<div class="fb-week">'+totalWeeks+' week plan · '+counts.done+' of '+counts.total+' rides done'+(counts.tss ? ' · '+counts.tss+' TSS' : '')+'</div>'
+      + '<div class="fb-week">'+(activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Runs on '+activePlanRuns.days.map(i=>DAY_SHORT[i]).join(', ') : 'No runs added')+'</div></div>'
+      + '<div class="fb-actions"><a href="calendar.html"><button class="ghost">Calendar</button></a><button class="ghost" id="runDaysBtn">'+(activePlanRuns && activePlanRuns.days && activePlanRuns.days.length ? 'Run days' : 'Add runs')+'</button><button class="ghost" id="unfollowBtn">Stop following</button></div>'
       + '</div>'
       + '<div class="fb-next">' + nextHtml + '</div>'
       + '</div>';
@@ -490,6 +533,14 @@ const supabase = createSupabaseClient();
       btn.disabled = true;
       btn.textContent = 'Unfollowing…';
       await unfollowPlan();
+    });
+    document.getElementById('runDaysBtn').addEventListener('click', e=>{ e.stopPropagation(); chooseRunDays(plan); });
+    const logRunBtn = document.getElementById('logRunBtn');
+    if (logRunBtn) logRunBtn.addEventListener('click', async e=>{
+      e.stopPropagation();
+      const b = e.currentTarget;
+      const saved = await openRunLog(supabase, user.id, { session:{ dayIndex:Number(b.dataset.dayIndex), date:b.dataset.date, workoutId:b.dataset.workout }, planId: plan.id });
+      if (saved){ doneDays.set(Number(b.dataset.dayIndex), saved); renderFollowingBanner(); refreshWeeks(plan.id); }
     });
     const skipBtn = document.getElementById('skipSessionBtn');
     if (skipBtn){
@@ -558,16 +609,17 @@ const supabase = createSupabaseClient();
     const container = document.getElementById('weeks-'+plan.id);
     if (container.dataset.rendered) { container.style.display = container.style.display==='none' ? 'block' : 'none'; return; }
     const isActive = plan.id === activePlanId;
-    if (isActive) plan = applySwaps(plan, activePlanSwaps);
+    if (isActive) plan = followed(plan);
     container.innerHTML = (plan.weeks||[]).map((w, wi)=>{
       const days = (w.days||[]).map((d, di)=>{
         if (d.type === 'rest'){
           return '<div class="day-row"><div class="day-name">'+escapeHtml(d.day)+'</div><div class="day-workout rest">Rest day</div></div>';
         }
-        const wk = workoutNames[d.workoutId];
+        const run = d.workoutType === 'run' ? runSession(d.workoutId) : null;
+        const wk = run ? { name: run.name, duration_sec: run.mins*60 } : workoutNames[d.workoutId];
         const label = wk ? wk.name : d.workoutId;
         const isStrength = d.workoutType === 'strength';
-        const tag = isStrength ? 'Strength' : (wk && wk.category ? focusLabel(wk.category) : '');
+        const tag = isStrength ? 'Strength' : run ? 'Run' : (wk && wk.category ? focusLabel(wk.category) : '');
         const targetPage = isStrength ? 'trainerstrength.html' : 'live.html';
         let durLabel = '';
         if (!isStrength && wk && wk.duration_sec){
@@ -577,7 +629,7 @@ const supabase = createSupabaseClient();
         const dayIndex = wi*7+di;
         const doneRide = isActive ? doneDays.get(dayIndex) : null;
         const movedTo = (isActive && activePlanMoves[dayIndex]) || null;
-        const href = targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
+        const href = run ? 'calendar.html' : targetPage+'?load='+encodeURIComponent(d.workoutId)+((isActive && !isStrength) ? '&plan='+encodeURIComponent(plan.id)+'&day='+dayIndex : '');
         return '<div class="day-row'+(doneRide ? ' done' : '')+'"><div class="day-name">'+escapeHtml(d.day)+'</div>'
           + '<div class="day-workout"><a href="'+href+'" onclick="event.stopPropagation()">'+escapeHtml(label)+'</a>'
           + (movedTo && !doneRide ? '<span class="tag">moved to '+shortDate(movedTo)+'</span>' : '')

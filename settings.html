@@ -164,6 +164,25 @@
       <div class="msg" id="weightMsg"></div>
     </div>
 
+    <div class="panel">
+      <div class="panel-title">Running threshold pace</div>
+      <div class="panel-desc">The pace you could hold for about an hour. It's the running version of FTP, and it turns your runs into TSS so they count in Fitness and Form.</div>
+      <div class="ftp-row">
+        <span class="ftp-value" id="paceDisplay">—</span>
+        <span class="ftp-unit">/km</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="paceInput" placeholder="e.g. 4:45" inputmode="numeric">
+        <button class="primary" id="paceSaveBtn">Save</button>
+      </div>
+      <div class="msg" id="paceMsg"></div>
+      <div class="panel-desc" style="margin:10px 0 0;">Not sure? Enter a recent 5K time and we'll work it out:</div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="fiveKInput" placeholder="5K time, e.g. 22:30" inputmode="numeric">
+        <button id="fiveKBtn">Work it out</button>
+      </div>
+    </div>
+
     </div>
 
     <div class="set-group-title">Riding</div>
@@ -195,7 +214,7 @@
     <div class="set-group">
     <div class="panel">
       <div class="panel-title">Strava</div>
-      <div class="panel-desc">Connect your Strava account to enable one-tap uploads from the Rides page.</div>
+      <div class="panel-desc">Upload your rides to Strava in one tap, and bring your runs in automatically so they count in your training load.</div>
       <div class="status-row"><span class="dot" id="stravaDot"></span><span id="stravaStatus">Checking…</span></div>
       <button id="stravaConnectBtn" style="background:none; border:none; padding:0; width:auto; cursor:pointer;">
         <img src="strava-connect-button.svg" alt="Connect with Strava" style="height:48px; width:auto; display:block;">
@@ -244,6 +263,7 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=17';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k } from './run.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -291,6 +311,37 @@ const supabase = createSupabaseClient();
 
   // ---- Weight ----
   const weightCacheKey = 'tc_weight_' + user.id;
+  // ---- Running threshold pace (seconds per km) ----
+  async function loadPace(){
+    try {
+      const { data } = await supabase.from('settings').select('value').eq('key', RUN_PACE_KEY).eq('user_id', user.id).maybeSingle();
+      const v = data && data.value && Number(data.value.v);
+      document.getElementById('paceDisplay').textContent = v ? fmtPace(v) : '—';
+      if (v) document.getElementById('paceInput').value = fmtPace(v);
+    } catch(e){}
+  }
+  async function savePace(v){
+    const msg = document.getElementById('paceMsg');
+    document.getElementById('paceDisplay').textContent = fmtPace(v);
+    document.getElementById('paceInput').value = fmtPace(v);
+    try {
+      const { error } = await supabase.from('settings').upsert({ user_id:user.id, key:RUN_PACE_KEY, value:{v}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      if (error) throw error;
+      msg.textContent = 'Saved.';
+    } catch(e){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+  }
+  document.getElementById('paceSaveBtn').addEventListener('click', ()=>{
+    const v = parsePace(document.getElementById('paceInput').value);
+    if (!v){ document.getElementById('paceMsg').textContent = 'Enter a pace per km like 4:45.'; return; }
+    savePace(v);
+  });
+  document.getElementById('fiveKBtn').addEventListener('click', ()=>{
+    const t = parseDuration(document.getElementById('fiveKInput').value);
+    const v = t && t >= 600 && t <= 3600 ? thresholdFrom5k(t) : null;
+    if (!v){ document.getElementById('paceMsg').textContent = 'Enter your 5K time as minutes and seconds, like 22:30.'; return; }
+    savePace(v);
+  });
+
   async function loadWeight(){
     try {
       const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle();
@@ -353,12 +404,15 @@ const supabase = createSupabaseClient();
     const connectBtn = document.getElementById('stravaConnectBtn');
     const disconnectBtn = document.getElementById('stravaDisconnectBtn');
     try {
-      const { data } = await supabase.from('strava_connections').select('connected_at, athlete_firstname, athlete_lastname').eq('user_id', user.id).maybeSingle();
+      const { data } = await supabase.from('strava_connections').select('connected_at, athlete_firstname, athlete_lastname, scope').eq('user_id', user.id).maybeSingle();
       if (data){
         dot.classList.add('on');
         const name = [data.athlete_firstname, data.athlete_lastname].filter(Boolean).join(' ');
-        statusEl.textContent = name ? ('Connected as ' + name) : 'Connected';
-        connectBtn.style.display = 'none';
+        const canImport = /activity:read/.test(data.scope || '');
+        statusEl.textContent = (name ? ('Connected as ' + name) : 'Connected') + (canImport ? ' · runs import automatically' : '');
+        // Connected before run import existed: offer to connect again so we can read runs.
+        connectBtn.style.display = canImport ? 'none' : '';
+        if (!canImport) document.getElementById('stravaMsg').textContent = 'Connect again to import your runs. Keep "View data about your activities" ticked on Strava\'s page.';
         disconnectBtn.style.display = 'block';
       } else {
         statusEl.textContent = 'Not connected';
@@ -398,8 +452,8 @@ const supabase = createSupabaseClient();
       client_id: STRAVA_CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: 'code',
-      approval_prompt: 'auto',
-      scope: 'activity:write',
+      approval_prompt: 'force',
+      scope: 'activity:write,activity:read_all',
       state: user.id,
       'return': window.location.origin + window.location.pathname
     });
@@ -420,6 +474,7 @@ const supabase = createSupabaseClient();
 
   await loadFtp();
   await loadWeight();
+  loadPace();
 
   // ---- Power display smoothing ----
   (async ()=>{

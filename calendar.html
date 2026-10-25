@@ -144,6 +144,7 @@
   .chip.planned[draggable=true]{ cursor:grab; }
   .chip.done{ border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:color-mix(in srgb, var(--accent) 10%, var(--panel)); }
   .chip.done .tick{ color:var(--accent); }
+  .run-desc{ font-size:13.5px; color:var(--text-dim); line-height:1.5; margin:10px 0 0; }
   .chip.missed{ opacity:.6; }
   .chip.missed .nm span{ text-decoration:line-through; }
   .chip.dragging{ opacity:.35; }
@@ -260,10 +261,11 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=17';
-import { notify, ask } from './sheet.js?v=1';
+import { notify, ask } from './sheet.js?v=2';
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=2';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { applySwaps, undoSwap } from './adapt.js?v=1';
+import { addRuns, runSession, plannedRunTss, openRunLog, fmtKm } from './run.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -272,7 +274,7 @@ const supabase = createSupabaseClient();
   await requireSubscription(supabase, user);
 
   const ZONE_COLOURS = { recovery:'var(--z-recovery)', endurance:'var(--z-endurance)', tempo:'var(--z-tempo)', sweet_spot:'var(--z-threshold)',
-    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)' };
+    threshold:'var(--z-threshold)', over_under:'var(--z-vo2)', vo2max:'var(--z-vo2)', anaerobic:'var(--z-anaerobic)', test:'var(--z-neuro)', strength:'var(--text-dim)', run:'#C084FC' };
   const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function fmtMins(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '') : m+'m'; }
@@ -295,7 +297,7 @@ const supabase = createSupabaseClient();
       loadFollowState(supabase, user.id),
       supabase.from('workouts').select('id,name,category,steps,duration_sec'),
       supabase.from('strength_workouts').select('id,name'),
-      supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index')
+      supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index,sport,distance_m')
         .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true })
     ]);
     if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
@@ -303,18 +305,23 @@ const supabase = createSupabaseClient();
     (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
     (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength' }; });
     rides = rRes.data || [];
+    indexRides();
+    if (follow.planId && follow.startedAt){
+      const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
+      planRaw = data || null;
+      plan = data ? applySwaps(addRuns(data, follow.runs), follow.swaps) : null;
+      if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
+    }
+  }
+  function indexRides(){
+    ridesByDate.clear();
     rides.forEach(r=>{
       const d = isoDate(new Date(r.started_at));
       if (!ridesByDate.has(d)) ridesByDate.set(d, []);
       ridesByDate.get(d).push(r);
     });
-    if (follow.planId && follow.startedAt){
-      const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
-      planRaw = data || null;
-      plan = data ? applySwaps(data, follow.swaps) : null;
-      if (plan) doneDays = await loadDoneDays(supabase, user.id, plan.id, follow.startedAt);
-    }
   }
+  function rebuildPlan(){ plan = planRaw ? applySwaps(addRuns(planRaw, follow.runs), follow.swaps) : null; }
 
   // Planned sessions by effective date, with whether each is done/missed and its planned TSS.
   function sessionsByDate(){
@@ -322,12 +329,14 @@ const supabase = createSupabaseClient();
     if (!plan) return map;
     const today = todayIso();
     planSessions(plan, follow.startedAt, follow.moves).forEach(s=>{
-      const wk = workouts[s.dayObj.workoutId] || {};
-      const isStrength = s.dayObj.workoutType === 'strength';
+      const wkRaw = workouts[s.dayObj.workoutId] || {};
+      const isStrength = s.dayObj.workoutType === 'strength', isRun = s.dayObj.workoutType === 'run';
+      const run = isRun ? runSession(s.dayObj.workoutId) : null;
+      const wk = run ? { name: run.name, duration_sec: run.mins*60 } : wkRaw;
       const item = Object.assign({}, s, {
-        name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : wk.category,
-        isStrength, durationSec: wk.duration_sec || null,
-        tss: isStrength ? null : plannedTss(wk.steps, ftp),
+        name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : wk.category,
+        isStrength, isRun, run, durationSec: wk.duration_sec || null,
+        tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : plannedTss(wk.steps, ftp),
         done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay,
       });
       item.missed = !item.done && (item.date < today || item.skipped);
@@ -485,7 +494,7 @@ const supabase = createSupabaseClient();
       const r = item.ride;
       return '<button class="chip done" data-ride="'+r.id+'">'
         + '<div class="nm"><span class="tick">✓</span><span>'+escapeHtml(r.workout_name)+'</span></div>'
-        + '<div class="mt">'+fmtMins(r.duration_sec)+(r.tss!=null ? ' · '+r.tss+' TSS' : '')+'</div></button>';
+        + '<div class="mt">'+fmtMins(r.duration_sec)+(r.sport === 'run' && r.distance_m ? ' · '+fmtKm(r.distance_m)+' km' : '')+(r.tss!=null ? ' · '+r.tss+' TSS' : '')+'</div></button>';
     }
     const s = item.session;
     const cls = s.missed ? 'missed' : '';
@@ -616,7 +625,7 @@ const supabase = createSupabaseClient();
   document.addEventListener('keydown', e=>{ if (e.key === 'Escape') closeSheet(); });
   calBody.addEventListener('click', e=>{
     const rideChip = e.target.closest('.chip.done');
-    if (rideChip){ window.location.href = 'rides.html'; return; }
+    if (rideChip){ window.location.href = 'rides.html?ride='+encodeURIComponent(rideChip.dataset.ride); return; }
     const chip = e.target.closest('.chip.planned');
     if (!chip) return;
     const s = sessionsByDate().get(chip.closest('.day').dataset.date).find(x=>x.dayIndex === Number(chip.dataset.day));
@@ -625,7 +634,7 @@ const supabase = createSupabaseClient();
     document.getElementById('sheetSub').textContent = 'Week '+s.weekNum+(s.deload ? ' · Deload' : '')+' · '+longDate(s.date)
       + (s.moved ? ' (planned for '+longDate(s.plannedDate)+')' : '')
       + (s.dayObj.swappedFrom ? ' · Adapted from '+((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom) : '')
-      + (s.isStrength ? ' · Strength' : ((s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
+      + (s.isStrength ? ' · Strength' : ((s.isRun ? ' · Run' : '')+(s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
     const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
     const minDate = todayIso();
@@ -636,17 +645,25 @@ const supabase = createSupabaseClient();
       + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
       + '</div>'
       + (s.dayObj.swappedFrom ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
-      + '<div class="actions"><button id="sheetCloseBtn">Close</button><a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a></div>';
+      + (s.isRun ? '<p class="run-desc">'+escapeHtml(s.run.text)+'</p>' : '')
+      + '<div class="actions"><button id="sheetCloseBtn">Close</button>'+(s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
+        : '<a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a>')+'</div>';
     sheet.style.display = 'flex';
     document.getElementById('sheetCloseBtn').onclick = closeSheet;
     document.getElementById('moveSaveBtn').onclick = ()=>{
       const v = document.getElementById('moveDate').value;
       if (v){ closeSheet(); moveSession(s.dayIndex, v); }
     };
+    const logRunBtn = document.getElementById('logRunBtn');
+    if (logRunBtn) logRunBtn.onclick = async ()=>{
+      closeSheet();
+      const saved = await openRunLog(supabase, user.id, { session:{ dayIndex:s.dayIndex, date:s.date, workoutId:s.dayObj.workoutId }, planId: plan.id });
+      if (saved){ rides.push(saved); rides.sort((a,b)=> a.started_at < b.started_at ? -1 : 1); doneDays.set(s.dayIndex, saved); indexRides(); render(); computeFitness(); drawFitChart(); }
+    };
     const undoBtn = document.getElementById('undoSwapBtn');
     if (undoBtn) undoBtn.onclick = async ()=>{
       closeSheet();
-      try { await undoSwap(supabase, user.id, follow, s.dayIndex); plan = applySwaps(planRaw, follow.swaps); render(); computeFitness(); drawFitChart(); }
+      try { await undoSwap(supabase, user.id, follow, s.dayIndex); rebuildPlan(); render(); computeFitness(); drawFitChart(); }
       catch(e){ notify('Check your connection and try again.', 'Couldn\'t undo that'); }
     };
     const resetBtn = document.getElementById('moveResetBtn');

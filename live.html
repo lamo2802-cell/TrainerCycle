@@ -532,11 +532,12 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=17';
-import { notify, ask, showSheet } from './sheet.js?v=1';
+import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=2';
 import { applySwaps } from './adapt.js?v=1';
+import { addRuns } from './run.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -767,9 +768,9 @@ const supabase = createSupabaseClient();
   let riderLevels = null;
   async function loadRiderLevels(){
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport').eq('user_id', user.id);
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels(data||[], r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+      riderLevels = computeLevels((data||[]).filter(r => r.sport !== 'run'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
@@ -831,7 +832,7 @@ const supabase = createSupabaseClient();
       if (!st.planId || !st.startedAt) return;
       const { data: plan } = await supabase.from('training_plans').select('id,weeks').eq('id', st.planId).maybeSingle();
       if (!plan) return;
-      activePlan = { plan: applySwaps(plan, st.swaps), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
+      activePlan = { plan: applySwaps(addRuns(plan, st.runs), st.swaps), state: st, doneDays: await loadDoneDays(supabase, user.id, plan.id, st.startedAt) };
     } catch(e){ activePlan = null; /* linking is a bonus; the ride still saves without it */ }
   }
   function findPlanSession(workoutId){
@@ -840,7 +841,7 @@ const supabase = createSupabaseClient();
     const { plan, state, doneDays } = activePlan;
     const weekAhead = addDays(todayIso(), 7);
     const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
-      filter: s => s.dayObj.workoutType !== 'strength' });
+      filter: s => !s.dayObj.workoutType || s.dayObj.workoutType === 'cycling' });
     return (next && next.date < weekAhead && next.dayObj.workoutId === workoutId) ? { planId: plan.id, dayIndex: next.dayIndex } : null;
   }
 
@@ -2009,7 +2010,7 @@ const supabase = createSupabaseClient();
       // Nothing chosen yet: if the plan has a ride due today, have it ready to go.
       const { plan, state, doneDays } = activePlan;
       const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
-        filter: x => x.dayObj.workoutType !== 'strength' });
+        filter: x => !x.dayObj.workoutType || x.dayObj.workoutType === 'cycling' });
       const wid = next && next.date === todayIso() && next.dayObj.workoutId;
       if (wid && library.find(x=>x.id===wid)){
         preselectedFromPlan = wid;
