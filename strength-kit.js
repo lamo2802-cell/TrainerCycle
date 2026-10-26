@@ -447,3 +447,56 @@ export function newBest(id, set, prevSessions, todaySets){
   const best = Math.max(0, ...all.map(s => e1rm(s.weight_kg, s.reps) || 0));
   return best > 0 && e > best + 0.05 ? 'estimated max ' + fmtLoad(id, Math.round(e*2)/2) : null;
 }
+
+// ---- Goals: settings key strength_goals, [{ id, variant, weight, reps, hold, by, set, done }] ----
+// Weighted lifts aim for weight × reps, body-weight moves for reps, holds for seconds.
+// by: optional target date; done: date the goal was hit (set during a session).
+export const GOALS_KEY = 'strength_goals';
+export async function loadGoals(supabase, userId){
+  const { data } = await supabase.from('settings').select('value').eq('user_id', userId).eq('key', GOALS_KEY).maybeSingle();
+  const v = data && data.value && data.value.v;
+  return Array.isArray(v) ? v.filter(g => g && VARIANTS[g.variant]) : [];
+}
+export async function saveGoals(supabase, userId, goals){
+  const { error } = await saveSetting(supabase, userId, GOALS_KEY, goals.slice(-40));
+  if (error) throw error;
+  return goals;
+}
+export function goalText(g){
+  const v = VARIANTS[g.variant] || { load:'bw' };
+  return v.load === 'time' ? g.hold + ' s hold' : v.load === 'bw' ? g.reps + ' reps' : fmtLoad(g.variant, g.weight) + ' × ' + g.reps;
+}
+// A logged set ({ weight, reps, hold }) that meets the goal.
+export function goalMet(g, set){
+  const v = VARIANTS[g.variant] || { load:'bw' };
+  if (v.load === 'time') return (set.hold || 0) >= g.hold;
+  if (v.load === 'bw') return (set.reps || 0) >= g.reps;
+  return (set.weight || 0) >= g.weight - 1e-9 && (set.reps || 0) >= g.reps;
+}
+// How close the best set so far is, 0-1, compared by estimated max for weighted lifts.
+const strength = (w, reps) => w > 0 && reps > 0 ? w * (1 + Math.min(reps, 20) / 30) : 0;
+export function goalProgress(g, sessions){
+  const v = VARIANTS[g.variant] || { load:'bw' };
+  const sets = (sessions || []).flatMap(s => s.sets);
+  if (v.load === 'time') return Math.min(1, Math.max(0, ...sets.map(s => s.hold_sec || 0)) / g.hold);
+  if (v.load === 'bw') return Math.min(1, Math.max(0, ...sets.map(s => s.reps || 0)) / g.reps);
+  const target = strength(g.weight, g.reps);
+  return target ? Math.min(1, Math.max(0, ...sets.map(s => strength(s.weight_kg, s.reps))) / target) : 0;
+}
+
+// ---- Retest: one all-out set of each main lift, to see how much stronger you are ----
+export const RETEST_PREFIX = 'retest-';
+export function retestWorkout(id, name, lifts){
+  return { id: RETEST_PREFIX + id, name, retest: true, exercises: lifts.map(l => ({ key:l.key, name:l.key.replace(/_/g,' ').replace(/^./, c => c.toUpperCase()), variant:l.variant,
+    sets:1, reps:1, repsMax:10, restSeconds:180, notes:'One all-out set: as many good reps as you can, up to 10, stopping with 1 left. Warm up first.' })) };
+}
+// Best estimated max (or reps, or hold) per variation for sessions between two dates.
+export function bestBetween(sessions, id, fromIso, toIso){
+  const v = VARIANTS[id] || { load:'bw' };
+  let best = 0;
+  (sessions || []).filter(s => s.at >= fromIso && s.at < toIso).forEach(s => s.sets.forEach(x => {
+    const val = v.load === 'time' ? (x.hold_sec || 0) : v.load === 'bw' ? (x.reps || 0) : strength(x.weight_kg, x.reps);
+    if (val > best) best = val;
+  }));
+  return best || null;
+}
