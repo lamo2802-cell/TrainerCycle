@@ -70,15 +70,16 @@ const DEFAULT_ORDER = {
 export const GYM_EQUIPMENT = { dumbbell:{ from:2, to:50, step:2 }, kettlebell:{ from:8, to:32, step:4 }, barbell:true, cable:true, band:true, set:false };
 
 export async function loadStrengthSettings(supabase, userId){
-  const out = { equipment: GYM_EQUIPMENT, variants: {}, weightKg: null, experience: null };
+  const out = { equipment: GYM_EQUIPMENT, variants: {}, weightKg: null, experience: null, rideAware: true };
   try {
-    const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', [EQUIPMENT_KEY, VARIANTS_KEY, 'weight_kg', 'strength_experience']);
+    const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', [EQUIPMENT_KEY, VARIANTS_KEY, 'weight_kg', 'strength_experience', 'strength_ride_aware']);
     (data || []).forEach(r => {
       const v = r.value && r.value.v;
       if (r.key === EQUIPMENT_KEY && v) out.equipment = Object.assign({}, v, { set:true });
       if (r.key === VARIANTS_KEY && v) out.variants = v;
       if (r.key === 'weight_kg' && Number(v) > 0) out.weightKg = Number(v);
       if (r.key === 'strength_experience' && v) out.experience = v;
+      if (r.key === 'strength_ride_aware') out.rideAware = v !== false;
     });
   } catch(_){}
   return out;
@@ -367,3 +368,44 @@ export function warmups(id, w, eq){
   const kg = nearestOption(w * 0.5, opts, 'down');
   return kg < w - 1e-9 && w >= (v.load === 'hand' ? 8 : 12) ? [{ weight: kg, reps: 8 }] : [];
 }
+
+// Lower-body moves: these are the ones that tire legs for riding.
+const LEG_BASES = new Set(['squat','deadlift','lunge','glute_bridge','calf_raise','clamshell','standing_hip_abduction','straight_leg_raise']);
+export function isLegMove(base){ return LEG_BASES.has(base); }
+// Share of a workout's sets that are lower body (0-1). exercises: [{ key, sets }].
+export function legShare(exercises){
+  let legs = 0, all = 0;
+  (exercises || []).forEach(e => { const n = Number(e.sets) || 1; all += n; if (LEG_BASES.has(e.key)) legs += n; });
+  return all ? legs / all : 0;
+}
+// A session is leg-heavy when at least 40% of its sets are lower body.
+export function legHeavy(exercises){ return legShare(exercises) >= 0.4; }
+// Strength TSS scale: a core or upper-body session counts 0.8x, an all-legs session 1.2x.
+export function legLoadFactor(sets){
+  if (!sets.length) return 1;
+  const legs = sets.filter(s => LEG_BASES.has(s.base)).length;
+  return Math.round((0.8 + 0.4 * legs / sets.length) * 100) / 100;
+}
+
+// A big riding week: the last 7 days' riding is well above what the rider usually does (1.3x their
+// 42-day average, and at least 350 TSS), or Form is below -20. Returns a reason or null.
+export async function bigRidingWeek(supabase, userId){
+  try {
+    const since = new Date(Date.now() - 90*86400000).toISOString();
+    const { data } = await supabase.from('completed_rides').select('started_at,tss,sport').eq('user_id', userId).gte('started_at', since);
+    const rows = (data || []).filter(r => r.sport !== 'strength');
+    const week = rows.filter(r => daysAgo(r.started_at) <= 7).reduce((t, r) => t + (r.tss || 0), 0);
+    let ctl = 0, atl = 0;
+    const byDay = {};
+    (data || []).forEach(r => { const d = r.started_at.slice(0,10); byDay[d] = (byDay[d] || 0) + (r.tss || 0); });
+    for (let i = 89; i >= 0; i--){ const d = new Date(Date.now() - i*86400000).toISOString().slice(0,10); const t = byDay[d] || 0; ctl += (t - ctl)/42; atl += (t - atl)/7; }
+    if (week >= 350 && week >= ctl * 7 * 1.3) return 'You\'ve ridden '+Math.round(week)+' TSS in the last 7 days, well above your usual week';
+    if (ctl - atl < -20) return 'Your Form is '+Math.round(ctl - atl)+' after a lot of riding';
+  } catch(_){}
+  return null;
+}
+// The lighter version of a workout for a big riding week: at most 2 sets of everything.
+export function lighterWorkout(exercises){
+  return exercises.map(e => Object.assign({}, e, { sets: Math.min(2, e.sets) }));
+}
+export const RIDE_AWARE_KEY = 'strength_ride_aware';

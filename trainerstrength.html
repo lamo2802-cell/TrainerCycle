@@ -135,6 +135,9 @@
   .log-warm .lw-t{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
   .log-warm .lw-r{ display:flex; justify-content:space-between; gap:10px; font-family:var(--mono); font-size:12.5px; padding:2px 0; }
   .log-warm .lw-r span:last-child{ color:var(--text-dim); text-align:right; }
+  .light-note{ max-width:420px; margin:0 auto; font-size:13.5px; line-height:1.45; color:var(--text-dim); background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; text-align:left; }
+  .light-note b{ color:var(--text); }
+  .stage-action .light-note .link-btn{ display:inline; width:auto; margin:0; padding:0; border:0; background:none; color:var(--accent); font-size:13.5px; font-weight:600; cursor:pointer; text-decoration:underline; }
   .log-more{ display:flex; gap:8px; margin-top:8px; }
   .stage-action .log-more button{ flex:1; margin:0; padding:9px 6px; font-size:13px; background:transparent; color:var(--text-dim); }
   .rest-btns{ display:flex; gap:8px; justify-content:center; max-width:420px; margin:0 auto; }
@@ -298,7 +301,7 @@ import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayO
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
   weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness,
-  swapOptions, isBarbell, platesText, warmups } from './strength-kit.js?v=3';
+  swapOptions, isBarbell, platesText, warmups, bigRidingWeek, lighterWorkout, legLoadFactor } from './strength-kit.js?v=4';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -309,6 +312,13 @@ const supabase = createSupabaseClient();
   let history = {};
   let tired = null;
   tiredness(supabase, user.id).then(t => { tired = t; exPlan = {}; renderLiftsSummary(); });
+  // Big riding week: sessions start as a lighter version (Settings → Strength, on by default).
+  let bigWeek = null;
+  bigRidingWeek(supabase, user.id).then(r => {
+    bigWeek = r;
+    const id = document.getElementById('workoutSelect').value;
+    if (r && id && idx === -1 && !running) selectWorkout(id);
+  });
   async function refreshHistory(){
     try { history = await loadHistory(supabase, user.id); } catch(_){ history = {}; }
     if (!running) exPlan = {};
@@ -389,7 +399,7 @@ const supabase = createSupabaseClient();
     if (idx < 0 || !flat.length) return;
     const w = document.getElementById('workoutSelect').value;
     try { localStorage.setItem(LIVE_KEY, JSON.stringify({ v:1, workoutId:w, flat: flat.map(({ ex, ...r }) => r), idx, logged, exVariant, skipped:[...skipped],
-      elapsedSec, restRemaining, startedAt, totalSets, planLink, running, savedAt: Date.now() })); } catch(_){}
+      elapsedSec, restRemaining, startedAt, totalSets, planLink, running, lighter, savedAt: Date.now() })); } catch(_){}
   }
   function clearLive(){ try { localStorage.removeItem(LIVE_KEY); } catch(_){} }
   function readLive(){
@@ -405,13 +415,13 @@ const supabase = createSupabaseClient();
   async function saveSession({ completed, durationSec, setsDone, sets }){
     const w = library.find(x => x.id === document.getElementById('workoutSelect').value);
     if (!w || durationSec < 60) return null;
-    const STRENGTH_IF = sessionIF(sets);
+    const STRENGTH_IF = sessionIF(sets), legs = legLoadFactor(sets);
     const record = {
       id: 'strength_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
       user_id: user.id, sport:'strength', source:'trainercycle', category:'strength',
       workout_name: w.name, workout_id: w.id, started_at: startedAt || new Date(Date.now() - durationSec*1000).toISOString(),
       duration_sec: Math.round(durationSec), completed, samples: [{ sets: setsDone, of: totalSets, logged: sets.length }],
-      tss: Math.round(durationSec/3600 * STRENGTH_IF * STRENGTH_IF * 100), intensity_factor: STRENGTH_IF,
+      tss: Math.round(durationSec/3600 * STRENGTH_IF * STRENGTH_IF * 100 * legs), intensity_factor: STRENGTH_IF,
       plan_id: planLink && planLink.workoutId === w.id ? planLink.planId : null, plan_day_index: planLink && planLink.workoutId === w.id ? planLink.dayIndex : null,
     };
     for (let i = 0; i < 3; i++){
@@ -619,12 +629,18 @@ const supabase = createSupabaseClient();
     return '<div class="stepper"><button data-step="'+k+':-" aria-label="Less">−</button><div class="sv"><b>'+val+'</b><span>'+label+'</span></div><button data-step="'+k+':+" aria-label="More">+</button></div>';
   }
 
-  function selectWorkout(id){
+  // The workout as done today: the lighter version in a big riding week unless the rider chose the full one.
+  let curWorkout = null, lighter = false;
+  const wantFull = new Set();
+  function canLighten(w){ return !!(w && bigWeek && kit.rideAware && w.exercises.some(e => e.sets > 2)); }
+  function selectWorkout(id, opts = {}){
     const w = library.find(x=>x.id===id);
-    flat = w ? flatten(w.exercises) : [];
+    lighter = opts.lighter != null ? opts.lighter : canLighten(w) && !wantFull.has(id);
+    curWorkout = w ? Object.assign({}, w, { exercises: lighter ? lighterWorkout(w.exercises) : w.exercises }) : null;
+    flat = curWorkout ? flatten(curWorkout.exercises) : [];
     idx = -1; logged = []; exVariant = {}; exPlan = {}; form = null; skipped = new Set();
-    totalSets = w ? w.exercises.reduce((a,ex)=>a+ex.sets,0) : 0;
-    renderExerciseList(w);
+    totalSets = curWorkout ? curWorkout.exercises.reduce((a,ex)=>a+ex.sets,0) : 0;
+    renderExerciseList(curWorkout);
     renderStage();
   }
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
@@ -660,7 +676,7 @@ const supabase = createSupabaseClient();
     const list = liftList(), el = document.getElementById('liftsSummary');
     if (!el) return;
     el.textContent = list.length ? list.length + ' exercise' + (list.length===1?'':'s') + ' logged. Latest: ' + list[0].name + ', ' + bestText(list[0]) + ' best.' : 'Log a session and your weights and best sets show here.';
-    renderExerciseList(library.find(x => x.id === document.getElementById('workoutSelect').value));
+    renderExerciseList(curWorkout);
   }
   function liftChart(id){
     const v = vinfo(id), sessions = (history[id] || []).slice(0, 20).reverse();
@@ -726,7 +742,12 @@ const supabase = createSupabaseClient();
       document.getElementById('stageNotes').textContent = '';
       document.getElementById('nextStepInfo').innerHTML = flat.length ? ('First: <b>'+vinfo(variantOf(0, flat[0].ex), flat[0].ex).name+'</b> · '+flat[0].ex.sets+'x'+flat[0].ex.reps) : '—';
       restEl.style.display = 'none';
-      stageAction.innerHTML = '';
+      const w = curWorkout && library.find(x => x.id === curWorkout.id);
+      stageAction.innerHTML = lighter ? '<div class="light-note"><b>Lighter version today.</b> '+bigWeek+', so it\'s 2 sets of each exercise to keep your legs for riding. <button class="link-btn" id="fullBtn">Do the full session</button></div>'
+        : canLighten(w) ? '<div class="light-note">Full session. <button class="link-btn" id="lightBtn">Use the lighter version</button></div>' : '';
+      const fb = document.getElementById('fullBtn'), lb = document.getElementById('lightBtn');
+      if (fb) fb.addEventListener('click', () => { wantFull.add(w.id); selectWorkout(w.id); });
+      if (lb) lb.addEventListener('click', () => { wantFull.delete(w.id); selectWorkout(w.id); });
       renderPositions('', document.getElementById('positionsRow'));
       return;
     }
@@ -772,8 +793,7 @@ const supabase = createSupabaseClient();
       : 'Last step — finish and stop when ready.';
 
     // refresh sidebar exercise highlight
-    const w = library.find(x=>x.exercises && flat.length && x.exercises[entry.exIdx] === entry.ex);
-    renderExerciseList(w);
+    renderExerciseList(curWorkout);
   }
 
   let lastBeep = null;
@@ -1052,8 +1072,8 @@ const supabase = createSupabaseClient();
     if (/^sp-/.test(w.id)) showProgramme.add(w.id);
     populateWorkoutSelect();
     document.getElementById('workoutSelect').value = w.id;
-    selectWorkout(w.id);
-    flat = st.flat.map(e => Object.assign({}, e, { ex: w.exercises[e.exIdx] })).filter(e => e.ex);
+    selectWorkout(w.id, { lighter: !!st.lighter });
+    flat = st.flat.map(e => Object.assign({}, e, { ex: curWorkout.exercises[e.exIdx] })).filter(e => e.ex);
     idx = Math.min(st.idx, flat.length - 1); logged = st.logged || []; exVariant = st.exVariant || {}; skipped = new Set(st.skipped || []);
     totalSets = st.totalSets; startedAt = st.startedAt; planLink = st.planLink || null;
     // Time away counts as session time when the session was running, up to 20 minutes.

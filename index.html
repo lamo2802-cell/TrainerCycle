@@ -291,6 +291,7 @@
   .adapt-item:first-of-type{ border-top:none; padding-top:2px; }
   .adapt-ic{ flex:0 0 34px; height:34px; border-radius:10px; display:grid; place-items:center; background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--accent); }
   .adapt-ic.easier, .adapt-ic.tired{ background:color-mix(in srgb, #4C8BF5 16%, transparent); color:#7FAEF8; }
+  .adapt-ic.legs{ background:color-mix(in srgb, #F0A35E 16%, transparent); color:#F5B37A; }
   .adapt-ic.harder{ background:color-mix(in srgb, #F08A3C 16%, transparent); color:#F5A66A; }
   .adapt-ic svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .adapt-body{ flex:1; min-width:0; }
@@ -444,7 +445,8 @@ import { openWelcome } from './welcome.js?v=2';
 import { WHATS_NEW_KEY, shouldShowWhatsNew, openWhatsNew } from './whatsnew.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
-import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=3';
+import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=4';
+import { legHeavy } from './strength-kit.js?v=4';
 import { suggestRide, shorterVersion, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -474,6 +476,7 @@ const supabase = createSupabaseClient();
     easier: '<svg viewBox="0 0 24 24"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>',
     harder: '<svg viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></svg>',
     tired:  '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+    legs:   '<svg viewBox="0 0 24 24"><path d="M3 12h2m14 0h2M6 8v8m12-8v8M8 10v4m8-4v4M8 12h8"/></svg>',
   };
   function esc(s){ return String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function fmtMins(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h '+(m%60 ? String(m%60).padStart(2,'0')+'m' : '') : m+' min'; }
@@ -526,7 +529,7 @@ const supabase = createSupabaseClient();
         supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
-        supabase.from('strength_workouts').select('id,name'),
+        supabase.from('strength_workouts').select('id,name,exercises'),
         supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,np,intensity_factor,plan_id,plan_day_index,completed,workout_id,feel,power_bests,run_bests,sport,distance_m,source')
           .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
         supabase.from('settings').select('value').eq('key','ftp_suggestion_dismissed').eq('user_id', user.id).maybeSingle(),
@@ -548,7 +551,7 @@ const supabase = createSupabaseClient();
       if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
       follow = st;
       (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
-      (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength' }; });
+      (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength', exercises:w.exercises }; });
       rides = rRes.data || [];
       if (follow.planId && follow.startedAt){
         const base = composeFollowed(await loadPlanRow(supabase, follow), follow, follow.runPlan).plan;
@@ -574,7 +577,7 @@ const supabase = createSupabaseClient();
       const run = isRun ? runSession(s.dayObj.workoutId) : null;
       const info = sessionInfo(s.dayObj, workouts, ftpW);
       const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (isSwim || isRace || isBrick) ? { name: info.name, duration_sec: info.durationSec, steps: info.steps, category: info.category } : (workouts[s.dayObj.workoutId] || {});
-      return Object.assign(s, { name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category, isStrength, isRun, isSwim, isBrick, isRace, run, info, steps: wk.steps,
+      return Object.assign(s, { legHeavy: isStrength && legHeavy(wk.exercises), name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category, isStrength, isRun, isSwim, isBrick, isRace, run, info, steps: wk.steps,
         durationSec: wk.duration_sec, tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isRace || isBrick) ? info.tss : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
     }) : [];
     const daily = new Map();
