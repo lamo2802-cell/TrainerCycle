@@ -1,6 +1,6 @@
 // Progress → Strength: how lifting is going. Built from logged sets (strength-kit loadHistory) and the
 // body weight log. Charts are inline SVG and share Performance's styles (pf-*) and hover tooltip.
-import { VARIANTS, e1rm, fmtLoad, fmtKg, muscleGroup } from './strength-kit.js?v=5';
+import { VARIANTS, e1rm, fmtLoad, fmtKg, muscleGroup } from './strength-kit.js?v=6';
 import { todayIso, addDays, isoDate, parseIso } from './plan-schedule.js?v=4';
 
 const GROUPS = [
