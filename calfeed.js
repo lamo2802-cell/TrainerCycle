@@ -1,7 +1,8 @@
 // Calendar feed: planned sessions in Google, Apple or Outlook Calendar. The pages that build the
 // followed plan (Today, Calendar) store the next eight weeks of sessions in settings key calendar_feed;
 // the calendar-feed edge function serves them as an .ics feed to whoever holds the rider's secret
-// link (settings key calendar_feed_token). Nothing is stored until the rider turns the feed on.
+// link (settings key calendar_feed_token), and send-reminders uses them for session reminders
+// (reminders.js). Nothing is stored until the rider turns the feed or reminders on.
 import { planSessions, todayIso, addDays, plannedTss } from './plan-schedule.js?v=5';
 import { runSession } from './run.js?v=5';
 import { sessionInfo } from './plan-kit.js?v=4';
@@ -27,29 +28,29 @@ export function feedEvents(plan, follow, workouts, ftp, extra = []){
 function dayEvent(date, d, workouts, ftp){
   if (d.workoutType === 'run'){
     const r = runSession(d.workoutId);
-    return r && { date, title:'Run: '+r.name, text:r.mins+' min · '+r.tss+' TSS. '+r.text, url:'https://trainercycle.com/trainerrun.html' };
+    return r && { date, sport:'run', title:'Run: '+r.name, text:r.mins+' min · '+r.tss+' TSS. '+r.text, url:'https://trainercycle.com/trainerrun.html' };
   }
   if (d.workoutType === 'swim' || d.workoutType === 'race'){
     const x = sessionInfo(d, workouts, ftp);
-    return x && { date, title:(d.workoutType === 'swim' ? 'Swim: ' : '')+x.name, text:(x.durationSec ? mins(x.durationSec)+' min' : '')+(x.tss ? ' · '+x.tss+' TSS' : '')+'. '+x.text,
+    return x && { date, sport:d.workoutType === 'swim' ? 'swim' : null, title:(d.workoutType === 'swim' ? 'Swim: ' : '')+x.name, text:(x.durationSec ? mins(x.durationSec)+' min' : '')+(x.tss ? ' · '+x.tss+' TSS' : '')+'. '+x.text,
       url:'https://trainercycle.com/calendar.html' };
   }
   const w = workouts[d.workoutId] || {};
-  if (d.workoutType === 'strength') return { date, title:'Strength: '+(w.name || 'session'), text:'TrainerStrength session.', url:'https://trainercycle.com/trainerstrength.html?load='+encodeURIComponent(d.workoutId) };
+  if (d.workoutType === 'strength') return { date, sport:'strength', title:'Strength: '+(w.name || 'session'), text:'TrainerStrength session.', url:'https://trainercycle.com/trainerstrength.html?load='+encodeURIComponent(d.workoutId) };
   const tss = w.steps ? plannedTss(w.steps, ftp) : null;
   const m = mins(w.duration_sec || durOf(w.steps));
   const brick = d.workoutType === 'brick' ? runSession(d.runId) : null;
-  return { date, title:(brick ? 'Brick: ' : 'Ride: ')+(w.name || d.workoutId)+(brick ? ' + '+brick.mins+' min run' : ''),
+  return { date, sport:'ride', title:(brick ? 'Brick: ' : 'Ride: ')+(w.name || d.workoutId)+(brick ? ' + '+brick.mins+' min run' : ''),
     text:(m ? m+' min' : '')+(tss != null ? ' · '+tss+' TSS' : '')+(d.holiday ? '. Easy version while you\'re away.' : '.')+(brick ? ' Then run straight off the bike: '+brick.text : ''),
     url:'https://trainercycle.com/live.html?load='+encodeURIComponent(d.workoutId) };
 }
 
-// Store the events when the feed is on and they've changed since this device last stored them.
+// Store the events when the feed or reminders are on and they've changed since this device last stored them.
 let feedOn = null; // one lookup per page load
 export async function syncCalendarFeed(supabase, userId, events, { force = false } = {}){
   try {
-    if (feedOn == null || force) feedOn = supabase.from('settings').select('value').eq('user_id', userId).eq('key', FEED_TOKEN_KEY).maybeSingle()
-      .then(r => !!(r.data && r.data.value && r.data.value.v));
+    if (feedOn == null || force) feedOn = supabase.from('settings').select('key,value').eq('user_id', userId).in('key', [FEED_TOKEN_KEY, 'reminders'])
+      .then(r => (r.data || []).some(x => x.value && x.value.v && (x.key === FEED_TOKEN_KEY || x.value.v.on)));
     if (!(await feedOn)) return;
     const body = JSON.stringify(events);
     const memo = 'tc_calfeed_' + userId;

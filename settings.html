@@ -92,6 +92,9 @@
   .status-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-dim); margin-bottom:12px; }
   .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
   .dot.on{ background:var(--accent); }
+  .rem-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13.5px; margin:10px 0 0; }
+  .rem-row span{ display:flex; align-items:center; gap:8px; }
+  .rem-row select{ width:auto; min-width:110px; margin:0; }
   .msg{ font-size:12.5px; margin-top:10px; color:var(--text-dim); }
   .eq-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; padding:8px 0; border-top:1px solid var(--line); font-size:13.5px; }
   .eq-row:first-of-type{ border-top:none; }
@@ -285,6 +288,19 @@
     <div class="set-group-title">Connections</div>
     <div class="set-group">
     <div class="panel">
+      <div class="panel-title">Session reminders</div>
+      <div class="panel-desc">A notification with today's session at a time you choose, and a nudge in the evening if it's still not done, so you can move it to tomorrow.</div>
+      <div class="status-row"><span class="dot" id="remDot"></span><span id="remStatus">Checking…</span></div>
+      <div id="remForm" style="display:none;">
+        <label class="rem-row" for="remTime"><span>Today's session at</span><select id="remTime"></select></label>
+        <label class="rem-row"><span><input type="checkbox" id="remMissed"> Nudge me if it's not done by</span><select id="remMissedTime" aria-label="Evening nudge time"></select></label>
+      </div>
+      <button id="remOnBtn" class="primary" style="display:none; margin-top:10px;">Turn on reminders</button>
+      <button id="remHereBtn" class="primary" style="display:none; margin-top:10px;">Also send them to this device</button>
+      <button id="remOffBtn" style="display:none; margin-top:10px;">Turn off reminders</button>
+      <div class="msg" id="remMsg"></div>
+    </div>
+    <div class="panel">
       <div class="panel-title">Calendar feed</div>
       <div class="panel-desc">See your planned rides and runs in Google, Apple or Outlook Calendar, next to work and family. It updates when your plan changes.</div>
       <div class="status-row"><span class="dot" id="feedDot"></span><span id="feedStatus">Checking…</span></div>
@@ -352,7 +368,8 @@ import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRu
 import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
 import { ask } from './sheet.js?v=2';
 import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting, logBodyWeight } from './strength-kit.js?v=6';
-import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
+import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=4';
+import { pushSupported, needsHomeScreen, loadReminders, saveReminders, deviceHasReminders, enableDevice, disableAll } from './reminders.js?v=1';
 import { loadDiary, diarySessions } from './diary.js?v=2';
 import { loadFollowState } from './plan-schedule.js?v=5';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
@@ -889,8 +906,9 @@ const supabase = createSupabaseClient();
   });
   document.getElementById('feedOffBtn').addEventListener('click', async () => {
     if (!(await ask('Calendars subscribed to it stop updating and the link stops working.', { title:'Turn off the calendar feed?', ok:'Turn off', danger:true }))) return;
-    await supabase.from('settings').delete().eq('user_id', user.id).in('key', [FEED_TOKEN_KEY, FEED_KEY]);
-    try { localStorage.removeItem('tc_calfeed_' + user.id); } catch(_){}
+    const remOn = (await loadReminders(supabase, user.id)).on; // reminders read the same stored sessions
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', remOn ? [FEED_TOKEN_KEY] : [FEED_TOKEN_KEY, FEED_KEY]);
+    if (!remOn) try { localStorage.removeItem('tc_calfeed_' + user.id); } catch(_){}
     renderFeed();
   });
   document.getElementById('feedCopy').addEventListener('click', async () => {
@@ -899,6 +917,70 @@ const supabase = createSupabaseClient();
     catch(_){ document.getElementById('feedLink').select(); }
   });
   renderFeed();
+
+  // ---- session reminders ----
+  const remEls = id => document.getElementById(id);
+  (function fillTimes(){
+    const opts = [];
+    for (let m = 5*60; m <= 22*60; m += 15){
+      const v = String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+      opts.push('<option value="'+v+'">'+v+'</option>');
+    }
+    remEls('remTime').innerHTML = opts.join(''); remEls('remMissedTime').innerHTML = opts.join('');
+  })();
+  let rem = null;
+  async function renderReminders(){
+    rem = await loadReminders(supabase, user.id);
+    const here = rem.on && await deviceHasReminders(supabase, user.id);
+    const canHere = pushSupported() && !needsHomeScreen();
+    remEls('remDot').classList.toggle('on', !!rem.on);
+    remEls('remStatus').textContent = !rem.on ? 'Off' : here ? 'On for this device' : 'On, but not on this device';
+    remEls('remForm').style.display = rem.on ? '' : 'none';
+    remEls('remTime').value = rem.time; remEls('remMissedTime').value = rem.missedTime;
+    remEls('remMissed').checked = rem.missed; remEls('remMissedTime').disabled = !rem.missed;
+    remEls('remOnBtn').style.display = !rem.on && canHere ? '' : 'none';
+    remEls('remHereBtn').style.display = rem.on && !here && canHere ? '' : 'none';
+    remEls('remOffBtn').style.display = rem.on ? '' : 'none';
+    remEls('remMsg').textContent = canHere ? '' : needsHomeScreen()
+      ? 'On iPhone and iPad, add TrainerCycle to your Home Screen first (Share → Add to Home Screen), then open it from there to turn reminders on.'
+      : 'This browser can\'t show notifications. Try Chrome or Edge, or the Android app.';
+  }
+  async function turnOnHere(e){
+    const btn = e.currentTarget; btn.disabled = true;
+    const msg = remEls('remMsg'); msg.textContent = '';
+    try {
+      await enableDevice(supabase, user.id);
+      rem = await saveReminders(supabase, user.id, Object.assign({}, rem, { on:true }));
+      await storeFeedNow();
+      await renderReminders();
+      msg.textContent = 'Reminders are on. You\'ll get today\'s session at '+rem.time+'.';
+    } catch(err){
+      msg.textContent = err && err.message === 'denied'
+        ? 'Notifications are blocked for TrainerCycle. Allow them in your browser or phone settings, then try again.'
+        : 'Couldn\'t turn reminders on. Check your connection and try again.';
+    }
+    btn.disabled = false;
+  }
+  remEls('remOnBtn').addEventListener('click', turnOnHere);
+  remEls('remHereBtn').addEventListener('click', turnOnHere);
+  remEls('remOffBtn').addEventListener('click', async () => {
+    if (!(await ask('You won\'t get session reminders on any of your devices.', { title:'Turn off reminders?', ok:'Turn off' }))) return;
+    try {
+      await disableAll(supabase, user.id);
+      rem = await saveReminders(supabase, user.id, Object.assign({}, rem, { on:false }));
+    } catch(_){ remEls('remMsg').textContent = 'Couldn\'t turn reminders off. Check your connection and try again.'; }
+    renderReminders();
+  });
+  async function saveRemForm(){
+    const msg = remEls('remMsg');
+    try {
+      rem = await saveReminders(supabase, user.id, Object.assign({}, rem, { time:remEls('remTime').value, missed:remEls('remMissed').checked, missedTime:remEls('remMissedTime').value }));
+      remEls('remMissedTime').disabled = !rem.missed;
+      msg.textContent = 'Saved.';
+    } catch(_){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+  }
+  ['remTime','remMissed','remMissedTime'].forEach(id => remEls(id).addEventListener('change', saveRemForm));
+  renderReminders();
 
   // ---- sidebar collapse ----
   const appRoot = document.querySelector('.app');

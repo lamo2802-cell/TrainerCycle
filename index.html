@@ -429,9 +429,9 @@
 
 <script type="module">
 import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=19';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart } from './plan-schedule.js?v=5';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart, saveMoves, moveEntry } from './plan-schedule.js?v=5';
 import { loadSeries, formLabel } from './training-load.js?v=2';
-import { notify } from './sheet.js?v=2';
+import { notify, showSheet } from './sheet.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
@@ -443,8 +443,8 @@ import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openWelcome } from './welcome.js?v=2';
 import { WHATS_NEW_KEY, shouldShowWhatsNew, openWhatsNew } from './whatsnew.js?v=1';
-import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
-import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=4';
+import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
 import { suggestRide, shorterVersion, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=2';
@@ -858,6 +858,36 @@ const supabase = createSupabaseClient();
       + '<div class="last-foot"><button class="link-btn" data-log-ride>+ Log a ride</button><button class="link-btn" data-log-run="">+ Log a run</button><button class="link-btn" data-log-swim="">+ Log a swim</button></div>'
       + '</div></div>';
 
+    // From the evening reminder (?move=<date>, &confirm=1 from its "Move to tomorrow" button): move that
+    // day's unfinished sessions to the next day, or to today if the reminder is opened later.
+    const moveQs = new URLSearchParams(location.search);
+    const moveLink = /^\d{4}-\d{2}-\d{2}$/.test(moveQs.get('move') || '') ? { date:moveQs.get('move'), confirm:moveQs.get('confirm') === '1' } : null;
+    if (moveLink) history.replaceState(null, '', location.pathname);
+    const dayWord = d => { const l = dayLabel(d); return /^(Today|Tomorrow)$/.test(l) ? l.toLowerCase() : l; };
+    async function moveMissed(date, confirmed){
+      const left = sessions.filter(s => s.date === date && !s.done && !s.skipped && !s.isRace).concat(singles.filter(s => s.date === date && !s.done));
+      if (!left.length) return notify('Nothing left to move from '+dayWord(date)+'.', 'All done');
+      const to = addDays(date, 1) < today ? today : addDays(date, 1);
+      const names = left.map(s => s.name).join(' and ');
+      if (!confirmed){
+        const ok = await showSheet({ title:'Move '+names+' to '+dayWord(to)+'?', text:'The rest of your plan stays where it is. You can move it again from the calendar.',
+          buttons:[{ label:'Move to '+dayWord(to), value:true, kind:'primary' }, { label:'Leave it', value:false }], dismissValue:false });
+        if (!ok) return;
+      }
+      try {
+        const planned = left.filter(s => !s.diaryId);
+        if (planned.length){
+          const moves = Object.assign({}, follow.moves);
+          planned.forEach(s => { moves[s.dayIndex] = moveEntry(s, to); });
+          await saveMoves(supabase, user.id, moves);
+        }
+        const ids = new Set(left.filter(s => s.diaryId).map(s => s.diaryId));
+        if (ids.size) await saveDiary(supabase, user.id, diary.map(it => ids.has(it.id) ? Object.assign({}, it, { date:to }) : it));
+      } catch(e){ return notify('Check your connection and try again.', 'Couldn\'t move it'); }
+      await renderToday(user);
+      notify(names+' moved to '+dayWord(to)+'.', 'Moved');
+    }
+
     el.innerHTML = html;
     if (sgMode) mountSuggest();
     el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in');
@@ -871,6 +901,7 @@ const supabase = createSupabaseClient();
       try { shown = !!localStorage.getItem('tc_welcome_shown_' + user.id); localStorage.setItem('tc_welcome_shown_' + user.id, '1'); } catch(_){}
       if (!shown) runWelcome();
     }
+    else if (moveLink) moveMissed(moveLink.date, moveLink.confirm);
     else if (shouldShowWhatsNew({ user, seenId:whatsNewSeen, isNew })) openWhatsNew({ supabase, user });
     const gsHide = el.querySelector('[data-gs-hide]');
     if (gsHide) gsHide.addEventListener('click', async ()=>{
