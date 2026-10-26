@@ -197,3 +197,14 @@ export function mergeStrength(base, baseStartIso, cfg){
   }
   return Object.assign({}, base, { weeks, strengthProgramme: cfg.id });
 }
+
+// The main lifts of a programme (each once), for the end-of-programme retest.
+export function retestLifts(prog){
+  const P = PROGRAMMES[prog]; if (!P) return [];
+  const seen = new Set(), out = [];
+  Object.values(P.sessions).forEach(S => S.list.filter(e => e.main).forEach(e => {
+    const k = e.key + ':' + (e.variant || '');
+    if (!seen.has(k)){ seen.add(k); out.push({ key:e.key, variant:e.variant }); }
+  }));
+  return out.slice(0, 5);
+}

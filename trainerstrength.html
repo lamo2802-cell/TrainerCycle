@@ -138,6 +138,17 @@
   .light-note{ max-width:420px; margin:0 auto; font-size:13.5px; line-height:1.45; color:var(--text-dim); background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; text-align:left; }
   .light-note b{ color:var(--text); }
   .stage-action .light-note .link-btn{ display:inline; width:auto; margin:0; padding:0; border:0; background:none; color:var(--accent); font-size:13.5px; font-weight:600; cursor:pointer; text-decoration:underline; }
+  .goal-row{ margin:6px 0 10px; font-size:12.5px; }
+  .goal-t{ display:flex; justify-content:space-between; gap:8px; color:var(--text-dim); }
+  .goal-t b{ color:var(--text); font-family:var(--mono); font-weight:600; }
+  .goal-bar{ height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; margin-top:4px; }
+  .goal-bar i{ display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .goal-by{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+  .goal-form{ display:flex; flex-wrap:wrap; gap:10px 16px; margin:4px 0 10px; font-size:13.5px; color:#B4BDC9; }
+  .goal-form label{ display:flex; align-items:center; gap:6px; }
+  .goal-form input{ width:84px; margin:0; padding:7px 8px; background:#11161C; color:#E7ECF2; border:1px solid #2A323D; border-radius:8px; font:inherit; }
+  .goal-form input[type=date]{ width:auto; }
+  .prog-sess .link-btn{ width:auto; margin:0; padding:0; border:0; background:none; color:var(--accent); font-weight:600; font-size:12.5px; cursor:pointer; }
   .wk-actions{ display:flex; gap:8px; margin-top:8px; }
   .wk-actions button{ flex:1; margin:0; padding:9px 8px; font-size:13px; }
   .ss-tag{ font:700 10px var(--mono); color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 4px; vertical-align:1px; }
@@ -257,7 +268,8 @@ html select option{ background:#1D242D; color:#E7ECF2; }
         <div class="block">
           <div class="block-title">Your lifts</div>
           <div id="liftsSummary" style="font-size:12.5px; color:var(--text-dim); margin-bottom:8px;">Loading…</div>
-          <button id="liftsBtn" style="margin-bottom:0;">See your lifts</button>
+          <div id="goalsBox"></div>
+          <button id="liftsBtn" style="margin-bottom:0;">See your lifts and goals</button>
         </div>
       </div>
 
@@ -301,12 +313,13 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=2';
 import { openBuilder } from './strength-builder.js?v=1';
-import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks } from './strength-programmes.js?v=1';
+import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks, retestLifts } from './strength-programmes.js?v=2';
 import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=5';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
   weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness,
-  swapOptions, isBarbell, platesText, warmups, bigRidingWeek, lighterWorkout, legLoadFactor, newBest } from './strength-kit.js?v=5';
+  swapOptions, isBarbell, platesText, warmups, bigRidingWeek, lighterWorkout, legLoadFactor, newBest,
+  loadGoals, saveGoals, goalText, goalMet, goalProgress, retestWorkout, bestBetween, RETEST_PREFIX } from './strength-kit.js?v=6';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -317,6 +330,8 @@ const supabase = createSupabaseClient();
   let history = {};
   let tired = null;
   tiredness(supabase, user.id).then(t => { tired = t; exPlan = {}; renderLiftsSummary(); });
+  let goals = [];
+  loadGoals(supabase, user.id).then(g => { goals = g; renderLiftsSummary(); }).catch(()=>{});
   // Big riding week: sessions start as a lighter version (Settings → Strength, on by default).
   let bigWeek = null;
   bigRidingWeek(supabase, user.id).then(r => {
@@ -519,9 +534,10 @@ const supabase = createSupabaseClient();
   let logged = [];        // sets done this session: { exIdx, base, variant, setNo, weight, reps, hold, rir, at }
   let exVariant = {};     // exercise index -> variation id for this session
   let form = null;        // the set being filled in: { idx, weight, reps, hold, rir }
+  // A programme can name the version to do; otherwise the rider's own choice or the first they have kit for.
+  const planVariant = ex => (ex.variant && variantAvailable(ex.variant, kit.equipment) ? ex.variant : pickVariant(ex.key, kit.equipment, kit.variants)) || ex.key;
   function variantOf(exIdx, ex){
-    // A programme can name the version to do; otherwise the rider's own choice or the first they have kit for.
-    if (!exVariant[exIdx]) exVariant[exIdx] = (ex.variant && variantAvailable(ex.variant, kit.equipment) ? ex.variant : pickVariant(ex.key, kit.equipment, kit.variants)) || ex.key;
+    if (!exVariant[exIdx]) exVariant[exIdx] = planVariant(ex);
     return exVariant[exIdx];
   }
   function vinfo(id, ex){ return VARIANTS[id] || { base: ex ? ex.key : id, name: ex ? ex.name : id, load:'bw' }; }
@@ -644,6 +660,8 @@ const supabase = createSupabaseClient();
     document.getElementById('setCompleteBtn').addEventListener('click', ()=>{
       const set = { exIdx: entry.exIdx, base: v.base || entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() };
       set.pb = newBest(vid, set, history[vid] || [], logged.filter(x => x.variant === vid));
+      const hit = goals.find(g => !g.done && g.variant === vid && goalMet(g, set));
+      if (hit){ hit.done = new Date().toISOString().slice(0,10); set.goal = goalText(hit); saveGoals(supabase, user.id, goals).catch(()=>{}); renderLiftsSummary(); }
       logged.push(set);
       if (set.pb){ beep(990, 140); setTimeout(() => beep(1320, 220), 160); buzz([80, 60, 80]); }
       advance();
@@ -710,7 +728,7 @@ const supabase = createSupabaseClient();
       const cur = flat[idx] && flat[idx].exIdx===i;
       const eq = EQUIPMENT_MAP[ex.key];
       const icon = eq ? ' <span title="'+(eq==='required'?'Requires weights':'Optional: weights add load')+'" style="opacity:.7;">🏋️</span>' : '';
-      const vid = exVariant[i] || pickVariant(ex.key, kit.equipment, kit.variants) || ex.key, v = vinfo(vid, ex);
+      const vid = exVariant[i] || planVariant(ex), v = vinfo(vid, ex);
       const p = planFor(i, ex, vid);
       const lastTxt = p.weight != null ? fmtLoad(vid, p.weight) + (p.calibrate ? ' to start' : '') : p.hold != null && lastSession(vid) ? p.hold + ' s' : '';
       const ss = ex.superset || (w.exercises[i+1] && w.exercises[i+1].superset) ? '<span class="ss-tag" title="Superset: done in rounds with the exercise next to it">SS</span> ' : '';
@@ -733,6 +751,11 @@ const supabase = createSupabaseClient();
     const list = liftList(), el = document.getElementById('liftsSummary');
     if (!el) return;
     el.textContent = list.length ? list.length + ' exercise' + (list.length===1?'':'s') + ' logged. Latest: ' + list[0].name + ', ' + bestText(list[0]) + ' best.' : 'Log a session and your weights and best sets show here.';
+    const gb = document.getElementById('goalsBox');
+    if (gb){
+      const active = goals.filter(g => !g.done), recent = goals.filter(g => g.done && g.done >= new Date(Date.now() - 30*86400000).toISOString().slice(0,10));
+      gb.innerHTML = active.concat(recent).map(goalRow).join('');
+    }
     renderExerciseList(curWorkout);
   }
   function liftChart(id){
@@ -758,14 +781,54 @@ const supabase = createSupabaseClient();
     return '<svg class="lift-chart" viewBox="0 0 '+W+' '+H+'" style="font:10px var(--mono); fill:#8C97A6;" role="img" aria-label="'+v.name+' over your last '+pts.length+' sessions">'+g+line('e','#E7ECF2',true)+line('y','#45D6C4')+dots
       + '<text x="'+L+'" y="'+(H-4)+'">'+unit+(v.load==='hand'||v.load==='total' ? ' · dashed: estimated max' : '')+'</text></svg>';
   }
+  const goalDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day:'numeric', month:'short' });
+  function goalRow(g){
+    const pct = g.done ? 1 : goalProgress(g, history[g.variant] || []);
+    return '<div class="goal-row"><div class="goal-t"><span>'+vinfo(g.variant).name+' · <b>'+goalText(g)+'</b></span><span>'+(g.done ? 'Done ✓' : Math.round(pct*100)+'%')+'</span></div>'
+      + '<div class="goal-bar"><i style="width:'+Math.round(pct*100)+'%"></i></div>'
+      + (!g.done && g.by ? '<div class="goal-by">By '+goalDate(g.by)+'</div>' : '')+'</div>';
+  }
+  // Set a goal for one lift: weight × reps, reps, or a hold, with an optional date.
+  async function setGoal(id){
+    const v = vinfo(id), L = liftSummary(id, history[id] || []);
+    const box = document.createElement('div');
+    const top = L.top || (L.best && L.best.set) || null;
+    const w0 = top && top.weight_kg ? nearestOption(top.weight_kg * 1.15, weightOptions(id, kit.equipment), 'up') : null;
+    box.innerHTML = '<div class="goal-form">'
+      + (v.load === 'hand' || v.load === 'total' ? '<label>Weight'+(v.load === 'hand' ? ' (each hand)' : '')+' <input type="number" id="gW" min="1" step="0.5" value="'+(w0 ?? '')+'"> kg</label><label>Reps <input type="number" id="gR" min="1" max="30" value="'+(top && top.reps ? Math.min(top.reps, 10) : 8)+'"></label>'
+        : v.load === 'time' ? '<label>Hold <input type="number" id="gH" min="5" step="5" value="'+((top && top.hold_sec || 30) + 15)+'"> s</label>'
+        : '<label>Reps <input type="number" id="gR" min="1" max="200" value="'+((top && top.reps || 10) + 5)+'"></label>')
+      + '<label>By <input type="date" id="gBy"> (optional)</label></div><p style="font-size:12.5px;">It\'s ticked off when you log a set that meets it.</p>';
+    const r = await showSheet({ title:'Goal: '+v.name, content: box, buttons:[{ label:'Save goal', value:'save', kind:'primary' }, { label:'Cancel', value:null }], dismissValue:null,
+      onAction: () => {
+        const num = sel => { const el = box.querySelector(sel); return el ? Number(el.value) : null; };
+        const ok = v.load === 'time' ? num('#gH') >= 5 : num('#gR') >= 1 && (!(v.load === 'hand' || v.load === 'total') || num('#gW') > 0);
+        if (!ok) box.querySelector('p').textContent = 'Fill in the target first.';
+        return ok;
+      } });
+    if (r !== 'save') return showLift(id);
+    const val = sel => { const el = box.querySelector(sel); return el && el.value !== '' ? Number(el.value) : null; };
+    const g = { id: Date.now().toString(36), variant:id, weight: val('#gW'), reps: val('#gR'), hold: val('#gH'), by: box.querySelector('#gBy').value || null, set: new Date().toISOString().slice(0,10), done:null };
+    goals = goals.filter(x => !(x.variant === id && !x.done)).concat(g);
+    try { await saveGoals(supabase, user.id, goals); } catch(_){ notify('Check your connection and try again.', 'Couldn\'t save your goal'); }
+    renderLiftsSummary(); showLift(id);
+  }
   function showLift(id){
     const v = vinfo(id), L = liftSummary(id, history[id] || []);
     const box = document.createElement('div');
     const shortDate = iso => new Date(iso).toLocaleDateString(undefined, { day:'numeric', month:'short' });
+    const g = goals.find(x => x.variant === id && !x.done);
     box.innerHTML = '<p>Best: <b>'+bestText(L)+'</b>'+(L.best ? ' · estimated max <b>'+fmtLoad(id, L.best.e)+'</b>' : '')+'</p>' + liftChart(id)
+      + (g ? goalRow(g) : '')
       + (history[id] || []).slice(0, 12).map(sess => '<div class="lift-sess"><span>'+shortDate(sess.at)+'</span><span>'+setsText(id, sess.sets)+'</span></div>').join('');
-    showSheet({ title: v.name, content: box, buttons:[{ label:'Back', value:'back', kind:'primary' }, { label:'Close', value:null }], dismissValue:null })
-      .then(r => { if (r === 'back') showLifts(); });
+    const buttons = [{ label:'Back', value:'back', kind:'primary' }, { label: g ? 'Change goal' : 'Set a goal', value:'goal' }];
+    if (g) buttons.push({ label:'Remove goal', value:'nogoal' });
+    showSheet({ title: v.name, content: box, buttons, dismissValue:null })
+      .then(async r => {
+        if (r === 'back') showLifts();
+        if (r === 'goal') setGoal(id);
+        if (r === 'nogoal'){ goals = goals.filter(x => x !== g); try { await saveGoals(supabase, user.id, goals); } catch(_){} renderLiftsSummary(); showLift(id); }
+      });
   }
   function showLifts(){
     const list = liftList();
@@ -774,8 +837,43 @@ const supabase = createSupabaseClient();
       : '<p>Nothing logged yet. Each set you log in a session shows up here, with your best and how it has moved.</p>';
     let picked = null;
     box.addEventListener('click', e => { const b = e.target.closest('[data-lift]'); if (!b) return; picked = b.dataset.lift; box.closest('.tc-sheet').querySelector('.tc-sheet-btns button').click(); });
-    showSheet({ title:'Your lifts', content: box, buttons:[{ label:'Close', value:'close', kind:'primary' }], dismissValue:null })
-      .then(() => { if (picked) showLift(picked); });
+    // Retest the weighted lifts done in the last 8 weeks (up to 5, most done first).
+    const since = new Date(Date.now() - 56*86400000).toISOString();
+    const recent = list.filter(L => (L.load === 'hand' || L.load === 'total') && L.last && L.last.at >= since).sort((a,b) => b.sessions - a.sessions).slice(0, 5);
+    const buttons = [{ label:'Close', value:'close', kind:'primary' }];
+    if (recent.length && !running && idx === -1) buttons.push({ label:'Retest these lifts', value:'retest' });
+    if (recent.length) box.insertAdjacentHTML('beforeend', '<p style="font-size:12.5px; margin-top:10px;">Tap a lift to set a goal. <b>Retest</b> does one all-out set of your main lifts to see how much stronger you are.</p>');
+    showSheet({ title:'Your lifts', content: box, buttons, dismissValue:null })
+      .then(r => {
+        if (picked) return showLift(picked);
+        if (r === 'retest') startRetest(retestWorkout('lifts', 'Strength retest', recent.map(L => ({ key: VARIANTS[L.id].base, variant: L.id }))), { from: new Date(Date.now() - 120*86400000).toISOString(), to: new Date(Date.now() - 42*86400000).toISOString(), label:'2 to 4 months ago' });
+      });
+  }
+  // A retest is a one-off workout (not stored); its sessions save like any other.
+  let retestBase = null;
+  function startRetest(w, base){
+    library = library.filter(x => x.id !== w.id).concat(w);
+    retestBase = base;
+    populateWorkoutSelect();
+    document.getElementById('workoutSelect').value = w.id;
+    selectWorkout(w.id, { lighter:false }); updateBuildButtons();
+    document.querySelector('.live-main').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block:'start' });
+  }
+  // After a retest: each lift today against its best from the start of the programme (or a few months back).
+  function retestSummary(sets){
+    const by = {};
+    sets.forEach(x => { const v = VARIANTS[x.variant] || { load:'bw' }; const val = v.load === 'time' ? (x.hold || 0) : v.load === 'bw' ? (x.reps || 0) : (x.weight > 0 && x.reps > 0 ? x.weight * (1 + Math.min(x.reps, 20)/30) : 0); if (!by[x.variant] || val > by[x.variant]) by[x.variant] = val; });
+    const rows = Object.entries(by).filter(([, val]) => val > 0).map(([vid, now]) => {
+      const v = VARIANTS[vid] || { load:'bw', name:vid };
+      const before = retestBase ? bestBetween(history[vid] || [], vid, retestBase.from, retestBase.to) : null;
+      const fmt = val => v.load === 'time' ? Math.round(val)+' s' : v.load === 'bw' ? Math.round(val)+' reps' : fmtLoad(vid, Math.round(val*2)/2);
+      const pct = before ? Math.round((now - before) / before * 100) : null;
+      return '<div class="lift-sess"><span>'+v.name+'</span><span>'+(before ? fmt(before)+' → ' : '')+'<b>'+fmt(now)+'</b>'+(pct != null ? ' ('+(pct >= 0 ? '+' : '')+pct+'%)' : '')+'</span></div>';
+    });
+    if (!rows.length) return;
+    const box = document.createElement('div');
+    box.innerHTML = '<p>'+(retestBase ? 'Estimated max (or best reps) today, against your best '+retestBase.label+'.' : 'Your estimated max (or best reps) today.')+'</p>' + rows.join('');
+    showSheet({ title:'Retest results', content: box, buttons:[{ label:'Nice', value:true, kind:'primary' }], dismissValue:true });
   }
   document.getElementById('liftsBtn').addEventListener('click', showLifts);
 
@@ -825,10 +923,10 @@ const supabase = createSupabaseClient();
     } else {
       form = null;
       const done = logged[logged.length-1];
-      document.getElementById('stageName').textContent = done && done.pb ? '🏆 New best' : 'Rest';
-      document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') + (done.pb ? ' · ' + done.pb : '') : '';
+      document.getElementById('stageName').textContent = done && done.goal ? '🎯 Goal reached' : done && done.pb ? '🏆 New best' : 'Rest';
+      document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') + (done.goal ? ' · goal: ' + done.goal : done.pb ? ' · ' + done.pb : '') : '';
       const nextEx = flat[idx+1] && flat[idx+1].ex || entry.ex;
-      document.getElementById('stageNotes').textContent = 'Next: ' + vinfo(exVariant[flat[idx+1] ? flat[idx+1].exIdx : entry.exIdx] || pickVariant(nextEx.key, kit.equipment, kit.variants), nextEx).name + ' · set ' + (flat[idx+1] ? flat[idx+1].setNum : entry.nextSetNum) + ' of ' + nextEx.sets;
+      document.getElementById('stageNotes').textContent = 'Next: ' + vinfo(exVariant[flat[idx+1] ? flat[idx+1].exIdx : entry.exIdx] || planVariant(nextEx), nextEx).name + ' · set ' + (flat[idx+1] ? flat[idx+1].setNum : entry.nextSetNum) + ' of ' + nextEx.sets;
       renderPositions('', document.getElementById('positionsRow'));
       restEl.style.display = 'block';
       restEl.textContent = fmtDur(restRemaining);
@@ -846,7 +944,7 @@ const supabase = createSupabaseClient();
 
     const next = flat[idx+1];
     document.getElementById('nextStepInfo').innerHTML = next
-      ? ('Next: <b>' + (next.type==='work' ? vinfo(exVariant[next.exIdx] || pickVariant(next.ex.key, kit.equipment, kit.variants) || next.ex.key, next.ex).name+' (set '+next.setNum+')' : 'Rest') + '</b>')
+      ? ('Next: <b>' + (next.type==='work' ? vinfo(exVariant[next.exIdx] || planVariant(next.ex), next.ex).name+' (set '+next.setNum+')' : 'Rest') + '</b>')
       : 'Last step — finish and stop when ready.';
 
     // refresh sidebar exercise highlight
@@ -939,8 +1037,10 @@ const supabase = createSupabaseClient();
     renderStage();
     if (completed){
       showCelebration('Workout Complete!', fmtDur(finalElapsed) + ' · ' + finalSets + ' sets done');
+      const wasRetest = curWorkout && curWorkout.retest;
+      if (wasRetest){ hideCelebration(); retestSummary(sets); }
       const saved = await saveSession({ completed:true, durationSec: finalElapsed, setsDone, sets });
-      if (saved) document.getElementById('celebrateSubtitle').textContent += ' · Saved to your history';
+      if (saved && !wasRetest) document.getElementById('celebrateSubtitle').textContent += ' · Saved to your history';
     } else if (setsDone > 0 && finalElapsed >= 60){
       const keep = await ask('You did '+setsDone+' of '+finalSets+' sets in '+fmtDur(finalElapsed)+'. Save it to your history so it counts?', { title:'Save this session?', ok:'Save', cancel:'Don\'t save' });
       if (keep && await saveSession({ completed:false, durationSec: finalElapsed, setsDone, sets })) notify('It\'s in your history and counts towards your training load.', 'Session saved');
@@ -1068,9 +1168,15 @@ const supabase = createSupabaseClient();
           const href = 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
           return '<div class="prog-sess"><span>'+niceDate(s.date)+' · '+(s.dayObj.name || '').replace(st.programme.name+' ', '')+'</span>'+(isDone ? '<span class="ok">Done ✓</span>' : '<a href="'+href+'">'+(s.date === today ? 'Start today' : 'Open')+'</a>')+'</div>';
         }).join('') : '<div class="prog-sess"><span>No strength sessions this week.</span></div>';
+      const canRetest = !st.notStarted && (st.done || st.week >= st.programme.weeks - 1);
+      if (canRetest) html += '<div class="prog-sess"><span>'+(st.done ? 'See how much stronger you are.' : 'Last week: see how much stronger you are.')+'</span><button class="link-btn" id="progRetest">Retest</button></div>';
       html += '<button id="progChange" style="margin:10px 0 0;">'+(st.done ? 'Choose another' : 'Change or stop')+'</button>';
       box.innerHTML = html;
       document.getElementById('progChange').addEventListener('click', pickProgramme);
+      if (canRetest) document.getElementById('progRetest').addEventListener('click', () => {
+        if (running || idx !== -1) return notify('Finish or stop the current session first.', 'Session in progress');
+        startRetest(retestWorkout(progCfg.id, st.programme.name+' retest', retestLifts(progCfg.id)), { from: new Date(progCfg.start+'T00:00:00').toISOString(), to: new Date(addDays(progCfg.start, 14)+'T00:00:00').toISOString(), label:'in the first two weeks' });
+      });
       if (week.length) populateWorkoutSelect();
     } catch(e){ box.textContent = 'Couldn\'t load your programme. Check your connection.'; }
   }

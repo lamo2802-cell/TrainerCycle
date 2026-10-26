@@ -9,7 +9,7 @@
 import { addDays, parseIso, isoDate, mondayOnOrAfter, todayIso, planStart } from './plan-schedule.js?v=5';
 import { registerRunSession, addRuns, fmtPace } from './run.js?v=5';
 import { registerPlanSessions } from './plan-kit.js?v=4';
-import { mergeStrength, STRENGTH_PLAN_ID } from './strength-programmes.js?v=1';
+import { mergeStrength, STRENGTH_PLAN_ID } from './strength-programmes.js?v=2';
 
 export const RUN_PLAN_KEY = 'run_plan';
 export const RUN_PLAN_ID = 'run-plan';
