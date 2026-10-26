@@ -138,6 +138,9 @@
   .light-note{ max-width:420px; margin:0 auto; font-size:13.5px; line-height:1.45; color:var(--text-dim); background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; text-align:left; }
   .light-note b{ color:var(--text); }
   .stage-action .light-note .link-btn{ display:inline; width:auto; margin:0; padding:0; border:0; background:none; color:var(--accent); font-size:13.5px; font-weight:600; cursor:pointer; text-decoration:underline; }
+  .wk-actions{ display:flex; gap:8px; margin-top:8px; }
+  .wk-actions button{ flex:1; margin:0; padding:9px 8px; font-size:13px; }
+  .ss-tag{ font:700 10px var(--mono); color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 4px; vertical-align:1px; }
   .log-more{ display:flex; gap:8px; margin-top:8px; }
   .stage-action .log-more button{ flex:1; margin:0; padding:9px 6px; font-size:13px; background:transparent; color:var(--text-dim); }
   .rest-btns{ display:flex; gap:8px; justify-content:center; max-width:420px; margin:0 auto; }
@@ -241,6 +244,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
             <option value="equipment">Needs equipment</option>
           </select>
           <select id="workoutSelect"><option value="">Choose a workout…</option></select>
+          <div class="wk-actions"><button id="buildBtn">+ Build a session</button><button id="editBtn" hidden>Edit</button></div>
         </div>
 
         <div class="block">
@@ -296,6 +300,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=2';
+import { openBuilder } from './strength-builder.js?v=1';
 import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks } from './strength-programmes.js?v=1';
 import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=4';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
@@ -457,14 +462,19 @@ const supabase = createSupabaseClient();
     const filterVal = document.getElementById('equipmentFilter').value;
     const prevValue = sel.value;
     sel.innerHTML = '<option value="">Choose a workout…</option>';
+    const mine = document.createElement('optgroup'); mine.label = 'Your sessions';
+    const lib = document.createElement('optgroup'); lib.label = 'Library';
     library.forEach(w=>{
       // Programme sessions only show when they're this week's or the one opened.
       if (/^sp-/.test(w.id) && !showProgramme.has(w.id) && w.id !== prevValue) return;
       const needsEq = workoutNeedsEquipment(w);
       if (filterVal === 'none' && needsEq) return;
       if (filterVal === 'equipment' && !needsEq) return;
-      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name + (needsEq ? ' 🏋️' : ''); sel.appendChild(o);
+      const o = document.createElement('option'); o.value = w.id; o.textContent = w.name + (needsEq ? ' 🏋️' : ''); (w.user_id === user.id ? mine : lib).appendChild(o);
     });
+    if (mine.children.length) sel.appendChild(mine);
+    if (mine.children.length) sel.appendChild(lib); else [...lib.children].forEach(o => sel.appendChild(o));
+    updateBuildButtons();
     // Keep the current selection if it still matches the filter, otherwise reset to empty
     if ([...sel.options].some(o=>o.value===prevValue)) sel.value = prevValue;
   }
@@ -472,7 +482,7 @@ const supabase = createSupabaseClient();
 
   async function loadData(){
     try {
-      const { data, error } = await supabase.from('strength_workouts').select('id,name,exercises').order('created_at',{ascending:false});
+      const { data, error } = await supabase.from('strength_workouts').select('id,name,exercises,user_id').order('created_at',{ascending:false});
       if (error) throw error;
       library = data || [];
       if (!library.length){
@@ -487,13 +497,19 @@ const supabase = createSupabaseClient();
     populateWorkoutSelect();
   }
 
+  // Steps in order. Exercises marked superset are done in rounds with the one(s) above:
+  // A1, B1, rest, A2, B2, rest ... The rest after a round is the last exercise's rest.
   function flatten(exercises){
     const out = [];
-    exercises.forEach((ex, exIdx) => {
-      for (let s=1; s<=ex.sets; s++){
-        out.push({ type:'work', ex, exIdx, setNum:s, totalSets:ex.sets });
-        const isVeryLast = (exIdx===exercises.length-1) && (s===ex.sets);
-        if (!isVeryLast) out.push({ type:'rest', duration: ex.restSeconds||60, ex, exIdx, nextSetNum:s+1 });
+    const groups = [];
+    exercises.forEach((ex, exIdx) => { if (ex.superset && groups.length) groups[groups.length-1].push(exIdx); else groups.push([exIdx]); });
+    groups.forEach((g, gi) => {
+      const rounds = Math.max(...g.map(i => exercises[i].sets));
+      for (let s=1; s<=rounds; s++){
+        const inRound = g.filter(i => exercises[i].sets >= s);
+        inRound.forEach(i => out.push({ type:'work', ex:exercises[i], exIdx:i, setNum:s, totalSets:exercises[i].sets }));
+        const last = inRound[inRound.length-1], isVeryLast = gi === groups.length-1 && s === rounds;
+        if (!isVeryLast) out.push({ type:'rest', duration: exercises[last].restSeconds||60, ex:exercises[last], exIdx:last, nextSetNum:s+1 });
       }
     });
     return out;
@@ -565,7 +581,14 @@ const supabase = createSupabaseClient();
     if (!(await ask('Its remaining sets come off today\'s session. Sets you\'ve already logged are kept.', { title:'Skip '+name+'?', ok:'Skip it' }))) return;
     if (!flat[idx] || flat[idx].exIdx !== entry.exIdx) return;
     const removed = flat.slice(idx).filter(e => e.exIdx === entry.exIdx && e.type === 'work').length;
-    flat = flat.slice(0, idx).concat(flat.slice(idx).filter(e => e.exIdx !== entry.exIdx));
+    // Drop its sets, then any rest left at the start, doubled up or at the end (supersets share rests).
+    const after = [];
+    flat.slice(idx).filter(e => !(e.type === 'work' && e.exIdx === entry.exIdx)).forEach(e => {
+      if (e.type === 'rest' && (!after.length || after[after.length-1].type === 'rest')) return;
+      after.push(e);
+    });
+    while (after.length && after[after.length-1].type === 'rest') after.pop();
+    flat = flat.slice(0, idx).concat(after);
     totalSets -= removed; skipped.add(entry.exIdx); form = null;
     if (idx >= flat.length){ stopSession(true); return; }
     if (flat[idx].type === 'rest') startRest(flat[idx].duration);
@@ -648,6 +671,36 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('workoutSelect').addEventListener('change', (e)=>{
     selectWorkout(e.target.value);
+    updateBuildButtons();
+  });
+
+  // ---- build your own: new, edit your own, or copy a library session ----
+  function updateBuildButtons(){
+    const id = document.getElementById('workoutSelect').value, w = library.find(x => x.id === id);
+    const edit = document.getElementById('editBtn'), busy = running || idx !== -1;
+    edit.hidden = !w || busy;
+    edit.textContent = w && w.user_id === user.id ? 'Edit' : 'Copy and edit';
+    document.getElementById('buildBtn').disabled = busy;
+  }
+  async function runBuilder(workout, copy){
+    const r = await openBuilder({ supabase, user, workout, copy });
+    if (!r) return;
+    if (r.deleted){
+      library = library.filter(x => x.id !== r.deleted);
+      populateWorkoutSelect(); selectWorkout('');
+      document.getElementById('workoutSelect').value = '';
+      updateBuildButtons();
+      return;
+    }
+    library = library.filter(x => x.id !== r.saved.id); library.unshift(r.saved);
+    populateWorkoutSelect();
+    document.getElementById('workoutSelect').value = r.saved.id;
+    selectWorkout(r.saved.id); updateBuildButtons();
+  }
+  document.getElementById('buildBtn').addEventListener('click', () => runBuilder(null, false));
+  document.getElementById('editBtn').addEventListener('click', () => {
+    const w = library.find(x => x.id === document.getElementById('workoutSelect').value);
+    if (w) runBuilder(w, w.user_id !== user.id);
   });
 
   function renderExerciseList(w){
@@ -660,8 +713,9 @@ const supabase = createSupabaseClient();
       const vid = exVariant[i] || pickVariant(ex.key, kit.equipment, kit.variants) || ex.key, v = vinfo(vid, ex);
       const p = planFor(i, ex, vid);
       const lastTxt = p.weight != null ? fmtLoad(vid, p.weight) + (p.calibrate ? ' to start' : '') : p.hold != null && lastSession(vid) ? p.hold + ' s' : '';
+      const ss = ex.superset || (w.exercises[i+1] && w.exercises[i+1].superset) ? '<span class="ss-tag" title="Superset: done in rounds with the exercise next to it">SS</span> ' : '';
       if (skipped.has(i)) return '<div class="exercise-list-row" style="opacity:.5;"><s>'+v.name+'</s> · skipped</div>';
-      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+v.name+icon+' · '+ex.sets+'×'+(v.load==='time' ? holdTarget(ex.notes)+'s' : repRange(ex).join('–'))
+      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+ss+v.name+icon+' · '+ex.sets+'×'+(v.load==='time' ? holdTarget(ex.notes)+'s' : repRange(ex).join('–'))
         + (lastTxt ? '<div style="font-size:11.5px; opacity:.8;">Today: '+lastTxt+'</div>' : '')+'</div>';
     }).join('');
   }
@@ -853,7 +907,7 @@ const supabase = createSupabaseClient();
     document.getElementById('startBtn').disabled = true;
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('stopBtn').disabled = false;
-    document.getElementById('workoutSelect').disabled = true;
+    document.getElementById('workoutSelect').disabled = true; updateBuildButtons();
     document.querySelector('.live-layout').classList.add('session-active');
     requestWakeLock();
   });
@@ -881,7 +935,7 @@ const supabase = createSupabaseClient();
     document.getElementById('startBtn').textContent = 'Start';
     document.getElementById('pauseBtn').disabled = true;
     document.getElementById('stopBtn').disabled = true;
-    document.getElementById('workoutSelect').disabled = false;
+    document.getElementById('workoutSelect').disabled = false; updateBuildButtons();
     renderStage();
     if (completed){
       showCelebration('Workout Complete!', fmtDur(finalElapsed) + ' · ' + finalSets + ' sets done');
@@ -1086,7 +1140,7 @@ const supabase = createSupabaseClient();
     form = null;
     document.getElementById('startBtn').textContent = 'Resume';
     document.getElementById('stopBtn').disabled = false;
-    document.getElementById('workoutSelect').disabled = true;
+    document.getElementById('workoutSelect').disabled = true; updateBuildButtons();
     document.querySelector('.live-layout').classList.add('session-active');
     renderStage(true);
     return true;
