@@ -1,5 +1,6 @@
 // Route map for outdoor activities imported from Strava (completed_rides.route_polyline, Google's
 // encoded polyline format). Leaflet and the map tiles load only when a route is shown.
+// Tiles are OpenStreetMap's own (free, no key), darkened with a CSS filter to suit the app.
 const LEAFLET = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
 let leaflet = null;
 function loadLeaflet(){
@@ -49,9 +50,9 @@ export async function mountRouteMap(root, encoded, color = '#45D6C4'){
     const L = await loadLeaflet();
     if (!box.isConnected) return;
     const map = L.map(box, { scrollWheelZoom:false, attributionControl:true, zoomControl:true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains:'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
     const line = L.polyline(pts, { color, weight:4, opacity:.95, lineJoin:'round' }).addTo(map);
     L.circleMarker(pts[0], { radius:6, color:'#10141A', weight:2, fillColor:'#3DBE7A', fillOpacity:1 }).addTo(map).bindTooltip('Start');
@@ -65,7 +66,10 @@ export async function mountRouteMap(root, encoded, color = '#45D6C4'){
 export const ROUTE_CSS = `
   .route-map{ height:340px; border-radius:10px; overflow:hidden; background:#0d1116; }
   @media (max-width:600px){ .route-map{ height:260px; } }
-  .route-map .leaflet-control-attribution{ background:rgba(16,20,26,.75); color:#8C97A6; font-size:10px; }
-  .route-map .leaflet-control-attribution a{ color:#B4BDC9; }
+  /* light OpenStreetMap tiles turned dark: invert, then rotate the hues back so water stays blue */
+  .route-map .leaflet-tile-pane{ filter:invert(1) hue-rotate(180deg) brightness(.9) saturate(.4); }
+  .route-map.leaflet-container{ background:#0d1116; }
+  .route-map.leaflet-container .leaflet-control-attribution{ background:rgba(16,20,26,.8); color:#8C97A6; font-size:10px; }
+  .route-map.leaflet-container .leaflet-control-attribution a{ color:#B4BDC9; }
   .route-map .leaflet-bar a{ background:#1D242D; color:#E7ECF2; border-color:#2A323D; }
 `;
