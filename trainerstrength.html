@@ -81,9 +81,12 @@
   .live-layout{ display:flex; gap:18px; flex:1; min-height:0; }
   .side-panel{ width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
   .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
-  .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; overflow-y:auto; justify-content:center; }
+  .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; overflow-y:auto; justify-content:safe center; }
   .live-layout.session-active .side-panel{ display:none; }
   @media (max-width:800px){
+    /* Phones scroll the whole page; the controls stay pinned to the bottom of the screen. */
+    .main{ height:auto; min-height:100vh; min-height:100dvh; overflow:visible; }
+    .live-main{ overflow:visible; justify-content:flex-start; }
     .live-layout{ flex-direction:column; }
     .side-panel{ width:100%; flex-direction:row; flex-wrap:wrap; }
     .side-panel .block{ flex:1; min-width:150px; }
@@ -111,6 +114,32 @@
   .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
   .stage-rest-count{ font-family:var(--mono); font-size:64px; font-weight:600; color:var(--accent); margin-bottom:8px; }
   .stage-action button{ width:auto; padding:16px 32px; font-size:17px; margin:0 6px; }
+  /* Set logging: weight, reps (or seconds) and reps left in the tank */
+  .log-form{ max-width:420px; margin:0 auto; text-align:left; }
+  .log-form select{ margin-bottom:10px; }
+  .log-last{ background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:8px 11px; font-size:13px; color:var(--text-dim); margin-bottom:10px; }
+  .log-last b{ color:var(--text); font-family:var(--mono); font-weight:600; }
+  .log-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:8px; margin-bottom:10px; }
+  .stepper{ display:flex; align-items:center; justify-content:space-between; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:7px; }
+  .stage-action .stepper button{ width:44px; height:44px; padding:0; margin:0; font-size:22px; border-radius:8px; flex-shrink:0; }
+  .stepper .sv{ text-align:center; min-width:0; }
+  .stepper .sv b{ display:block; font-family:var(--mono); font-size:24px; font-weight:700; line-height:1.15; }
+  .stepper .sv span{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
+  .rir-q{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin:2px 0 6px; }
+  .rir{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:12px; }
+  .stage-action .rir button{ width:auto; margin:0; padding:11px 0; font-size:15px; font-family:var(--mono); }
+  .stage-action .rir button.on{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:700; }
+  .stage-action .log-form > button.primary{ width:100%; margin:0; }
+  .log-hint{ font-size:12px; color:var(--text-dim); margin-top:8px; text-align:center; }
+  .log-hint a{ color:var(--accent); }
+  .lift-row{ display:flex; justify-content:space-between; gap:10px; align-items:center; width:100%; text-align:left; padding:10px 12px; margin:0 0 6px; }
+  .lift-row .ln{ font-weight:600; font-size:14px; }
+  .lift-row .ls{ font-size:12px; color:var(--text-dim); }
+  .lift-row .lv{ font-family:var(--mono); font-size:13px; color:var(--accent); white-space:nowrap; }
+  .lift-chart{ display:block; width:100%; height:auto; margin:6px 0 10px; }
+  .lift-sess{ font-size:13px; padding:7px 0; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; }
+  .lift-sess span:first-child{ color:var(--text-dim); white-space:nowrap; }
+  .lift-sess span:last-child{ font-family:var(--mono); font-size:12.5px; text-align:right; }
 
   .next-step{ font-size:13px; color:var(--text-dim); text-align:center; margin-bottom:12px; }
   .next-step b{ color:var(--text); }
@@ -189,8 +218,13 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <div class="block-title">Exercises</div>
           <div class="exercise-list" id="exerciseList"></div>
           <div style="font-size:11.5px; color:var(--text-dim); line-height:1.4; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
-            🏋️ = needs weights (dumbbells/kettlebell). Choose whatever's genuinely challenging for you by the last couple of reps — everyone's different, so there's no single "right" weight. Aim to increase it gradually week on week as the current one starts to feel easier.
+            🏋️ = needs weights. You log the weight and reps for each set, and next time starts from what you did. Set the weights you own in <a href="settings.html#strength" style="color:var(--accent);">Settings</a>.
           </div>
+        </div>
+        <div class="block">
+          <div class="block-title">Your lifts</div>
+          <div id="liftsSummary" style="font-size:12.5px; color:var(--text-dim); margin-bottom:8px;">Loading…</div>
+          <button id="liftsBtn" style="margin-bottom:0;">See your lifts</button>
         </div>
       </div>
 
@@ -232,13 +266,21 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=19';
-import { notify, ask } from './sheet.js?v=2';
+import { notify, ask, showSheet } from './sheet.js?v=2';
+import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
+  weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF } from './strength-kit.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
+  let kit = await loadStrengthSettings(supabase, user.id);
+  let history = {};
+  async function refreshHistory(){
+    try { history = await loadHistory(supabase, user.id); } catch(_){ history = {}; }
+    renderLiftsSummary();
+  }
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Optional exercise demos: map an exercise key to a file in strength-media/ (.gif, .webp, .mp4
@@ -288,25 +330,37 @@ const supabase = createSupabaseClient();
 
   // Saves a finished (or stopped part-way) session to the activity history. Strength TSS is a rough
   // steady estimate (IF 0.6, about 36 an hour) so sessions count a little towards Fitness and Fatigue.
-  const STRENGTH_IF = 0.6;
-  async function saveSession({ completed, durationSec, setsDone }){
+  async function saveSession({ completed, durationSec, setsDone, sets }){
     const w = library.find(x => x.id === document.getElementById('workoutSelect').value);
     if (!w || durationSec < 60) return null;
+    const STRENGTH_IF = sessionIF(sets);
     const record = {
       id: 'strength_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
       user_id: user.id, sport:'strength', source:'trainercycle', category:'strength',
       workout_name: w.name, workout_id: w.id, started_at: startedAt || new Date(Date.now() - durationSec*1000).toISOString(),
-      duration_sec: Math.round(durationSec), completed, samples: [{ sets: setsDone, of: totalSets }],
+      duration_sec: Math.round(durationSec), completed, samples: [{ sets: setsDone, of: totalSets, logged: sets.length }],
       tss: Math.round(durationSec/3600 * STRENGTH_IF * STRENGTH_IF * 100), intensity_factor: STRENGTH_IF,
       plan_id: planLink && planLink.workoutId === w.id ? planLink.planId : null, plan_day_index: planLink && planLink.workoutId === w.id ? planLink.dayIndex : null,
     };
     for (let i = 0; i < 3; i++){
       const { error } = await supabase.from('completed_rides').insert(record);
-      if (!error) return record;
+      if (!error){ await saveSets(record, sets); return record; }
       await new Promise(r => setTimeout(r, 1500 * (i+1)));
     }
     await notify('Check your connection. The session wasn\'t saved to your history.', 'Couldn\'t save this session');
     return null;
+  }
+
+  async function saveSets(record, sets){
+    if (!sets.length) return;
+    const rows = sets.map(x => ({ user_id:user.id, session_id:record.id, performed_at:x.at, exercise_key:x.base, variant:x.variant,
+      set_no:x.setNo, weight_kg:x.weight, reps:x.reps, hold_sec:x.hold, rir:x.rir }));
+    for (let i = 0; i < 3; i++){
+      const { error } = await supabase.from('strength_sets').insert(rows);
+      if (!error){ refreshHistory(); return; }
+      await new Promise(r => setTimeout(r, 1500 * (i+1)));
+    }
+    await notify('The session is in your history, but the weights and reps didn\'t save. Check your connection.', 'Couldn\'t save your sets');
   }
 
   // A workout "needs equipment" if any exercise is marked 'required' - 'optional' ones
@@ -360,10 +414,89 @@ const supabase = createSupabaseClient();
     return out;
   }
 
+  // ---- set logging ----
+  let logged = [];        // sets done this session: { exIdx, base, variant, setNo, weight, reps, hold, rir, at }
+  let exVariant = {};     // exercise index -> variation id for this session
+  let form = null;        // the set being filled in: { idx, weight, reps, hold, rir }
+  function variantOf(exIdx, ex){
+    if (!exVariant[exIdx]) exVariant[exIdx] = pickVariant(ex.key, kit.equipment, kit.variants) || ex.key;
+    return exVariant[exIdx];
+  }
+  function vinfo(id, ex){ return VARIANTS[id] || { base: ex ? ex.key : id, name: ex ? ex.name : id, load:'bw' }; }
+  // Last session's sets for a variation (not counting this one).
+  function lastSession(vid){ return (history[vid] || [])[0] || null; }
+  function startWeight(vid, entry){
+    const opts = weightOptions(vid, kit.equipment);
+    const here = logged.filter(x => x.exIdx === entry.exIdx && x.variant === vid && x.weight != null);
+    if (here.length) return here[here.length-1].weight;
+    const last = lastSession(vid);
+    if (last){
+      const s = last.sets.find(x => x.set_no === entry.setNum) || last.sets[last.sets.length-1];
+      if (s && s.weight_kg != null) return nearestOption(s.weight_kg, opts);
+    }
+    return opts.length ? opts[0] : null;
+  }
+  function newForm(entry){
+    const vid = variantOf(entry.exIdx, entry.ex), v = vinfo(vid, entry.ex);
+    form = { idx, vid, weight: (v.load === 'hand' || v.load === 'total') ? startWeight(vid, entry) : null,
+      reps: v.load === 'time' ? null : entry.ex.reps, hold: v.load === 'time' ? holdTarget(entry.ex.notes) : null, rir: null };
+  }
+  function renderSetForm(entry){
+    const stageAction = document.getElementById('stageAction');
+    const vid = form.vid, v = vinfo(vid, entry.ex);
+    const choices = variantsFor(entry.ex.key).filter(id => variantAvailable(id, kit.equipment) || id === vid);
+    const last = lastSession(vid);
+    let html = '<div class="log-form">';
+    if (choices.length > 1) html += '<select id="variantSelect" aria-label="Which version">' + choices.map(id => '<option value="'+id+'"'+(id===vid?' selected':'')+'>'+VARIANTS[id].name+'</option>').join('') + '</select>';
+    html += '<div class="log-last">' + (last ? 'Last time <b>'+setsText(vid, last.sets)+'</b>' : (v.load === 'hand' || v.load === 'total') ? 'First time logging this. Pick a weight you could lift a couple more times at the end of the set.' : 'First time logging this. Next time starts from what you do today.') + '</div>';
+    html += '<div class="log-grid">';
+    if (form.weight != null || v.load === 'hand' || v.load === 'total')
+      html += stepperHtml('w', form.weight == null ? '—' : fmtKg(form.weight) + ' kg', v.load === 'hand' ? 'Each hand' : 'Weight');
+    if (v.load === 'time') html += stepperHtml('h', form.hold + ' s', 'Held for');
+    else html += stepperHtml('r', String(form.reps), 'Reps done');
+    const timed = v.load === 'time';
+    html += '</div><div class="rir-q">'+(timed ? 'How much longer could you have held?' : 'How many more could you have done?')+'</div><div class="rir" role="group" aria-label="Left in the tank">'
+      + [0,1,2,3,4].map(n => '<button data-rir="'+n+'" class="'+(form.rir===n?'on':'')+'" aria-pressed="'+(form.rir===n)+'">'+(timed ? (n*5)+(n===4?'+':'')+' s' : (n===4?'4+':n))+'</button>').join('') + '</div>'
+      + '<button class="primary" id="setCompleteBtn">Log set ✓</button>';
+    if (!kit.equipment.set && (v.load === 'hand' || v.load === 'total')) html += '<div class="log-hint">Weights go up in gym steps. <a href="settings.html#strength">Set the weights you own</a> to match yours.</div>';
+    stageAction.innerHTML = html + '</div>';
+    const sel = document.getElementById('variantSelect');
+    if (sel) sel.addEventListener('change', ()=>{
+      exVariant[entry.exIdx] = sel.value;
+      kit.variants = Object.assign({}, kit.variants, { [entry.ex.key]: sel.value });
+      saveSetting(supabase, user.id, VARIANTS_KEY, kit.variants).catch(()=>{});
+      newForm(entry); renderStage(true);
+    });
+    stageAction.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', ()=>{
+      const [k, dir] = b.dataset.step.split(':');
+      if (k === 'w'){
+        const opts = weightOptions(vid, kit.equipment);
+        if (!opts.length) return;
+        const cur = form.weight == null ? null : form.weight;
+        if (cur == null) form.weight = opts[0];
+        else if (dir === '+') form.weight = opts.find(o => o > cur + 1e-9) ?? opts[opts.length-1];
+        else { const d = opts.filter(o => o < cur - 1e-9); form.weight = d.length ? d[d.length-1] : opts[0]; }
+      }
+      if (k === 'r') form.reps = Math.max(0, form.reps + (dir === '+' ? 1 : -1));
+      if (k === 'h') form.hold = Math.max(5, form.hold + (dir === '+' ? 5 : -5));
+      renderSetForm(entry);
+    }));
+    stageAction.querySelectorAll('[data-rir]').forEach(b => b.addEventListener('click', ()=>{
+      const n = Number(b.dataset.rir); form.rir = form.rir === n ? null : n; renderSetForm(entry);
+    }));
+    document.getElementById('setCompleteBtn').addEventListener('click', ()=>{
+      logged.push({ exIdx: entry.exIdx, base: entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() });
+      advance();
+    });
+  }
+  function stepperHtml(k, val, label){
+    return '<div class="stepper"><button data-step="'+k+':-" aria-label="Less">−</button><div class="sv"><b>'+val+'</b><span>'+label+'</span></div><button data-step="'+k+':+" aria-label="More">+</button></div>';
+  }
+
   function selectWorkout(id){
     const w = library.find(x=>x.id===id);
     flat = w ? flatten(w.exercises) : [];
-    idx = -1;
+    idx = -1; logged = []; exVariant = {}; form = null;
     totalSets = w ? w.exercises.reduce((a,ex)=>a+ex.sets,0) : 0;
     renderExerciseList(w);
     renderStage();
@@ -379,9 +512,72 @@ const supabase = createSupabaseClient();
       const cur = flat[idx] && flat[idx].exIdx===i;
       const eq = EQUIPMENT_MAP[ex.key];
       const icon = eq ? ' <span title="'+(eq==='required'?'Requires weights':'Optional: weights add load')+'" style="opacity:.7;">🏋️</span>' : '';
-      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+ex.name+icon+' · '+ex.sets+'x'+ex.reps+'</div>';
+      const vid = exVariant[i] || pickVariant(ex.key, kit.equipment, kit.variants) || ex.key, v = vinfo(vid, ex);
+      const last = lastSession(vid), ls = last && last.sets[last.sets.length-1];
+      const lastTxt = ls ? (ls.weight_kg != null ? fmtLoad(vid, ls.weight_kg) : ls.hold_sec != null ? ls.hold_sec+' s' : ls.reps+' reps') : '';
+      return '<div class="exercise-list-row'+(cur?' current':'')+'">'+v.name+icon+' · '+ex.sets+'x'+(v.load==='time' ? holdTarget(ex.notes)+'s' : ex.reps)
+        + (lastTxt ? '<div style="font-size:11.5px; opacity:.8;">Last: '+lastTxt+'</div>' : '')+'</div>';
     }).join('');
   }
+
+  // ---- your lifts: every variation you've logged, with its history ----
+  function liftList(){
+    return Object.keys(history).map(id => liftSummary(id, history[id])).sort((a,b) => (b.last ? b.last.at : '').localeCompare(a.last ? a.last.at : ''));
+  }
+  function bestText(L){
+    if (L.load === 'time') return L.top ? L.top.hold_sec + ' s' : '—';
+    if (L.load === 'bw') return L.top ? L.top.reps + ' reps' : '—';
+    return L.top ? fmtLoad(L.id, L.top.weight_kg) + ' × ' + L.top.reps : '—';
+  }
+  function renderLiftsSummary(){
+    const list = liftList(), el = document.getElementById('liftsSummary');
+    if (!el) return;
+    el.textContent = list.length ? list.length + ' exercise' + (list.length===1?'':'s') + ' logged. Latest: ' + list[0].name + ', ' + bestText(list[0]) + ' best.' : 'Log a session and your weights and best sets show here.';
+    renderExerciseList(library.find(x => x.id === document.getElementById('workoutSelect').value));
+  }
+  function liftChart(id){
+    const v = vinfo(id), sessions = (history[id] || []).slice(0, 20).reverse();
+    const pts = sessions.map(sess => {
+      if (v.load === 'time') return { y: Math.max(...sess.sets.map(s => s.hold_sec || 0)) };
+      if (v.load === 'bw') return { y: Math.max(...sess.sets.map(s => s.reps || 0)) };
+      const best = Math.max(0, ...sess.sets.map(s => e1rm(s.weight_kg, s.reps) || 0));
+      return { y: Math.max(...sess.sets.map(s => s.weight_kg || 0)), e: best || null };
+    });
+    if (pts.length < 2) return '';
+    const W = 360, H = 150, L = 34, R = 10, T = 10, B = 18;
+    const all = pts.flatMap(p => [p.y, p.e].filter(x => x != null));
+    let lo = Math.min(...all), hi = Math.max(...all);
+    const step = [1,2,2.5,5,10,20,50].find(st => (hi - lo) / st <= 3) || 100;
+    lo = Math.max(0, Math.floor(lo / step) * step - (lo % step === 0 ? step : 0)); hi = Math.ceil(hi / step) * step; if (hi === lo) hi = lo + step;
+    const X = i => L + i * (W - L - R) / (pts.length - 1), Y = val => T + (hi - val) * (H - T - B) / (hi - lo);
+    let g = '';
+    for (let val = lo; val <= hi + 1e-9; val += step){ g += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(val).toFixed(1)+'" y2="'+Y(val).toFixed(1)+'" stroke="#2A323D"/><text x="'+(L-5)+'" y="'+(Y(val)+3).toFixed(1)+'" text-anchor="end">'+(Math.round(val*10)/10)+'</text>'; }
+    const line = (key, col, dash) => { const p = pts.map((q,i) => q[key] != null ? X(i).toFixed(1)+','+Y(q[key]).toFixed(1) : null).filter(Boolean); return p.length < 2 ? '' : '<polyline fill="none" stroke="'+col+'" stroke-width="2"'+(dash?' stroke-dasharray="4 3"':'')+' points="'+p.join(' ')+'"/>'; };
+    const dots = pts.map((q,i) => '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(q.y).toFixed(1)+'" r="3" fill="#45D6C4"/>').join('');
+    const unit = v.load === 'time' ? 'seconds held' : v.load === 'bw' ? 'best reps' : (v.load === 'hand' ? 'kg each hand' : 'kg');
+    return '<svg class="lift-chart" viewBox="0 0 '+W+' '+H+'" style="font:10px var(--mono); fill:#8C97A6;" role="img" aria-label="'+v.name+' over your last '+pts.length+' sessions">'+g+line('e','#E7ECF2',true)+line('y','#45D6C4')+dots
+      + '<text x="'+L+'" y="'+(H-4)+'">'+unit+(v.load==='hand'||v.load==='total' ? ' · dashed: estimated max' : '')+'</text></svg>';
+  }
+  function showLift(id){
+    const v = vinfo(id), L = liftSummary(id, history[id] || []);
+    const box = document.createElement('div');
+    const shortDate = iso => new Date(iso).toLocaleDateString(undefined, { day:'numeric', month:'short' });
+    box.innerHTML = '<p>Best: <b>'+bestText(L)+'</b>'+(L.best ? ' · estimated max <b>'+fmtLoad(id, L.best.e)+'</b>' : '')+'</p>' + liftChart(id)
+      + (history[id] || []).slice(0, 12).map(sess => '<div class="lift-sess"><span>'+shortDate(sess.at)+'</span><span>'+setsText(id, sess.sets)+'</span></div>').join('');
+    showSheet({ title: v.name, content: box, buttons:[{ label:'Back', value:'back', kind:'primary' }, { label:'Close', value:null }], dismissValue:null })
+      .then(r => { if (r === 'back') showLifts(); });
+  }
+  function showLifts(){
+    const list = liftList();
+    const box = document.createElement('div');
+    box.innerHTML = list.length ? list.map(L => '<button class="lift-row" data-lift="'+L.id+'"><span><div class="ln">'+L.name+'</div><div class="ls">'+L.sessions+' session'+(L.sessions===1?'':'s')+(L.last ? ' · last '+setsText(L.id, L.last.sets) : '')+'</div></span><span class="lv">'+bestText(L)+'</span></button>').join('')
+      : '<p>Nothing logged yet. Each set you log in a session shows up here, with your best and how it has moved.</p>';
+    let picked = null;
+    box.addEventListener('click', e => { const b = e.target.closest('[data-lift]'); if (!b) return; picked = b.dataset.lift; box.closest('.tc-sheet').querySelector('.tc-sheet-btns button').click(); });
+    showSheet({ title:'Your lifts', content: box, buttons:[{ label:'Close', value:'close', kind:'primary' }], dismissValue:null })
+      .then(() => { if (picked) showLift(picked); });
+  }
+  document.getElementById('liftsBtn').addEventListener('click', showLifts);
 
   function completedSetsCount(){
     let n = 0;
@@ -390,7 +586,7 @@ const supabase = createSupabaseClient();
     return n;
   }
 
-  function renderStage(){
+  function renderStage(force){
     document.getElementById('mProgress').textContent = completedSetsCount() + ' / ' + totalSets;
     document.getElementById('mElapsed').textContent = fmtDur(elapsedSec);
 
@@ -402,7 +598,7 @@ const supabase = createSupabaseClient();
       document.getElementById('stageName').textContent = flat.length ? 'Ready to start' : 'Choose a workout to begin';
       document.getElementById('stageTarget').textContent = '';
       document.getElementById('stageNotes').textContent = '';
-      document.getElementById('nextStepInfo').innerHTML = flat.length ? ('First: <b>'+flat[0].ex.name+'</b> · '+flat[0].ex.sets+'x'+flat[0].ex.reps) : '—';
+      document.getElementById('nextStepInfo').innerHTML = flat.length ? ('First: <b>'+vinfo(variantOf(0, flat[0].ex), flat[0].ex).name+'</b> · '+flat[0].ex.sets+'x'+flat[0].ex.reps) : '—';
       restEl.style.display = 'none';
       stageAction.innerHTML = '';
       renderPositions('', document.getElementById('positionsRow'));
@@ -410,20 +606,24 @@ const supabase = createSupabaseClient();
     }
 
     if (entry.type === 'work'){
-      renderPositions(entry.ex.key, document.getElementById('positionsRow'));
-      document.getElementById('stageName').textContent = entry.ex.name;
-      document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + entry.ex.reps + ' reps';
-      const eq = EQUIPMENT_MAP[entry.ex.key];
-      const eqNote = eq==='required' ? '🏋️ Requires weights (dumbbells/kettlebell) — pick a weight that\'s challenging for you' :
-                     eq==='optional' ? '🏋️ Optional: hold dumbbells for more load' : '';
-      document.getElementById('stageNotes').innerHTML = (eqNote ? '<b>'+eqNote+'</b><br>' : '') + (entry.ex.notes || '');
-      restEl.style.display = 'none';
-      stageAction.innerHTML = '<button class="primary" id="setCompleteBtn">Set complete ✓</button>';
-      document.getElementById('setCompleteBtn').addEventListener('click', advance);
+      // The form is only rebuilt when the step changes, so the timer tick doesn't eat taps.
+      if (!form || form.idx !== idx || force){
+        if (!form || form.idx !== idx) newForm(entry);
+        const v = vinfo(form.vid, entry.ex);
+        renderPositions(entry.ex.key, document.getElementById('positionsRow'));
+        document.getElementById('stageName').textContent = v.name;
+        document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + (v.load === 'time' ? form.hold + ' s hold' : entry.ex.reps + ' reps');
+        document.getElementById('stageNotes').textContent = entry.ex.notes || '';
+        restEl.style.display = 'none';
+        renderSetForm(entry);
+      }
     } else {
+      form = null;
       document.getElementById('stageName').textContent = 'Rest';
-      document.getElementById('stageTarget').textContent = '';
-      document.getElementById('stageNotes').textContent = 'Next: ' + entry.ex.name + ' · set ' + entry.nextSetNum + ' of ' + entry.ex.sets;
+      const done = logged[logged.length-1];
+      document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') : '';
+      const nextEx = flat[idx+1] && flat[idx+1].ex || entry.ex;
+      document.getElementById('stageNotes').textContent = 'Next: ' + vinfo(exVariant[flat[idx+1] ? flat[idx+1].exIdx : entry.exIdx] || pickVariant(nextEx.key, kit.equipment, kit.variants), nextEx).name + ' · set ' + (flat[idx+1] ? flat[idx+1].setNum : entry.nextSetNum) + ' of ' + nextEx.sets;
       renderPositions('', document.getElementById('positionsRow'));
       restEl.style.display = 'block';
       restEl.textContent = fmtDur(restRemaining);
@@ -500,7 +700,8 @@ const supabase = createSupabaseClient();
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
     const setsDone = completed ? totalSets : completedSetsCount();
-    idx = -1; elapsedSec = 0;
+    const sets = logged.slice();
+    idx = -1; elapsedSec = 0; logged = []; form = null;
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'Start';
     document.getElementById('pauseBtn').disabled = true;
@@ -509,11 +710,11 @@ const supabase = createSupabaseClient();
     renderStage();
     if (completed){
       showCelebration('Workout Complete!', fmtDur(finalElapsed) + ' · ' + finalSets + ' sets done');
-      const saved = await saveSession({ completed:true, durationSec: finalElapsed, setsDone });
+      const saved = await saveSession({ completed:true, durationSec: finalElapsed, setsDone, sets });
       if (saved) document.getElementById('celebrateSubtitle').textContent += ' · Saved to your history';
     } else if (setsDone > 0 && finalElapsed >= 60){
       const keep = await ask('You did '+setsDone+' of '+finalSets+' sets in '+fmtDur(finalElapsed)+'. Save it to your history so it counts?', { title:'Save this session?', ok:'Save', cancel:'Don\'t save' });
-      if (keep && await saveSession({ completed:false, durationSec: finalElapsed, setsDone })) notify('It\'s in your history and counts towards your training load.', 'Session saved');
+      if (keep && await saveSession({ completed:false, durationSec: finalElapsed, setsDone, sets })) notify('It\'s in your history and counts towards your training load.', 'Session saved');
     }
     startedAt = null;
   }
@@ -600,6 +801,7 @@ const supabase = createSupabaseClient();
     });
   }
 
+  refreshHistory();
   loadData().then(()=>{
     const loadParam = new URLSearchParams(window.location.search).get('load');
     if (loadParam && library.find(x=>x.id===loadParam)){
