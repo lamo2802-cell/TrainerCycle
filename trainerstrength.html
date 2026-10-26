@@ -96,10 +96,6 @@
     .side-panel .block{ min-width:0; }
   }
 
-  .dash{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
-  .metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; }
-  .metric .val{ font-family:var(--mono); font-size:clamp(26px, 6.5vw, 40px); font-weight:600; }
-  .metric .lbl{ font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
 
   .stage{
     background:var(--panel); border:1px solid var(--line); border-radius:10px;
@@ -152,10 +148,6 @@
   .wk-actions{ display:flex; gap:8px; margin-top:8px; }
   .wk-actions button{ flex:1; margin:0; padding:9px 8px; font-size:13px; }
   .ss-tag{ font:700 10px var(--mono); color:var(--accent); border:1px solid var(--accent); border-radius:4px; padding:0 4px; vertical-align:1px; }
-  .log-more{ display:flex; gap:8px; margin-top:8px; }
-  .stage-action .log-more button{ flex:1; margin:0; padding:9px 6px; font-size:13px; background:transparent; color:var(--text-dim); }
-  .rest-btns{ display:flex; gap:8px; justify-content:center; max-width:420px; margin:0 auto; }
-  .stage-action .rest-btns button{ flex:1 1 0; margin:0; padding:14px 6px; font-size:15px; }
   .log-hint{ font-size:12px; color:var(--text-dim); margin-top:8px; text-align:center; }
   .log-hint a{ color:var(--accent); }
   .prog-name{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:2px; }
@@ -179,6 +171,55 @@
   .lift-sess{ font-size:13px; padding:7px 0; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; }
   .lift-sess span:first-child{ color:var(--text-dim); white-space:nowrap; }
   .lift-sess span:last-child{ font-family:var(--mono); font-size:12.5px; text-align:right; }
+
+  /* Session strip: one segment per exercise, filled as its sets are done. Tap for the whole list. */
+  .sstrip{ margin-bottom:14px; cursor:pointer; border-radius:8px; }
+  .sstrip:focus-visible{ outline:2px solid var(--accent); outline-offset:4px; }
+  .sstrip-bars{ display:flex; gap:4px; }
+  .sstrip-bars i{ flex:1; height:7px; border-radius:4px; background:var(--panel-2); border:1px solid var(--line); overflow:hidden; }
+  .sstrip-bars i b{ display:block; height:100%; background:var(--accent); opacity:.5; }
+  .sstrip-bars i.now{ border-color:var(--accent); }
+  .sstrip-bars i.now b{ opacity:1; }
+  .sstrip-bars i.skip{ opacity:.35; }
+  .sstrip-meta{ display:flex; justify-content:space-between; gap:10px; margin-top:8px; font-family:var(--mono); font-size:13px; color:var(--text-dim); }
+  .sstrip-meta b{ color:var(--text); font-weight:600; }
+  /* Set card: the target weight × reps is the headline. */
+  .set-dots{ display:flex; justify-content:center; align-items:center; gap:6px; font-size:13px; color:var(--text-dim); margin-bottom:6px; }
+  .set-dots i{ width:10px; height:10px; border-radius:50%; border:1.5px solid var(--accent); }
+  .set-dots i.f{ background:var(--accent); }
+  .set-dots span{ margin-left:4px; }
+  .big-target{ font-size:clamp(30px, 9vw, 44px); font-weight:700; color:var(--text); line-height:1.1; letter-spacing:-.01em; }
+  .big-target small{ font-size:.5em; color:var(--text-dim); font-weight:500; letter-spacing:0; }
+  .log-tip{ margin-top:5px; font-size:12.5px; color:var(--text-dim); line-height:1.4; }
+  .log-warm.inline{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-family:var(--mono); font-size:12.5px; }
+  .log-warm.inline .lw-t{ font-family:var(--sans); margin:0; }
+  .stage-action .log-why .link-btn{ display:inline; width:auto; margin:0; padding:0; border:0; background:none; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; text-decoration:underline; }
+  /* Rest: a ring around the countdown and a card for what's next. */
+  .rest-ring{ position:relative; width:min(190px, 50vw); aspect-ratio:1; max-width:100%; margin:10px auto 18px; }
+  .rest-ring svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
+  .rest-ring circle{ fill:none; stroke-width:5; }
+  .rest-ring .stage-rest-count{ position:absolute; inset:0; display:grid; place-items:center; margin:0; font-size:clamp(40px, 12vw, 56px); }
+  .up-next{ max-width:420px; margin:0 auto; border:1px solid var(--line); border-radius:10px; padding:10px 14px; text-align:left; display:flex; flex-direction:column; gap:2px; color:var(--text); }
+  .up-next .pill{ align-self:flex-start; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); background:var(--panel-2); border-radius:99px; padding:3px 9px; margin-bottom:4px; }
+  .up-next.soon .pill{ color:var(--accent); }
+  .up-next .un-t{ font-weight:600; font-size:15px; }
+  .up-next .un-v{ font-family:var(--mono); font-size:22px; font-weight:700; }
+  .up-next .un-v small{ font-size:13px; color:var(--text-dim); font-weight:500; }
+  .up-next .un-w{ font-size:12.5px; color:var(--text-dim); margin-top:3px; }
+  /* During a session the bottom bar holds what you need now; the rest is under ⋯. */
+  .controls > button:disabled{ display:none; }
+  .controls.live > button{ display:none; }
+  .live-bar{ display:none; flex:1; gap:10px; min-width:0; }
+  .controls.live .live-bar{ display:flex; }
+  .controls .live-bar .more-btn{ flex:0 0 58px; padding-left:0; padding-right:0; font-size:20px; }
+
+  /* Focus mode: during a session the app's top bar goes, so the player has the whole screen. */
+  .strip-row{ display:flex; gap:10px; align-items:flex-start; }
+  .strip-row .sstrip{ flex:1; min-width:0; }
+  .focus-exit{ display:none; width:32px; height:32px; padding:0; margin:-8px 0 0; flex-shrink:0; font-size:18px; line-height:1; color:var(--text-dim); background:transparent; }
+  body.focus .focus-exit{ display:block; }
+  body.focus .top-bar, body.focus .sidebar, body.focus .sidebar-backdrop{ display:none; }
+  body.focus .main{ padding-top:calc(18px + env(safe-area-inset-top, 0px)); }
 
   .next-step{ font-size:13px; color:var(--text-dim); text-align:center; margin-bottom:12px; }
   .next-step b{ color:var(--text); }
@@ -274,17 +315,20 @@ html select option{ background:#1D242D; color:#E7ECF2; }
       </div>
 
       <div class="live-main">
-        <div class="dash">
-          <div class="metric"><div class="val" id="mProgress">0 / 0</div><div class="lbl">Sets complete</div></div>
-          <div class="metric"><div class="val" id="mElapsed">0:00</div><div class="lbl">Elapsed</div></div>
+        <div class="strip-row">
+        <div class="sstrip" id="sStrip" role="button" tabindex="0" aria-label="Show the whole session">
+          <div class="sstrip-bars" id="sStripBars"></div>
+          <div class="sstrip-meta"><span id="sStripNow"></span><span><span id="mProgress">0 / 0</span> sets · <b id="mElapsed">0:00</b></span></div>
+        </div>
+        <button class="focus-exit" id="focusExit" aria-label="Show the menu bar" title="Show the menu bar">×</button>
         </div>
 
         <div class="stage">
           <div class="positions-row" id="positionsRow"></div>
           <div class="stage-name" id="stageName">Choose a workout to begin</div>
           <div class="stage-target" id="stageTarget"></div>
+          <div class="rest-ring" id="restRing" hidden><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="45" stroke="var(--line)"/><circle id="restArc" cx="50" cy="50" r="45" stroke="var(--accent)" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="0"/></svg><div class="stage-rest-count" id="stageRestCount"></div></div>
           <div class="stage-notes" id="stageNotes"></div>
-          <div class="stage-rest-count" id="stageRestCount" style="display:none;"></div>
           <div class="stage-action" id="stageAction"></div>
         </div>
 
@@ -294,6 +338,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <button class="primary" id="startBtn">Start</button>
           <button id="pauseBtn" disabled>Pause</button>
           <button class="danger" id="stopBtn" disabled>Stop</button>
+          <div class="live-bar" id="liveBar"></div>
         </div>
       </div>
     </div>
@@ -581,12 +626,13 @@ const supabase = createSupabaseClient();
     const opts = swapOptions(cur, base, kit.equipment);
     const box = document.createElement('div');
     if (!opts.length){ box.innerHTML = '<p>There\'s nothing to swap to with the kit in your settings. You can skip it instead.</p>'; }
-    else box.innerHTML = '<p style="font-size:12.5px;">For this session only. Your history is kept for each move separately.</p>'
+    else box.innerHTML = '<p style="font-size:12.5px;">Another version becomes your usual one. A similar move is for today only. Your history is kept for each move separately.</p>'
       + opts.map(id => '<button class="lift-row" data-swap="'+id+'"><span><div class="ln">'+VARIANTS[id].name+'</div><div class="ls">'+(VARIANTS[id].base === base ? 'Another version' : 'Similar move')+(lastSession(id) ? ' · last '+setsText(id, lastSession(id).sets) : '')+'</div></span></button>').join('');
     let picked = null;
     box.addEventListener('click', e => { const b = e.target.closest('[data-swap]'); if (!b) return; picked = b.dataset.swap; box.closest('.tc-sheet').querySelector('.tc-sheet-btns button').click(); });
     showSheet({ title:'Swap '+vinfo(cur, entry.ex).name, content: box, buttons:[{ label:'Cancel', value:null, kind:'primary' }], dismissValue:null }).then(()=>{
       if (!picked || !flat[idx] || flat[idx].exIdx !== entry.exIdx) return;
+      if (VARIANTS[picked].base === base) return useVariant(entry, picked);
       exVariant[entry.exIdx] = picked; form = null;
       renderStage(true); saveLive();
     });
@@ -613,14 +659,15 @@ const supabase = createSupabaseClient();
   function renderSetForm(entry){
     const stageAction = document.getElementById('stageAction');
     const vid = form.vid, v = vinfo(vid, entry.ex);
-    const choices = variantsFor(v.base || entry.ex.key).filter(id => variantAvailable(id, kit.equipment) || id === vid);
     const last = lastSession(vid);
     let html = '<div class="log-form">';
-    if (choices.length > 1) html += '<select id="variantSelect" aria-label="Which version">' + choices.map(id => '<option value="'+id+'"'+(id===vid?' selected':'')+'>'+VARIANTS[id].name+'</option>').join('') + '</select>';
     html += '<div class="log-last">' + (last ? 'Last time <b>'+setsText(vid, last.sets)+'</b>' : (v.load === 'hand' || v.load === 'total') ? '<span style="color:var(--text); font-weight:600;">Finding your weight</span>' : 'First time logging this. Next time starts from what you do today.')
       + (form.note ? '<div class="log-why">'+form.note+'</div>' : '')
-      + (form.harder ? '<div class="log-why">Ready for <b>'+VARIANTS[form.harder].name+'</b>? Switch above.</div>' : '') + '</div>';
-    if (form.warm && form.warm.length) html += '<div class="log-warm"><div class="lw-t">Warm up first</div>' + form.warm.map(s => '<div class="lw-r"><span>'+fmtLoad(vid, s.weight)+' × '+s.reps+'</span>'+(isBarbell(vid) ? '<span>'+platesText(s.weight)+'</span>' : '')+'</div>').join('') + '</div>';
+      + (form.harder ? '<div class="log-why">Ready for <b>'+VARIANTS[form.harder].name+'</b>? <button class="link-btn" id="harderBtn">Switch</button></div>' : '')
+      + (entry.ex.notes ? '<div class="log-tip">'+entry.ex.notes+'</div>' : '') + '</div>';
+    if (form.warm && form.warm.length) html += isBarbell(vid)
+      ? '<div class="log-warm"><div class="lw-t">Warm up first</div>' + form.warm.map(s => '<div class="lw-r"><span>'+fmtLoad(vid, s.weight)+' × '+s.reps+'</span><span>'+platesText(s.weight)+'</span></div>').join('') + '</div>'
+      : '<div class="log-warm inline"><span class="lw-t">Warm up first</span>' + form.warm.map(s => '<span>'+fmtLoad(vid, s.weight)+' × '+s.reps+'</span>').join('<span aria-hidden="true">·</span>') + '</div>';
     html += '<div class="log-grid">';
     if (form.weight != null || v.load === 'hand' || v.load === 'total')
       html += stepperHtml('w', form.weight == null ? '—' : fmtKg(form.weight) + ' kg', v.load === 'hand' ? 'Each hand' : isBarbell(vid) && form.weight != null ? platesText(form.weight) : 'Weight');
@@ -628,18 +675,11 @@ const supabase = createSupabaseClient();
     else html += stepperHtml('r', String(form.reps), 'Reps done');
     const timed = v.load === 'time';
     html += '</div><div class="rir-q">'+(timed ? 'How much longer could you have held?' : 'How many more could you have done?')+'</div><div class="rir" role="group" aria-label="Left in the tank">'
-      + [0,1,2,3,4].map(n => '<button data-rir="'+n+'" class="'+(form.rir===n?'on':'')+'" aria-pressed="'+(form.rir===n)+'">'+(timed ? (n*5)+(n===4?'+':'')+' s' : (n===4?'4+':n))+'</button>').join('') + '</div>'
-      + '<button class="primary" id="setCompleteBtn">Log set ✓</button>'
-      + '<div class="log-more"><button id="swapBtn">Swap exercise</button><button id="skipExBtn">Skip exercise</button></div>';
+      + [0,1,2,3,4].map(n => '<button data-rir="'+n+'" class="'+(form.rir===n?'on':'')+'" aria-pressed="'+(form.rir===n)+'">'+(timed ? (n*5)+(n===4?'+':'')+' s' : (n===4?'4+':n))+'</button>').join('') + '</div>';
     if (!kit.equipment.set && (v.load === 'hand' || v.load === 'total')) html += '<div class="log-hint">Weights go up in gym steps. <a href="settings.html#strength">Set the weights you own</a> to match yours.</div>';
     stageAction.innerHTML = html + '</div>';
-    const sel = document.getElementById('variantSelect');
-    if (sel) sel.addEventListener('change', ()=>{
-      exVariant[entry.exIdx] = sel.value; form = null;
-      kit.variants = Object.assign({}, kit.variants, { [VARIANTS[sel.value].base]: sel.value });
-      saveSetting(supabase, user.id, VARIANTS_KEY, kit.variants).catch(()=>{});
-      newForm(entry); renderStage(true);
-    });
+    const hb = document.getElementById('harderBtn');
+    if (hb) hb.addEventListener('click', ()=> useVariant(entry, form.harder));
     stageAction.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', ()=>{
       const [k, dir] = b.dataset.step.split(':');
       if (k === 'w'){
@@ -657,7 +697,7 @@ const supabase = createSupabaseClient();
     stageAction.querySelectorAll('[data-rir]').forEach(b => b.addEventListener('click', ()=>{
       const n = Number(b.dataset.rir); form.rir = form.rir === n ? null : n; renderSetForm(entry);
     }));
-    document.getElementById('setCompleteBtn').addEventListener('click', ()=>{
+    logSetFn = ()=>{
       const set = { exIdx: entry.exIdx, base: v.base || entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() };
       set.pb = newBest(vid, set, history[vid] || [], logged.filter(x => x.variant === vid));
       const hit = goals.find(g => !g.done && g.variant === vid && goalMet(g, set));
@@ -665,9 +705,15 @@ const supabase = createSupabaseClient();
       logged.push(set);
       if (set.pb){ beep(990, 140); setTimeout(() => beep(1320, 220), 160); buzz([80, 60, 80]); }
       advance();
-    });
-    document.getElementById('swapBtn').addEventListener('click', ()=> swapExercise(entry));
-    document.getElementById('skipExBtn').addEventListener('click', ()=> skipExercise(entry));
+    };
+  }
+  let logSetFn = null;    // logs the set on screen; the Log set button in the bottom bar calls it
+  // Do another version of the move from now on (it becomes the rider's usual one).
+  function useVariant(entry, vid){
+    exVariant[entry.exIdx] = vid; form = null;
+    kit.variants = Object.assign({}, kit.variants, { [VARIANTS[vid].base]: vid });
+    saveSetting(supabase, user.id, VARIANTS_KEY, kit.variants).catch(()=>{});
+    renderStage(true); saveLive();
   }
   function stepperHtml(k, val, label){
     return '<div class="stepper"><button data-step="'+k+':-" aria-label="Less">−</button><div class="sv"><b>'+val+'</b><span>'+label+'</span></div><button data-step="'+k+':+" aria-label="More">+</button></div>';
@@ -883,20 +929,101 @@ const supabase = createSupabaseClient();
     return n;
   }
 
-  function renderStage(force){
+  // Session strip: a segment per exercise filled by sets done, and where you are.
+  function renderStrip(){
     document.getElementById('mProgress').textContent = completedSetsCount() + ' / ' + totalSets;
     document.getElementById('mElapsed').textContent = fmtDur(elapsedSec);
+    const exs = curWorkout ? curWorkout.exercises : [];
+    const done = {}; for (let i=0; i<idx; i++) if (flat[i] && flat[i].type === 'work') done[flat[i].exIdx] = (done[flat[i].exIdx] || 0) + 1;
+    const nowEntry = flat[idx] && flat[idx].type === 'rest' ? flat[idx+1] : flat[idx];
+    const nowIdx = nowEntry ? nowEntry.exIdx : -1;
+    document.getElementById('sStripBars').innerHTML = exs.map((ex, i) => '<i class="'+(skipped.has(i) ? 'skip' : i === nowIdx ? 'now' : '')+'"><b style="width:'+Math.round(Math.min(1, (done[i] || 0) / ex.sets) * 100)+'%"></b></i>').join('');
+    const live = exs.map((ex, i) => i).filter(i => !skipped.has(i));
+    document.getElementById('sStripNow').innerHTML = !exs.length ? '' : nowIdx >= 0 ? 'Exercise <b>'+(live.indexOf(nowIdx) + 1)+'</b> of '+live.length : exs.length+' exercises';
+  }
+  function showSessionList(){
+    if (!curWorkout) return;
+    const box = document.createElement('div');
+    box.className = 'exercise-list'; box.style.fontSize = '14px';
+    box.innerHTML = document.getElementById('exerciseList').innerHTML;
+    showSheet({ title: curWorkout.name, content: box, buttons:[{ label:'Close', value:null, kind:'primary' }], dismissValue:null });
+  }
+  document.getElementById('sStrip').addEventListener('click', showSessionList);
+  document.getElementById('sStrip').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); showSessionList(); } });
+
+  // What the next set will be, worked out once per rest from what's been logged so far.
+  let preview = { key:'', form:null };
+  function nextSetPreview(){
+    const next = flat[idx+1];
+    if (!next || next.type !== 'work') return null;
+    const key = (curWorkout ? curWorkout.id : '') + ':' + idx + ':' + logged.length + ':' + flat.length + ':' + (exVariant[next.exIdx] || '');
+    if (preview.key !== key){ const keep = form; newForm(next); preview = { key, form }; form = keep; }
+    return { entry: next, f: preview.form };
+  }
+  function targetHtml(vid, ex, f){
+    const v = vinfo(vid, ex), [lo, hi] = repRange(ex), range = lo === hi ? String(lo) : lo + '–' + hi;
+    if (v.load === 'time') return f.hold + ' s <small>hold</small>';
+    if ((v.load === 'hand' || v.load === 'total') && f.weight != null) return fmtLoad(vid, f.weight) + ' <small>· ' + range + ' reps</small>';
+    return range + ' <small>reps</small>';
+  }
+
+  // Bottom bar: Start / Resume and Stop when not running; Log set or Skip rest, and ⋯ for the rest, during a session.
+  let focusOff = false;  // the rider tapped × to bring the menu bar back for this session
+  function setFocus(on){
+    if (!on) focusOff = false;
+    document.body.classList.toggle('focus', on && !focusOff);
+  }
+  document.getElementById('focusExit').addEventListener('click', () => { focusOff = true; setFocus(true); });
+
+  let barKey = '';
+  function renderBar(){
+    const entry = running ? flat[idx] : null, key = entry ? entry.type + idx : '';
+    document.querySelector('.controls').classList.toggle('live', !!entry);
+    if (key === barKey) return;
+    barKey = key;
+    const bar = document.getElementById('liveBar');
+    if (!entry){ bar.innerHTML = ''; return; }
+    bar.innerHTML = entry.type === 'work'
+      ? '<button class="primary" id="setCompleteBtn">Log set ✓</button><button class="more-btn" id="moreBtn" aria-label="More: swap, skip, pause or stop">⋯</button>'
+      : '<button id="skipRestBtn">Skip rest</button><button id="addRestBtn">+30 s</button><button class="more-btn" id="moreBtn" aria-label="More: sound, pause or stop">⋯</button>';
+    const on = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', fn); };
+    on('setCompleteBtn', () => { if (flat[idx] && flat[idx].type === 'work' && logSetFn) logSetFn(); });
+    on('skipRestBtn', () => { if (flat[idx] && flat[idx].type === 'rest') advance(); });
+    on('addRestBtn', () => { restEndsAt += 30000; restRemaining += 30; restTotal += 30; lastBeep = null; renderStage(); saveLive(); });
+    on('moreBtn', moreMenu);
+  }
+  async function moreMenu(){
+    const entry = flat[idx]; if (!entry) return;
+    const buttons = entry.type === 'work' ? [{ label:'Swap exercise', value:'swap' }, { label:'Skip exercise', value:'skip' }] : [];
+    buttons.push({ label: soundOn ? 'Turn beeps off' : 'Turn beeps on', value:'sound' }, { label:'Pause', value:'pause' }, { label:'Stop session', value:'stop', kind:'danger' }, { label:'Cancel', value:null });
+    const r = await showSheet({ title: entry.type === 'work' ? vinfo(form ? form.vid : variantOf(entry.exIdx, entry.ex), entry.ex).name : 'Rest', buttons, dismissValue:null });
+    if (flat[idx] !== entry) return;
+    if (r === 'swap') swapExercise(entry);
+    if (r === 'skip') skipExercise(entry);
+    if (r === 'sound'){
+      soundOn = !soundOn; try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch(_){}
+      if (soundOn){ unlockAudio(); beep(880, 120); }
+      notify(soundOn ? 'The rest timer beeps for its last 3 seconds.' : 'The rest timer stays quiet. It still vibrates.', soundOn ? 'Beeps on' : 'Beeps off');
+    }
+    if (r === 'pause') document.getElementById('pauseBtn').click();
+    if (r === 'stop') stopSession(false);
+  }
+
+  function renderStage(force){
+    renderStrip();
 
     const entry = flat[idx];
     const stageAction = document.getElementById('stageAction');
-    const restEl = document.getElementById('stageRestCount');
+    const restEl = document.getElementById('stageRestCount'), ring = document.getElementById('restRing');
+    document.getElementById('nextStepInfo').hidden = !!entry;
+    renderBar();
 
     if (!entry){
       document.getElementById('stageName').textContent = flat.length ? 'Ready to start' : 'Choose a workout to begin';
       document.getElementById('stageTarget').textContent = '';
       document.getElementById('stageNotes').textContent = '';
       document.getElementById('nextStepInfo').innerHTML = flat.length ? ('First: <b>'+vinfo(variantOf(0, flat[0].ex), flat[0].ex).name+'</b> · '+flat[0].ex.sets+'x'+flat[0].ex.reps) : '—';
-      restEl.style.display = 'none';
+      ring.hidden = true;
       const w = curWorkout && library.find(x => x.id === curWorkout.id);
       stageAction.innerHTML = lighter ? '<div class="light-note"><b>Lighter version today.</b> '+bigWeek+', so it\'s 2 sets of each exercise to keep your legs for riding. <button class="link-btn" id="fullBtn">Do the full session</button></div>'
         : canLighten(w) ? '<div class="light-note">Full session. <button class="link-btn" id="lightBtn">Use the lighter version</button></div>' : '';
@@ -914,10 +1041,11 @@ const supabase = createSupabaseClient();
         const v = vinfo(form.vid, entry.ex);
         renderPositions(entry.ex.key, document.getElementById('positionsRow'));
         document.getElementById('stageName').textContent = v.name;
-        const [lo, hi] = repRange(entry.ex);
-        document.getElementById('stageTarget').textContent = 'Set ' + entry.setNum + ' of ' + entry.totalSets + ' · ' + (v.load === 'time' ? form.hold + ' s hold' : lo + '–' + hi + ' reps');
-        document.getElementById('stageNotes').textContent = entry.ex.notes || '';
-        restEl.style.display = 'none';
+        const dots = Array.from({ length: entry.totalSets }, (_, i) => '<i class="'+(i < entry.setNum - 1 ? 'f' : '')+'"></i>').join('');
+        document.getElementById('stageTarget').innerHTML = '<div class="set-dots" aria-hidden="true">'+dots+'<span>Set ' + entry.setNum + ' of ' + entry.totalSets + '</span></div>'
+          + '<div class="big-target">' + targetHtml(form.vid, entry.ex, form) + '</div>';
+        document.getElementById('stageNotes').textContent = '';
+        ring.hidden = true;
         renderSetForm(entry);
       }
     } else {
@@ -925,34 +1053,25 @@ const supabase = createSupabaseClient();
       const done = logged[logged.length-1];
       document.getElementById('stageName').textContent = done && done.goal ? '🎯 Goal reached' : done && done.pb ? '🏆 New best' : 'Rest';
       document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') + (done.goal ? ' · goal: ' + done.goal : done.pb ? ' · ' + done.pb : '') : '';
-      const nextEx = flat[idx+1] && flat[idx+1].ex || entry.ex;
-      document.getElementById('stageNotes').textContent = 'Next: ' + vinfo(exVariant[flat[idx+1] ? flat[idx+1].exIdx : entry.exIdx] || planVariant(nextEx), nextEx).name + ' · set ' + (flat[idx+1] ? flat[idx+1].setNum : entry.nextSetNum) + ' of ' + nextEx.sets;
+      const p = nextSetPreview();
+      document.getElementById('stageNotes').innerHTML = p ? '<div class="up-next'+(restRemaining <= 10 ? ' soon' : '')+'"><span class="pill">'+(restRemaining <= 10 ? 'Get ready' : 'Up next')+'</span>'
+        + '<span class="un-t">'+vinfo(p.f.vid, p.entry.ex).name+' · set '+p.entry.setNum+' of '+p.entry.totalSets+'</span>'
+        + '<span class="un-v">'+targetHtml(p.f.vid, p.entry.ex, p.f)+'</span>'
+        + (p.f.warm && p.f.warm.length ? '<span class="un-w">Warm up first: '+p.f.warm.map(s => fmtLoad(p.f.vid, s.weight)+' × '+s.reps).join(', ')+'</span>' : '')+'</div>' : '';
       renderPositions('', document.getElementById('positionsRow'));
-      restEl.style.display = 'block';
+      ring.hidden = false;
       restEl.textContent = fmtDur(restRemaining);
-      if (!document.getElementById('skipRestBtn')){
-        stageAction.innerHTML = '<div class="rest-btns"><button id="skipRestBtn">Skip rest</button><button id="addRestBtn">+30 s</button><button id="soundBtn" aria-pressed="'+soundOn+'">'+(soundOn ? 'Sound on' : 'Sound off')+'</button></div>';
-        document.getElementById('skipRestBtn').addEventListener('click', advance);
-        document.getElementById('addRestBtn').addEventListener('click', ()=>{ restEndsAt += 30000; restRemaining += 30; restEl.textContent = fmtDur(restRemaining); lastBeep = null; saveLive(); });
-        document.getElementById('soundBtn').addEventListener('click', e=>{
-          soundOn = !soundOn; try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch(_){}
-          e.currentTarget.textContent = soundOn ? 'Sound on' : 'Sound off'; e.currentTarget.setAttribute('aria-pressed', soundOn);
-          if (soundOn){ unlockAudio(); beep(880, 120); }
-        });
-      }
+      document.getElementById('restArc').setAttribute('stroke-dashoffset', (282.7 * (1 - Math.min(1, restRemaining / Math.max(1, restTotal)))).toFixed(1));
+      if (stageAction.innerHTML) stageAction.innerHTML = '';
     }
-
-    const next = flat[idx+1];
-    document.getElementById('nextStepInfo').innerHTML = next
-      ? ('Next: <b>' + (next.type==='work' ? vinfo(exVariant[next.exIdx] || planVariant(next.ex), next.ex).name+' (set '+next.setNum+')' : 'Rest') + '</b>')
-      : 'Last step — finish and stop when ready.';
 
     // refresh sidebar exercise highlight
     renderExerciseList(curWorkout);
   }
 
   let lastBeep = null;
-  function startRest(sec){ restRemaining = sec; restEndsAt = Date.now() + sec*1000; lastBeep = null; }
+  let restTotal = 60;     // length of the current rest, for the ring
+  function startRest(sec){ restRemaining = sec; restTotal = sec; restEndsAt = Date.now() + sec*1000; lastBeep = null; }
   function advance(){
     idx += 1;
     if (idx >= flat.length){ stopSession(true); return; }
@@ -1006,7 +1125,8 @@ const supabase = createSupabaseClient();
     document.getElementById('pauseBtn').disabled = false;
     document.getElementById('stopBtn').disabled = false;
     document.getElementById('workoutSelect').disabled = true; updateBuildButtons();
-    document.querySelector('.live-layout').classList.add('session-active');
+    document.querySelector('.live-layout').classList.add('session-active'); setFocus(true);
+    renderBar();
     requestWakeLock();
   });
   document.getElementById('pauseBtn').addEventListener('click', ()=>{
@@ -1015,6 +1135,7 @@ const supabase = createSupabaseClient();
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'Resume';
     document.getElementById('pauseBtn').disabled = true;
+    renderBar();
     releaseWakeLock();
     saveLive();
   });
@@ -1022,7 +1143,7 @@ const supabase = createSupabaseClient();
     running = false;
     clearInterval(tickHandle);
     releaseWakeLock();
-    document.querySelector('.live-layout').classList.remove('session-active');
+    document.querySelector('.live-layout').classList.remove('session-active'); setFocus(false);
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
     const setsDone = completed ? totalSets : completedSetsCount();
@@ -1243,11 +1364,12 @@ const supabase = createSupabaseClient();
     elapsedSec = st.elapsedSec + (st.running ? Math.min((Date.now() - st.savedAt) / 1000, 1200) : 0);
     restRemaining = st.restRemaining || 0;
     if (flat[idx] && flat[idx].type === 'rest' && st.running) restRemaining = Math.max(5, restRemaining - Math.round((Date.now() - st.savedAt) / 1000));
+    if (flat[idx] && flat[idx].type === 'rest') restTotal = Math.max(restRemaining, flat[idx].duration);
     form = null;
     document.getElementById('startBtn').textContent = 'Resume';
     document.getElementById('stopBtn').disabled = false;
     document.getElementById('workoutSelect').disabled = true; updateBuildButtons();
-    document.querySelector('.live-layout').classList.add('session-active');
+    document.querySelector('.live-layout').classList.add('session-active'); setFocus(true);
     renderStage(true);
     return true;
   }
