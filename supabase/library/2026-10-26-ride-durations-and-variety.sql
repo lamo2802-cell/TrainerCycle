@@ -2,7 +2,9 @@
 -- 1. Rides within 3 minutes of 45 / 60 / 75 / 90 min are nudged onto that time by trimming or
 --    padding warm-up, recovery or cool-down. Main sets are unchanged. Ids stay the same, so plans
 --    (training_plans.weeks reference rides by workoutId only) pick up the new lengths with no edits.
--- 2. Two rides that became duplicates of another ride get a distinct variant and name.
+-- 2. Duplicate rides (same session, same or near length) are removed. Plans that used a removed
+--    ride now point at the copy that stays; where the copies differ only in length, the one on a
+--    key time stays. No completed rides or settings reference the removed ids.
 -- 3. 15 new prebuilt rides fill gaps in the 45, 60, 75 and 90 min slots.
 -- 4. duration_sec is recomputed from steps for every shared ride (17 were NULL).
 begin;
@@ -23,22 +25,34 @@ update workouts set steps = jsonb_set(jsonb_set(steps, '{0,duration}', '240'), '
 update workouts set steps = jsonb_set(steps, '{14,duration}', '360') where id = 'prebuilt-endurance-standing-59';
 -- 60.5 -> 60: Anaerobic 13x30, cool-down 5:00 -> 4:30
 update workouts set steps = jsonb_set(steps, '{5,duration}', '270') where id = 'prebuilt-anaerobic-13x30-61';
--- 63 -> 60: VO2 Max 6x4 (second copy). Keeps its 4 min recoveries so it differs from prebuilt-vo2-60
--- (3:30 recoveries); warm-up and cool-down trimmed instead.
-update workouts set name = 'VO2 Max 6x4 Full Recovery',
-  steps = jsonb_set(jsonb_set(jsonb_set(steps, '{0,duration}', '180'), '{1,duration}', '120'), '{5,duration}', '240')
-  where id = 'prebuilt-vo2-6x4-63';
 -- 63 -> 60: Over-Under 4x9, 1 min off each warm-up step and the cool-down
 update workouts set steps = jsonb_set(jsonb_set(jsonb_set(steps, '{0,duration}', '180'), '{1,duration}', '180'), '{6,duration}', '240') where id = 'prebuilt-overunder-4x9-63';
 -- 73 -> 75: Tempo 2x25, recoveries 4 -> 5 min
 update workouts set steps = jsonb_set(steps, '{5,steps,1,duration}', '300') where id = 'prebuilt-tempo-2x25-73';
 -- 91 -> 90: Sweet Spot 4x15, cool-down 5 -> 4 min
 update workouts set steps = jsonb_set(steps, '{6,duration}', '240') where id = 'prebuilt-sweetspot-90';
--- 92 -> 90: Sweet Spot 3x20 (second copy of prebuilt-sweetspot-90b). Becomes a progressive
--- version, each block a notch harder, with the warm-up trimmed by 2 min.
-update workouts set name = 'Sweet Spot 3x20 Progressive',
-  steps = '[{"low": 50, "high": 55, "note": "Warm up - easy", "type": "step", "duration": 240, "targetType": "ftp_pct"}, {"low": 60, "high": 65, "note": "Warm up - steady", "type": "step", "duration": 240, "targetType": "ftp_pct"}, {"low": 78, "high": 82, "note": "Warm up - build", "type": "step", "duration": 60, "targetType": "ftp_pct"}, {"low": 100, "high": 105, "note": "Opener burst", "type": "step", "duration": 30, "targetType": "ftp_pct"}, {"low": 50, "high": 55, "note": "Recover", "type": "step", "duration": 30, "targetType": "ftp_pct"}, {"low": 87, "high": 90, "note": "Sweet spot - settle in", "type": "step", "duration": 1200, "targetType": "ftp_pct"}, {"low": 50, "high": 55, "note": "Recover", "type": "step", "duration": 300, "targetType": "ftp_pct"}, {"low": 89, "high": 92, "note": "Sweet spot - a notch up", "type": "step", "duration": 1200, "targetType": "ftp_pct"}, {"low": 50, "high": 55, "note": "Recover", "type": "step", "duration": 300, "targetType": "ftp_pct"}, {"low": 91, "high": 94, "note": "Sweet spot - strongest last", "type": "step", "duration": 1200, "targetType": "ftp_pct"}, {"low": 50, "high": 55, "note": "Recover", "type": "step", "duration": 300, "targetType": "ftp_pct"}, {"low": 45, "high": 50, "note": "Cool down", "type": "step", "duration": 300, "targetType": "ftp_pct"}]'::jsonb
-  where id = 'prebuilt-sweetspot-3x20-92';
+
+-- Duplicates: point plans at the kept ride, then remove the copy
+-- Sweet Spot 2x20, both 60 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-ss-2x20-60"', '"prebuilt-sweetspot-60"')::jsonb where weeks::text like '%"prebuilt-ss-2x20-60"%';
+delete from workouts where id = 'prebuilt-ss-2x20-60' and user_id is null;
+-- VO2 Max 6x4, 63 vs 60 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-vo2-6x4-63"', '"prebuilt-vo2-60"')::jsonb where weeks::text like '%"prebuilt-vo2-6x4-63"%';
+delete from workouts where id = 'prebuilt-vo2-6x4-63' and user_id is null;
+-- Sweet Spot 3x20, 92 vs 90 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-sweetspot-3x20-92"', '"prebuilt-sweetspot-90b"')::jsonb where weeks::text like '%"prebuilt-sweetspot-3x20-92"%';
+delete from workouts where id = 'prebuilt-sweetspot-3x20-92' and user_id is null;
+-- Threshold 3x10, 55 vs 60 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-threshold-3x10-55"', '"prebuilt-threshold-3x10-60"')::jsonb where weeks::text like '%"prebuilt-threshold-3x10-55"%';
+delete from workouts where id = 'prebuilt-threshold-3x10-55' and user_id is null;
+-- Sweet Spot 4x10, 67 vs 60 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-sweetspot-4x10-67"', '"prebuilt-ss-4x10-60"')::jsonb where weeks::text like '%"prebuilt-sweetspot-4x10-67"%';
+delete from workouts where id = 'prebuilt-sweetspot-4x10-67' and user_id is null;
+-- Over-Under 3x12, both 60 min
+update training_plans set weeks = replace(weeks::text, '"prebuilt-over-under-3x12-60"', '"prebuilt-overunder-60"')::jsonb where weeks::text like '%"prebuilt-over-under-3x12-60"%';
+delete from workouts where id = 'prebuilt-over-under-3x12-60' and user_id is null;
+update workouts set name = 'Threshold 3x10' where id = 'prebuilt-threshold-3x10-60';
+update workouts set name = 'Sweet Spot 4x10' where id = 'prebuilt-ss-4x10-60';
 
 -- New rides
 insert into workouts (id, name, steps, source, category, duration_sec) values
