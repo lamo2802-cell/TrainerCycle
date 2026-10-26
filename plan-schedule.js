@@ -61,13 +61,17 @@ const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_curs
 // A race-goal run plan (settings key run_plan, see run-plans.js) is followed on its own when no cycling
 // plan is: planId is then 'run-plan' and the plan starts on the run plan's start date.
 export async function loadFollowState(supabase, userId){
-  const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS.concat('run_plan'));
+  const { data } = await supabase.from('settings').select('key,value').eq('user_id', userId).in('key', FOLLOW_KEYS.concat('run_plan', 'strength_plan'));
   const v = {}; (data||[]).forEach(r=>{ v[r.key] = r.value && r.value.v; });
   const runPlan = v.run_plan && v.run_plan.goal ? v.run_plan : null;
   const runOnly = !v.active_plan_id && !!runPlan;
-  return { planId: runOnly ? 'run-plan' : (v.active_plan_id || null), startedAt: runOnly ? runPlan.start : (v.active_plan_started_at || null),
+  // A strength programme (strength-programmes.js) is merged into whatever is followed, or followed alone.
+  const strengthPlan = v.strength_plan && v.strength_plan.id ? v.strength_plan : null;
+  const strengthOnly = !v.active_plan_id && !runPlan && !!strengthPlan;
+  return { planId: runOnly ? 'run-plan' : strengthOnly ? 'strength-plan' : (v.active_plan_id || null),
+    startedAt: runOnly ? runPlan.start : strengthOnly ? strengthPlan.start : (v.active_plan_started_at || null),
     cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null,
-    runPlan, runOnly };
+    runPlan, runOnly, strengthPlan, strengthOnly };
 }
 export const FOLLOW_SETTING_KEYS = FOLLOW_KEYS;
 

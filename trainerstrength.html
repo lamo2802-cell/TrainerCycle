@@ -133,6 +133,19 @@
   .log-why{ margin-top:5px; color:var(--text); font-size:13px; line-height:1.4; }
   .log-hint{ font-size:12px; color:var(--text-dim); margin-top:8px; text-align:center; }
   .log-hint a{ color:var(--accent); }
+  .prog-name{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .prog-bar{ display:flex; gap:2px; margin:8px 0 10px; }
+  .prog-bar span{ flex:1; height:8px; border-radius:2px; opacity:.45; }
+  .prog-bar span.now{ opacity:1; outline:2px solid var(--text); outline-offset:1px; }
+  .prog-bar span.past{ opacity:.9; }
+  .prog-sess{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:12.5px; }
+  .prog-sess a{ color:var(--accent); text-decoration:none; font-weight:600; white-space:nowrap; }
+  .prog-sess .ok{ color:var(--accent); white-space:nowrap; }
+  .prog-card{ display:block; width:100%; text-align:left; padding:12px 14px; margin:0 0 8px; }
+  .prog-card b{ display:block; font-size:14.5px; margin-bottom:3px; }
+  .prog-card span{ display:block; font-size:12.5px; color:var(--text-dim); line-height:1.45; }
+  .prog-legend{ display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--text-dim); margin-bottom:8px; }
+  .prog-legend i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
   .lift-row{ display:flex; justify-content:space-between; gap:10px; align-items:center; width:100%; text-align:left; padding:10px 12px; margin:0 0 6px; }
   .lift-row .ln{ font-weight:600; font-size:14px; }
   .lift-row .ls{ font-size:12px; color:var(--text-dim); }
@@ -205,6 +218,10 @@ html select option{ background:#1D242D; color:#E7ECF2; }
   <div class="main">
     <div class="live-layout">
       <div class="side-panel">
+        <div class="block" id="programmes">
+          <div class="block-title">Programme</div>
+          <div id="progBox" style="font-size:12.5px; color:var(--text-dim);">Loading…</div>
+        </div>
         <div class="block">
           <div class="block-title">Workout</div>
           <select id="equipmentFilter" style="margin-bottom:8px;">
@@ -268,6 +285,9 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=2';
+import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks } from './strength-programmes.js?v=1';
+import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=4';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
   weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness } from './strength-kit.js?v=2';
 const supabase = createSupabaseClient();
@@ -373,12 +393,15 @@ const supabase = createSupabaseClient();
     return (w.exercises||[]).some(ex => EQUIPMENT_MAP[ex.key] === 'required');
   }
 
+  const showProgramme = new Set();
   function populateWorkoutSelect(){
     const sel = document.getElementById('workoutSelect');
     const filterVal = document.getElementById('equipmentFilter').value;
     const prevValue = sel.value;
     sel.innerHTML = '<option value="">Choose a workout…</option>';
     library.forEach(w=>{
+      // Programme sessions only show when they're this week's or the one opened.
+      if (/^sp-/.test(w.id) && !showProgramme.has(w.id) && w.id !== prevValue) return;
       const needsEq = workoutNeedsEquipment(w);
       if (filterVal === 'none' && needsEq) return;
       if (filterVal === 'equipment' && !needsEq) return;
@@ -423,7 +446,8 @@ const supabase = createSupabaseClient();
   let exVariant = {};     // exercise index -> variation id for this session
   let form = null;        // the set being filled in: { idx, weight, reps, hold, rir }
   function variantOf(exIdx, ex){
-    if (!exVariant[exIdx]) exVariant[exIdx] = pickVariant(ex.key, kit.equipment, kit.variants) || ex.key;
+    // A programme can name the version to do; otherwise the rider's own choice or the first they have kit for.
+    if (!exVariant[exIdx]) exVariant[exIdx] = (ex.variant && variantAvailable(ex.variant, kit.equipment) ? ex.variant : pickVariant(ex.key, kit.equipment, kit.variants)) || ex.key;
     return exVariant[exIdx];
   }
   function vinfo(id, ex){ return VARIANTS[id] || { base: ex ? ex.key : id, name: ex ? ex.name : id, load:'bw' }; }
@@ -819,10 +843,98 @@ const supabase = createSupabaseClient();
     });
   }
 
+  // ---- strength programme ----
+  let progCfg = null;
+  const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const niceDate = iso => { const d = parseIso(iso); return DAY_SHORT[d.getDay()] + ' ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month:'short' }); };
+  function phaseBar(prog, current){
+    return '<div class="prog-bar" aria-hidden="true">' + PROGRAMMES[prog].schedule.map((ph, i) => '<span style="background:'+phaseColor(ph)+'" class="'+(i === current ? 'now' : current != null && i < current ? 'past' : '')+'" title="Week '+(i+1)+': '+PHASES[ph].label+'"></span>').join('') + '</div>';
+  }
+  function phaseLegend(prog){
+    const seen = [...new Set(PROGRAMMES[prog].schedule)];
+    return '<div class="prog-legend">' + seen.map(ph => '<span><i style="background:'+phaseColor(ph)+'"></i>'+PHASES[ph].label+'</span>').join('') + '</div>';
+  }
+  async function loadProgramme(){
+    const box = document.getElementById('progBox');
+    try {
+      const follow = await loadFollowState(supabase, user.id);
+      progCfg = follow.strengthPlan;
+      if (!progCfg || !PROGRAMMES[progCfg.id]){
+        box.innerHTML = '<p style="margin:0 0 8px;">Follow a multi-week strength programme. Its sessions go on your calendar around your riding.</p><button id="progPick" class="primary" style="margin-bottom:0;">Choose a programme</button>';
+        document.getElementById('progPick').addEventListener('click', pickProgramme);
+        if (location.hash === '#programmes') pickProgramme();
+        return;
+      }
+      const st = programmeStatus(progCfg);
+      const row = await loadPlanRow(supabase, follow);
+      const { plan, startedAt } = composeFollowed(row, follow, follow.runPlan);
+      const done = plan && startedAt ? await loadDoneDays(supabase, user.id, plan.id, startedAt) : new Map();
+      const today = todayIso(), mon = addDays(today, -((parseIso(today).getDay() + 6) % 7));
+      const week = plan ? planSessions(plan, startedAt, follow.moves).filter(s => s.dayObj.workoutType === 'strength' && /^sp-/.test(s.dayObj.workoutId) && s.date >= mon && s.date <= addDays(mon, 6)) : [];
+      week.forEach(s => showProgramme.add(s.dayObj.workoutId));
+      populateWorkoutSelect();
+      let html = '<div class="prog-name">'+st.programme.name+'</div>'
+        + (st.notStarted ? 'Starts '+niceDate(progCfg.start) : st.done ? 'Finished. Well done.' : 'Week '+(st.week+1)+' of '+st.programme.weeks+' · '+PHASES[st.phase].label)
+        + phaseBar(progCfg.id, st.notStarted ? null : st.week);
+      if (!st.notStarted && !st.done) html += week.length ? week.map(s => {
+          const isDone = done.has(s.dayIndex);
+          const href = 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
+          return '<div class="prog-sess"><span>'+niceDate(s.date)+' · '+(s.dayObj.name || '').replace(st.programme.name+' ', '')+'</span>'+(isDone ? '<span class="ok">Done ✓</span>' : '<a href="'+href+'">'+(s.date === today ? 'Start today' : 'Open')+'</a>')+'</div>';
+        }).join('') : '<div class="prog-sess"><span>No strength sessions this week.</span></div>';
+      html += '<button id="progChange" style="margin:10px 0 0;">'+(st.done ? 'Choose another' : 'Change or stop')+'</button>';
+      box.innerHTML = html;
+      document.getElementById('progChange').addEventListener('click', pickProgramme);
+      if (week.length) populateWorkoutSelect();
+    } catch(e){ box.textContent = 'Couldn\'t load your programme. Check your connection.'; }
+  }
+  async function saveProgramme(cfg){
+    const { error } = await saveSetting(supabase, user.id, STRENGTH_PLAN_KEY, cfg);
+    if (error){ notify('Check your connection and try again.', 'Couldn\'t save'); return false; }
+    return true;
+  }
+  function pickProgramme(){
+    const box = document.createElement('div');
+    box.innerHTML = Object.entries(PROGRAMMES).map(([id, P]) => '<button class="prog-card" data-prog="'+id+'"><b>'+P.name+(progCfg && progCfg.id === id ? ' · current' : '')+'</b><span>'+P.weeks+' weeks · '+P.perWeek+' a week · '+P.equipment+'</span></button>').join('')
+      + '<p style="font-size:12.5px;">If you follow a training plan, programme sessions use its strength days first, then rest days, and avoid the day before a ride where they can.</p>';
+    let picked = null;
+    box.addEventListener('click', e => { const b = e.target.closest('[data-prog]'); if (!b) return; picked = b.dataset.prog; box.closest('.tc-sheet').querySelector('.tc-sheet-btns button').click(); });
+    const buttons = [{ label:'Close', value:'close', kind:'primary' }];
+    if (progCfg) buttons.push({ label:'Stop my programme', value:'stop', kind:'danger' });
+    showSheet({ title:'Strength programmes', content: box, buttons, dismissValue:null }).then(async r => {
+      if (r === 'stop' && await ask('Your programme sessions come off your calendar. Logged sessions stay in your history.', { title:'Stop '+PROGRAMMES[progCfg.id].name+'?', ok:'Stop programme', danger:true })){
+        if (await saveProgramme(null)){ progCfg = null; loadProgramme(); }
+      }
+      if (picked) showProgrammeDetail(picked);
+    });
+  }
+  function showProgrammeDetail(id){
+    const P = PROGRAMMES[id], weeks = programmeWeeks(id);
+    const box = document.createElement('div');
+    const today = todayIso(), dow = (parseIso(today).getDay() + 6) % 7, thisMon = addDays(today, -dow), nextMon = mondayOnOrAfter(addDays(today, 1));
+    box.innerHTML = '<p>'+P.blurb+'</p><p style="font-size:12.5px;">'+P.weeks+' weeks · '+P.perWeek+' a week · '+P.equipment+'</p>' + phaseBar(id, null) + phaseLegend(id)
+      + '<p style="font-size:12.5px;">Example week ('+PHASES[weeks[0].phase].label+'): '+weeks[0].sessions.map(s => s.name.replace(P.name+' ', '')+', about '+s.mins+' min').join('; ')+'.</p>';
+    const buttons = [{ label:'Start next Monday ('+niceDate(nextMon)+')', value: nextMon, kind:'primary' }];
+    if (dow <= 2) buttons.push({ label:'Start this week', value: thisMon });
+    buttons.push({ label:'Back', value:'back' });
+    showSheet({ title: P.name, content: box, buttons, dismissValue:null }).then(async r => {
+      if (r === 'back') return pickProgramme();
+      if (!r) return;
+      if (progCfg && !(await ask('This replaces '+PROGRAMMES[progCfg.id].name+' on your calendar.', { title:'Switch programme?', ok:'Switch' }))) return;
+      if (await saveProgramme({ id, start: r })){
+        progCfg = { id, start: r };
+        await loadProgramme();
+        notify('Its sessions are on your calendar and Today. Open each one from here or from Today.', P.name+' starts '+niceDate(r));
+      }
+    });
+  }
+  loadProgramme();
+
   refreshHistory();
   loadData().then(()=>{
     const loadParam = new URLSearchParams(window.location.search).get('load');
+    if (loadParam) showProgramme.add(loadParam);
     if (loadParam && library.find(x=>x.id===loadParam)){
+      populateWorkoutSelect();
       document.getElementById('workoutSelect').value = loadParam;
       selectWorkout(loadParam);
       window.history.replaceState({}, '', window.location.pathname);
