@@ -93,6 +93,12 @@
   .dot{ width:8px; height:8px; border-radius:50%; background:var(--text-dim); flex-shrink:0; }
   .dot.on{ background:var(--accent); }
   .msg{ font-size:12.5px; margin-top:10px; color:var(--text-dim); }
+  .eq-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; padding:8px 0; border-top:1px solid var(--line); font-size:13.5px; }
+  .eq-row:first-of-type{ border-top:none; }
+  .eq-row label{ display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .eq-row input[type=checkbox]{ width:18px; height:18px; accent-color:var(--accent); margin:0; }
+  .eq-range{ display:flex; align-items:center; gap:5px; color:var(--text-dim); font-size:12.5px; }
+  .eq-range input{ width:58px; padding:6px 6px; }
   .set-group-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.07em; font-weight:600; margin:26px 0 10px; }
   h1 + .set-group-title{ margin-top:0; }
   .set-group.two{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 16px; }
@@ -220,6 +226,35 @@
 
     </div>
 
+    <div class="set-group-title" id="strength">Strength</div>
+    <div class="set-group two">
+    <div class="panel">
+      <div class="panel-title">My equipment</div>
+      <div class="panel-desc">TrainerStrength only offers weights you own, and picks exercises you can do with them. Leave a row unticked if you don't have it.</div>
+      <div class="eq-row"><label><input type="checkbox" id="eqDb"> Dumbbells</label><span class="eq-range"><input type="number" id="eqDbFrom" min="0.5" step="0.5" aria-label="Lightest dumbbell, kg"> to <input type="number" id="eqDbTo" min="0.5" step="0.5" aria-label="Heaviest dumbbell, kg"> kg in <input type="number" id="eqDbStep" min="0.5" step="0.5" aria-label="Dumbbell step, kg"> kg steps</span></div>
+      <div class="eq-row"><label><input type="checkbox" id="eqKb"> Kettlebells</label><span class="eq-range"><input type="number" id="eqKbFrom" min="1" step="1" aria-label="Lightest kettlebell, kg"> to <input type="number" id="eqKbTo" min="1" step="1" aria-label="Heaviest kettlebell, kg"> kg in <input type="number" id="eqKbStep" min="1" step="1" aria-label="Kettlebell step, kg"> kg steps</span></div>
+      <div class="eq-row"><label><input type="checkbox" id="eqBb"> Barbell and plates</label></div>
+      <div class="eq-row"><label><input type="checkbox" id="eqCable"> Cable machine</label></div>
+      <div class="eq-row"><label><input type="checkbox" id="eqBand"> Resistance bands</label></div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <button class="primary" id="eqSaveBtn">Save</button>
+        <button id="eqGymBtn">I train at a gym</button>
+      </div>
+      <div class="msg" id="eqMsg"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Lifting experience</div>
+      <div class="panel-desc">Sets how heavy the first guess is when you try an exercise for the first time. Your body weight above is used too.</div>
+      <select id="strengthExp">
+        <option value="">Not set</option>
+        <option value="new">New to lifting</option>
+        <option value="some">Some experience</option>
+        <option value="regular">Lift regularly</option>
+      </select>
+      <div class="msg" id="expMsg"></div>
+    </div>
+    </div>
+
     <div class="set-group-title">Riding</div>
     <div class="set-group two">
     <div class="panel">
@@ -314,6 +349,7 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=5';
 import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
 import { ask } from './sheet.js?v=2';
+import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting } from './strength-kit.js?v=1';
 import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions } from './diary.js?v=2';
 import { loadFollowState } from './plan-schedule.js?v=3';
@@ -475,6 +511,50 @@ const supabase = createSupabaseClient();
     setTimeout(()=>{ msg.textContent = ''; }, 3000);
   });
   loadLthr();
+
+  // ---- Strength: equipment and experience ----
+  const eqIds = { dumbbell:'Db', kettlebell:'Kb' };
+  function showEquipment(eq){
+    for (const [t, k] of Object.entries(eqIds)){
+      const r = eq[t], d = GYM_EQUIPMENT[t];
+      document.getElementById('eq'+k).checked = !!r;
+      document.getElementById('eq'+k+'From').value = (r || d).from;
+      document.getElementById('eq'+k+'To').value = (r || d).to;
+      document.getElementById('eq'+k+'Step').value = (r || d).step;
+    }
+    document.getElementById('eqBb').checked = !!eq.barbell;
+    document.getElementById('eqCable').checked = !!eq.cable;
+    document.getElementById('eqBand').checked = !!eq.band;
+  }
+  loadStrengthSettings(supabase, user.id).then(k => {
+    showEquipment(k.equipment.set ? k.equipment : { dumbbell:{ from:2, to:20, step:2 } });
+    document.getElementById('strengthExp').value = k.experience || '';
+    if (!k.equipment.set) document.getElementById('eqMsg').textContent = 'Not saved yet. Until you save, TrainerStrength assumes a full gym.';
+  });
+  async function saveEquipment(){
+    const msg = document.getElementById('eqMsg');
+    const eq = {};
+    for (const [t, k] of Object.entries(eqIds)){
+      if (!document.getElementById('eq'+k).checked) continue;
+      const from = parseFloat(document.getElementById('eq'+k+'From').value), to = parseFloat(document.getElementById('eq'+k+'To').value), step = parseFloat(document.getElementById('eq'+k+'Step').value);
+      if (!(from > 0) || !(to >= from) || !(step > 0)){ msg.textContent = 'Check the '+t+' weights: lightest, heaviest and the step between them.'; return; }
+      eq[t] = { from, to, step };
+    }
+    eq.barbell = document.getElementById('eqBb').checked;
+    eq.cable = document.getElementById('eqCable').checked;
+    eq.band = document.getElementById('eqBand').checked;
+    try { const { error } = await saveSetting(supabase, user.id, EQUIPMENT_KEY, eq); if (error) throw error; msg.textContent = 'Saved.'; }
+    catch(e){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  }
+  document.getElementById('eqSaveBtn').addEventListener('click', saveEquipment);
+  document.getElementById('eqGymBtn').addEventListener('click', ()=>{ showEquipment(GYM_EQUIPMENT); saveEquipment(); });
+  document.getElementById('strengthExp').addEventListener('change', async e => {
+    const msg = document.getElementById('expMsg');
+    try { const { error } = await saveSetting(supabase, user.id, 'strength_experience', e.target.value || null); if (error) throw error; msg.textContent = 'Saved.'; }
+    catch(_){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  });
 
   async function loadWeight(){
     try {
