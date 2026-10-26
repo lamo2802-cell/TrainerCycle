@@ -7,7 +7,7 @@
 import { showSheet, notify, ask } from './sheet.js?v=2';
 import { registerRunSession, openRunLog, parseDuration } from './run.js?v=5';
 import { registerSwimSession, openSwimLog } from './swim.js?v=2';
-import { sessionInfo, RUN_TYPES, SWIM_TYPES, makeRun, makeSwim, runTypeOf, runMinsOf, swimTypeOf, swimMetresOf, durationOf } from './plan-kit.js?v=3';
+import { sessionInfo, RUN_TYPES, SWIM_TYPES, makeRun, makeSwim, runTypeOf, runMinsOf, swimTypeOf, swimMetresOf, durationOf } from './plan-kit.js?v=4';
 
 export const DIARY_KEY = 'calendar_items';
 const MAX_ITEMS = 500;
