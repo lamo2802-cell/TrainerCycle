@@ -409,3 +409,41 @@ export function lighterWorkout(exercises){
   return exercises.map(e => Object.assign({}, e, { sets: Math.min(2, e.sets) }));
 }
 export const RIDE_AWARE_KEY = 'strength_ride_aware';
+
+// Muscle groups for the weekly sets chart on Progress → Strength.
+const GROUP_OF = { squat:'legs', deadlift:'legs', lunge:'legs', glute_bridge:'legs', calf_raise:'legs', clamshell:'legs', standing_hip_abduction:'legs', straight_leg_raise:'legs',
+  pushup:'push', shoulder_press:'push', row:'pull', bicep_curl:'pull', plank:'core', situp:'core', mountain_climber:'core' };
+export function muscleGroup(base){ return GROUP_OF[base] || 'core'; }
+
+// Body weight over time: settings key body_weight_log, [{ date:'YYYY-MM-DD', kg }] oldest first.
+// Logging also updates weight_kg, which W/kg and first-guess weights use.
+export const BODY_LOG_KEY = 'body_weight_log';
+export async function loadBodyLog(supabase, userId){
+  const { data } = await supabase.from('settings').select('value').eq('user_id', userId).eq('key', BODY_LOG_KEY).maybeSingle();
+  const v = data && data.value && data.value.v;
+  return Array.isArray(v) ? v.filter(e => e && e.date && Number(e.kg) > 0) : [];
+}
+export async function logBodyWeight(supabase, userId, kg, date){
+  const log = await loadBodyLog(supabase, userId);
+  const out = log.filter(e => e.date !== date).concat({ date, kg: Math.round(kg*10)/10 }).sort((a,b) => a.date < b.date ? -1 : 1).slice(-730);
+  const now = new Date().toISOString();
+  const r1 = await saveSetting(supabase, userId, BODY_LOG_KEY, out);
+  if (r1.error) throw r1.error;
+  // weight_kg follows the latest entry
+  const latest = out[out.length-1];
+  const r2 = await supabase.from('settings').upsert({ user_id:userId, key:'weight_kg', value:{ v: latest.kg }, updated_at:now }, { onConflict:'user_id,key' });
+  if (r2.error) throw r2.error;
+  return out;
+}
+
+// Is this set a new best for the variation? prev: history sessions (newest first) plus sets already
+// logged today. Weighted moves compare estimated max, body-weight moves reps, holds seconds.
+export function newBest(id, set, prevSessions, todaySets){
+  const v = VARIANTS[id]; if (!v || !prevSessions.length) return null;
+  const all = prevSessions.flatMap(s => s.sets).concat((todaySets || []).map(s => ({ weight_kg:s.weight, reps:s.reps, hold_sec:s.hold })));
+  if (v.load === 'time'){ const best = Math.max(0, ...all.map(s => s.hold_sec || 0)); return set.hold > best && best > 0 ? set.hold + ' s hold' : null; }
+  if (v.load === 'bw'){ const best = Math.max(0, ...all.map(s => s.reps || 0)); return set.reps > best && best > 0 ? set.reps + ' reps' : null; }
+  const e = e1rm(set.weight, set.reps); if (!e) return null;
+  const best = Math.max(0, ...all.map(s => e1rm(s.weight_kg, s.reps) || 0));
+  return best > 0 && e > best + 0.05 ? 'estimated max ' + fmtLoad(id, Math.round(e*2)/2) : null;
+}

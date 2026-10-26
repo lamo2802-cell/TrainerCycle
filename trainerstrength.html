@@ -301,7 +301,7 @@ import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayO
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
   weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness,
-  swapOptions, isBarbell, platesText, warmups, bigRidingWeek, lighterWorkout, legLoadFactor } from './strength-kit.js?v=4';
+  swapOptions, isBarbell, platesText, warmups, bigRidingWeek, lighterWorkout, legLoadFactor, newBest } from './strength-kit.js?v=5';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -619,7 +619,10 @@ const supabase = createSupabaseClient();
       const n = Number(b.dataset.rir); form.rir = form.rir === n ? null : n; renderSetForm(entry);
     }));
     document.getElementById('setCompleteBtn').addEventListener('click', ()=>{
-      logged.push({ exIdx: entry.exIdx, base: v.base || entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() });
+      const set = { exIdx: entry.exIdx, base: v.base || entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() };
+      set.pb = newBest(vid, set, history[vid] || [], logged.filter(x => x.variant === vid));
+      logged.push(set);
+      if (set.pb){ beep(990, 140); setTimeout(() => beep(1320, 220), 160); buzz([80, 60, 80]); }
       advance();
     });
     document.getElementById('swapBtn').addEventListener('click', ()=> swapExercise(entry));
@@ -767,9 +770,9 @@ const supabase = createSupabaseClient();
       }
     } else {
       form = null;
-      document.getElementById('stageName').textContent = 'Rest';
       const done = logged[logged.length-1];
-      document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') : '';
+      document.getElementById('stageName').textContent = done && done.pb ? '🏆 New best' : 'Rest';
+      document.getElementById('stageTarget').textContent = done ? 'Logged ' + (done.hold != null ? done.hold + ' s' : (done.weight != null ? fmtLoad(done.variant, done.weight) + ' × ' : '') + done.reps + ' reps') + (done.pb ? ' · ' + done.pb : '') : '';
       const nextEx = flat[idx+1] && flat[idx+1].ex || entry.ex;
       document.getElementById('stageNotes').textContent = 'Next: ' + vinfo(exVariant[flat[idx+1] ? flat[idx+1].exIdx : entry.exIdx] || pickVariant(nextEx.key, kit.equipment, kit.variants), nextEx).name + ' · set ' + (flat[idx+1] ? flat[idx+1].setNum : entry.nextSetNum) + ' of ' + nextEx.sets;
       renderPositions('', document.getElementById('positionsRow'));
