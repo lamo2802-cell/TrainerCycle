@@ -1,10 +1,10 @@
-// Suggested next ride. Picks the library workout that suits today best, within the time the rider
-// has: how hard comes from Form (with a hard ride yesterday, a fast-rising Fitness, a plan rest day
-// or the rider's "how I feel" each easing it off), which zone from how long since each was ridden
-// and how far behind the rider's level is there, and which workout from how close its level is to
-// the target and how well it fills the time. Nothing is ever generated: when no workout fits the
-// time, the nearest one is offered and the reason says so.
-// The max time lives in settings key suggest_max_min; "how I feel" is for today only (localStorage).
+// Suggested next ride. Picks the library workout that suits today best, at the length the rider
+// picked: the length comes first (within 5 minutes of it), then how hard from Form (with a hard ride
+// yesterday, a fast-rising Fitness, a plan rest day or the rider's "how I feel" each easing it off),
+// which zone from how long since each was ridden and how far behind the rider's level is there, and
+// which workout from how close its level is to the target. Nothing is ever generated: when no workout
+// is that close, the nearest length is offered and the reason says so.
+// The chosen length lives in settings key suggest_max_min; "how I feel" is for today only (localStorage).
 import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=3';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
@@ -16,6 +16,7 @@ const HARD = new Set(['sweet_spot', 'threshold', 'vo2max', 'anaerobic']);
 const OFFSET = [-10, 0.25, 1, 2];           // target level above the rider's, by band (very tired: as easy as it gets)
 const RECENT_DAYS = 10;                       // don't suggest a workout ridden this recently
 const GAP_CAP = 21;
+const CLOSE_SEC = 5 * 60;                   // within 5 minutes of the time picked counts as a match
 
 export function durationOf(w){
   if (w.duration_sec) return w.duration_sec;
@@ -90,20 +91,22 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
     if (!wl || !zones.includes(wl.zone)) continue;
     if (w.category === 'recovery' && band > 0) continue;
     const target = Math.max(1, (levels[wl.zone] || 1) + OFFSET[band]);
-    const fit = d <= maxSec + 60 ? (1 - d / maxSec) : 1 + (d - maxSec) / 900;   // over the max costs a lot
-    cands.push({ w, zone: wl.zone, level: wl.level, durationSec: d, over: d > maxSec + 60, recent: recent.has(w.id),
+    const off = Math.abs(d - maxSec);
+    cands.push({ w, zone: wl.zone, level: wl.level, durationSec: d, off, over: off > CLOSE_SEC, recent: recent.has(w.id),
       // a fresh day is for intervals: steady zones stay on offer, behind them
-      score: Math.abs(wl.level - target) + fit + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0) });
+      score: Math.abs(wl.level - target) + off / 600 + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0) });
   }
   if (!cands.length) return null;
-  cands.sort((a, b) => (a.over - b.over) || (a.score - b.score));
+  // The time picked comes first: rides within 5 minutes of it, best first; then the nearest lengths.
+  const bucket = c => c.over ? Math.round(c.off / CLOSE_SEC) : 0;
+  cands.sort((a, b) => (bucket(a) - bucket(b)) || (a.score - b.score));
   // The best in each zone first, so "Something else" offers a different kind of ride, then the rest.
   const picks = [], seen = new Set();
-  for (const c of cands){ if (!seen.has(c.zone)){ seen.add(c.zone); picks.push(c); } }
+  for (const c of cands){ if (bucket(c) === bucket(cands[0]) && !seen.has(c.zone)){ seen.add(c.zone); picks.push(c); } }
   cands.forEach(c => { if (!picks.includes(c)) picks.push(c); });
   // An endurance ride is always on offer as the safe choice.
   const endu = picks.findIndex(c => c.zone === 'endurance');
-  if (endu > 3){ const [e] = picks.splice(endu, 1); picks.splice(3, 0, e); }
+  if (endu > 3 && !picks[endu].over){ const [e] = picks.splice(endu, 1); picks.splice(3, 0, e); }
 
   const top = picks[0];
   const parts = ['Form is ' + signed(form)].concat(why);
@@ -115,29 +118,34 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   // Name the ride by how hard it really is for the rider: the library may not have the exact level.
   const feelWord = difficultyLabel(top.level, levels[top.zone] || 1).label.toLowerCase().replace('recovery-ish', 'easy').replace('not recommended', 'big step up');
   let reason = list + ', so ' + (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + (top.w.category === 'recovery' ? 'recovery' : zoneName(top.zone)) + ' ride.';
-  if (top.over) reason += ' Nothing in the library fits ' + maxMin + ' min, so this is the closest.';
+  if (top.over) reason += ' ' + nearestNote(maxMin, top.durationSec);
   return { picks: picks.slice(0, 6), band, form, reason };
 }
 
-// A shorter workout in the same zone for a plan session that's longer than the time the rider has.
-// When nothing in that zone fits, the shortest one that's still shorter than the session (over: true).
+// The line added when no ride is within 5 minutes of the time picked.
+export function nearestNote(maxMin, sec){
+  return 'Nothing in the library is within 5 min of ' + maxMin + ' min, so this is the nearest length (' + Math.round(sec / 60) + ' min).';
+}
+
+// A shorter workout in the same zone for a plan session that's longer than the time the rider has:
+// as close to that time as the library allows (within 5 minutes when it can), then the nearest level.
 export function shorterVersion(session, library, ftp, maxMin){
   const wl = session.steps ? workoutLevel({ steps: session.steps, category: session.category }, ftp) : null;
   if (!wl) return null;
   const maxSec = maxMin * 60, own = session.durationSec || durationOf({ steps: session.steps });
-  let best = null, nearest = null;
+  let best = null;
   for (const w of library){
     if (!w.steps || w.id === session.dayObj.workoutId || w.category === 'test' || w.category === 'recovery') continue;
     const d = durationOf(w);
     if (!d || d >= own) continue;
     const l = workoutLevel(w, ftp);
     if (!l || l.zone !== wl.zone) continue;
-    const c = { w, zone: l.zone, level: l.level, durationSec: d, over: d > maxSec + 60 };
-    if (c.over){ if (!nearest || d < nearest.durationSec) nearest = c; continue; }
-    c.score = Math.abs(l.level - wl.level) + (1 - d / maxSec);
-    if (!best || c.score < best.score) best = c;
+    const off = Math.abs(d - maxSec);
+    const c = { w, zone: l.zone, level: l.level, durationSec: d, off, over: off > CLOSE_SEC };
+    c.rank = (c.over ? Math.round(off / CLOSE_SEC) : 0) * 100 + Math.abs(l.level - wl.level) + off / 600;
+    if (!best || c.rank < best.rank) best = c;
   }
-  return best || nearest;
+  return best;
 }
 
 export function loadFeel(today){
