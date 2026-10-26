@@ -444,7 +444,7 @@ import { openWelcome } from './welcome.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=3';
-import { suggestRide, shorterVersion, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=1';
+import { suggestRide, shorterVersion, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -595,7 +595,7 @@ const supabase = createSupabaseClient();
       let feel = loadFeel(today), pick = 0;
       const restDay = !!(plan && !todoToday && sessions.some(s => s.date > today && !s.skipped));
       const maxLabel = m => m < 60 ? m+'m' : Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '');
-      const segs = () => '<div class="sg-opts"><div class="sg-row"><span>Time</span><div class="sg-seg" role="group" aria-label="Most time you have">'
+      const segs = () => '<div class="sg-opts"><div class="sg-row"><span>Time</span><div class="sg-seg" role="group" aria-label="How long to ride">'
           + MAX_CHOICES.map(m => '<button data-sg-max="'+m+'" class="'+(m === maxMin ? 'on' : '')+'" aria-pressed="'+(m === maxMin)+'">'+maxLabel(m)+'</button>').join('')+'</div></div>'
         + (sgMode === 'suggest' ? '<div class="sg-row"><span>Feeling</span><div class="sg-seg" role="group" aria-label="How you feel today">'
           + [['tired','Tired'],['','Normal'],['fresh','Fresh']].map(([k, t]) => '<button data-sg-feel="'+k+'" class="'+((feel || '') === k ? 'on' : '')+'" aria-pressed="'+((feel || '') === k)+'">'+t+'</button>').join('')+'</div></div>' : '')
@@ -617,7 +617,7 @@ const supabase = createSupabaseClient();
           const alt = fits ? null : shorterVersion(s, library, ftpW, maxMin);
           box.innerHTML = '<div class="t-label"><span>Shorter version</span></div>' + segs()
             + (fits ? '<div class="sg-why">Today\'s session already fits in '+maxLabel(maxMin)+'.</div>'
-              : alt ? workoutBlock(alt, 'Same zone as '+s.name+(Math.abs(alt.level - (workoutLevel({ steps:s.steps, category:s.category }, ftpW) || {}).level) > 1 ? ', a little easier' : ', at a similar level')+(alt.over ? '. Nothing in the library fits '+maxMin+' min, so this is the closest.' : '. It still ticks off today\'s session.'),
+              : alt ? workoutBlock(alt, 'Same zone as '+s.name+(Math.abs(alt.level - (workoutLevel({ steps:s.steps, category:s.category }, ftpW) || {}).level) > 1 ? ', a little easier' : ', at a similar level')+'. '+(alt.over ? nearestNote(maxMin, alt.durationSec)+' ' : '')+'It still ticks off today\'s session.',
                   s.diaryId ? 'live.html?load='+encodeURIComponent(alt.w.id) : 'live.html?load='+encodeURIComponent(alt.w.id)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex)
               : '<div class="sg-why">Nothing shorter in the same zone in the library.</div>');
           return;
@@ -626,7 +626,7 @@ const supabase = createSupabaseClient();
         if (!res){ box.remove(); return; }
         const c = res.picks[pick % res.picks.length];
         const why = pick % res.picks.length === 0 ? res.reason
-          : 'Another option: '+zoneInfo(c.zone).name.toLowerCase().replace('vo2 max', 'VO2')+(c.over ? '. Nothing in the library fits '+maxMin+' min, so this is the closest.' : '.');
+          : 'Another option: '+zoneInfo(c.zone).name.toLowerCase().replace('vo2 max', 'VO2')+'.'+(c.over ? ' '+nearestNote(maxMin, c.durationSec) : '');
         box.innerHTML = '<div class="t-label"><span>'+(restDay ? 'Rest day · want to ride?' : 'Suggested ride')+'</span><a href="builder.html">Workouts →</a></div>' + segs()
           + workoutBlock(c, why, 'live.html?load='+encodeURIComponent(c.w.id));
       }
