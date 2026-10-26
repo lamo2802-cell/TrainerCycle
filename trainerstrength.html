@@ -233,6 +233,37 @@
   @media (max-width:360px){
     .controls button{ padding:14px 6px; font-size:13.5px; }
   }
+  /* Big screens - a TV, or a tablet/laptop cast or mirrored to one - are read from across the
+     room: the exercise, the target and the rest countdown scale with the screen height instead
+     of staying at desktop sizes in a narrow middle column. */
+  @media (min-width:1500px) and (min-height:901px){
+    .main{ max-width:96vw; }
+    .stage{ padding:2.4vh 20px; }
+    .stage-name{ font-size:clamp(32px, 4.6vh, 110px); margin-bottom:.8vh; }
+    .set-dots{ font-size:clamp(13px, 1.7vh, 40px); gap:.7vh; margin-bottom:1vh; }
+    .set-dots i{ width:clamp(10px, 1.3vh, 30px); height:clamp(10px, 1.3vh, 30px); }
+    .big-target{ font-size:clamp(44px, 7.5vh, 190px); }
+    .stage-target{ font-size:clamp(22px, 2.6vh, 60px); }
+    .stage-notes, .log-tip, .log-why, .log-hint{ font-size:clamp(14px, 1.7vh, 40px); }
+    .log-form, .light-note{ max-width:min(760px, 46vw); }
+    .log-warm, .log-warm .lw-r, .log-warm.inline{ font-size:clamp(13px, 1.6vh, 38px); }
+    .log-warm .lw-t, .rir-q{ font-size:clamp(11px, 1.3vh, 32px); }
+    .log-grid{ grid-template-columns:repeat(auto-fit, minmax(min(300px, 20vw), 1fr)); }
+    .stage-action .stepper button{ width:clamp(44px, 5vh, 110px); height:clamp(44px, 5vh, 110px); font-size:clamp(22px, 2.6vh, 60px); }
+    .stepper .sv b{ font-size:clamp(24px, 3.4vh, 80px); }
+    .stepper .sv span{ font-size:clamp(11px, 1.2vh, 28px); }
+    .stage-action .rir button{ font-size:clamp(15px, 2vh, 46px); padding:1.2vh 0; }
+    .rest-ring{ width:min(40vh, 60vw); margin:1.4vh auto 2.2vh; }
+    .rest-ring .stage-rest-count{ font-size:clamp(56px, 11vh, 280px); }
+    .up-next{ max-width:min(900px, 50vw); padding:1.2vh 1.8vh; }
+    .up-next .pill{ font-size:clamp(10.5px, 1.3vh, 30px); }
+    .up-next .un-t{ font-size:clamp(15px, 2.3vh, 54px); }
+    .up-next .un-v{ font-size:clamp(22px, 3.6vh, 86px); }
+    .up-next .un-v small, .up-next .un-w{ font-size:clamp(13px, 1.7vh, 40px); }
+    .sstrip-bars i{ height:clamp(7px, .9vh, 20px); }
+    .sstrip-meta{ font-size:clamp(13px, 1.6vh, 38px); }
+    .controls button{ font-size:clamp(16px, 2vh, 46px); padding:1.6vh 14px; }
+  }
 
   .celebrate-overlay{ position:fixed; inset:0; background:rgba(16,20,26,0.94); z-index:200; display:flex; align-items:center; justify-content:center; }
   .celebrate-overlay canvas{ position:absolute; inset:0; width:100%; height:100%; }
