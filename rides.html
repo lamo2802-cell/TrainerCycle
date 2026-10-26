@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>TrainerCycle — Rides</title>
+<title>TrainerCycle — Progress</title>
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
@@ -86,6 +86,18 @@
   .page-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
   .page-head h1{ font-size:24px; margin:0; }
   .head-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .hub-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px 20px; flex-wrap:wrap; margin-bottom:16px; }
+  .hub-head h1{ font-size:24px; margin:0; }
+  .hub-sub{ color:var(--text-dim); font-size:13px; margin:-4px 0 14px; }
+  .p-tabs{ display:flex; gap:4px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:4px; overflow-x:auto; max-width:100%; scrollbar-width:none; }
+  .p-tabs a{ padding:7px 13px; border-radius:7px; color:var(--text-dim); text-decoration:none; font-size:13.5px; font-weight:600; white-space:nowrap; }
+  .p-tabs a:hover{ color:var(--text); }
+  .p-tabs a.on{ background:var(--panel-2); color:var(--text); box-shadow:inset 0 -2px 0 var(--accent); }
+  @media (max-width:600px){ .p-tabs{ width:100%; } .p-tabs a{ flex:1 0 auto; text-align:center; padding:7px 8px; font-size:13px; } .tab-long{ display:none; } }
+  #hubView .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  #hubView .seg button{ border:none; border-radius:0; background:var(--panel-2); color:var(--text); cursor:pointer; font-family:inherit; }
+  #hubView .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
+  :root{ --s-fitness:#239E90; --s-fatigue:#CC6A22; --s-form:#8A7BEB; }
   .ghost-btn{ width:auto; margin:0; padding:8px 14px; border-radius:8px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-weight:600; font-size:13.5px; cursor:pointer; }
   .ride-row .mini.run{ display:flex; align-items:center; gap:6px; color:#C084FC; font-size:12px; font-family:var(--mono); }
   .ride-row .mini.run svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
@@ -301,16 +313,21 @@
   </div>
 
   <div class="main">
-    <div id="listView">
+    <div id="hubTop">
       <div class="page-banner" style="background-image:url('banner-rides.jpg');"></div>
+      <div class="hub-head"><h1>Progress</h1>
+        <nav class="p-tabs" id="pTabs" aria-label="Progress"><a data-view="" href="rides.html">Activities</a><a data-view="fitness" href="?view=fitness">Fitness<span class="tab-long"> &amp; form</span></a><a data-view="performance" href="?view=performance">Performance</a><a data-view="records" href="?view=records">Records</a></nav>
+      </div>
+    </div>
+    <div id="listView">
       <div class="page-head">
-        <h1>Rides</h1>
-        <div class="head-actions"><a class="ghost-btn" id="recordsBtn" href="?view=records">Records</a><button class="ghost-btn" id="logRideBtn">+ Log a ride</button><button class="ghost-btn" id="logRunBtn">+ Log a run</button><button class="ghost-btn" id="logSwimBtn">+ Log a swim</button>
+        <div class="head-actions"><button class="ghost-btn" id="logRideBtn">+ Log a ride</button><button class="ghost-btn" id="logRunBtn">+ Log a run</button><button class="ghost-btn" id="logSwimBtn">+ Log a swim</button>
         <div class="seg" id="filterSeg"><button data-f="" class="on">All</button><button data-f="rides">Rides</button><button data-f="runs">Runs</button><button data-f="swims">Swims</button><button data-f="strength">Strength</button><button data-f="partial">Partial</button></div></div>
       </div>
       <div class="summary" id="summary"></div>
       <div id="ridesList"><div class="sk-stack" aria-label="Loading"><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div></div></div>
     </div>
+    <div id="hubView" style="display:none;"></div>
     <div id="detailView" style="display:none;"></div>
   </div>
 </div>
@@ -322,12 +339,14 @@ import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=5';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=1';
+import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=1';
+import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + FITNESS_CSS + PERFORMANCE_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -401,15 +420,17 @@ const supabase = createSupabaseClient();
       if (!fresh.length) return;
       rides = rides.concat(fresh).sort((a,b)=> a.started_at < b.started_at ? 1 : -1);
       renderList();
-      if (new URLSearchParams(location.search).get('view') === 'records') showRecords();
+      trainHist = null; // the next Fitness or Performance view reloads with these in
+      const v = new URLSearchParams(location.search).get('view');
+      if (v && !new URLSearchParams(location.search).get('ride')) showHub(v);
     }, ()=>{});
     const q = new URLSearchParams(window.location.search);
     const summaryId = q.get('summary'), rideId = q.get('ride');
     if (q.get('log') === 'swim'){
       history.replaceState({}, '', location.pathname);
       logSwim();
-    } else if (q.get('view') === 'records'){
-      await showRecords();
+    } else if (q.get('view')){
+      await showHub(q.get('view'));
     } else if (summaryId){
       history.replaceState({ ride: summaryId }, '', '?ride='+encodeURIComponent(summaryId));
       await showDetail(summaryId, { justSaved:true });
@@ -459,7 +480,7 @@ const supabase = createSupabaseClient();
   function runDetailHtml(r){
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
-    return '<button class="back" data-back>‹ Rides</button>'
+    return '<button class="back" data-back>‹ Activities</button>'
       + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag run">'+(r.source === 'strava' ? 'From Strava' : 'Run')+'</span></h1>'
       + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'">Delete run</button></div></div>'
@@ -476,7 +497,7 @@ const supabase = createSupabaseClient();
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
     const pace = r.distance_m ? fmtSwimPace(r.duration_sec/(r.distance_m/100)) : null;
     const where = r.category === 'open_water' ? 'Open water' : 'Pool';
-    return '<button class="back" data-back>‹ Rides</button>'
+    return '<button class="back" data-back>‹ Activities</button>'
       + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag swim">'+(r.source === 'strava' ? 'From Strava' : where)+'</span></h1>'
       + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="swim">Delete swim</button></div></div>'
@@ -490,7 +511,7 @@ const supabase = createSupabaseClient();
   function strengthDetailHtml(r){
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
     const sets = r.samples && r.samples[0] && r.samples[0].sets != null ? r.samples[0] : null;
-    return '<button class="back" data-back>‹ Rides</button>'
+    return '<button class="back" data-back>‹ Activities</button>'
       + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag strength">Strength</span>'+(r.completed ? '' : '<span class="tag">Partial</span>')+'</h1>'
       + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
       + '<div class="d-actions"><a class="ghost-btn" href="trainerstrength.html?load='+encodeURIComponent(r.workout_id || '')+'">Do it again</a><button data-del-run="'+r.id+'" data-what="session">Delete session</button></div></div>'
@@ -529,7 +550,7 @@ const supabase = createSupabaseClient();
     const kj = r.avg_power!=null ? Math.round(r.avg_power*r.duration_sec/1000) : null;
     const manual = r.source === 'manual';
     const how = manual ? (r.avg_power ? 'from your average power and FTP' : 'from how it felt') : r.np ? 'from your power and FTP' : r.avg_hr ? 'from your heart rate against your threshold heart rate (set it in Settings)' : 'as a steady endurance ride, since there was no power or heart rate';
-    return '<button class="back" data-back>‹ Rides</button>'
+    return '<button class="back" data-back>‹ Activities</button>'
       + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+(manual ? '<span class="tag">Logged</span>' : '<span class="tag strava">From Strava</span>')+'</h1>'
       + '<div class="when">'+fmtDate(r.started_at)+'</div>'+importedPbs(r)+'</div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="ride">Delete ride</button></div></div>'
@@ -645,13 +666,54 @@ const supabase = createSupabaseClient();
   });
   window.addEventListener('popstate', ()=>{
     const q = new URLSearchParams(location.search), id = q.get('ride');
-    if (id) showDetail(id); else if (q.get('view') === 'records') showRecords(); else showList();
+    if (id) showDetail(id); else showHub(q.get('view') || '');
   });
-  function showList(){
-    document.getElementById('detailView').style.display = 'none';
-    document.getElementById('listView').style.display = '';
-    current = null;
+  function showList(){ showHub(''); }
+
+  // ---- Progress tabs: Activities (the list), Fitness & form, Performance, Records ----
+  const VIEWS = ['', 'fitness', 'performance', 'records'];
+  let trainHist = null; // { acts, planned, ftp } for Fitness and Performance, loaded once
+  async function loadHistory(){
+    if (trainHist) return trainHist;
+    const since = new Date(Date.now() - 400*86400000).toISOString();
+    const [aRes, fRes] = await Promise.all([
+      supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,intensity_factor,np,plan_id,category,source,completed,workout_name')
+        .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
+      supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+    ]);
+    if (aRes.error) throw aRes.error;
+    const acts = aRes.data || [];
+    let planned = [];
+    try { planned = await loadPlanned(supabase, user.id, acts); } catch(_){}
+    trainHist = { acts, planned, ftp: (fRes.data && fRes.data.value && Number(fRes.data.value.v)) || null };
+    return trainHist;
   }
+  async function showHub(view){
+    if (!VIEWS.includes(view)) view = '';
+    document.getElementById('hubTop').style.display = '';
+    document.getElementById('detailView').style.display = 'none';
+    document.getElementById('listView').style.display = view ? 'none' : '';
+    const hub = document.getElementById('hubView');
+    hub.style.display = view ? '' : 'none';
+    document.querySelectorAll('#pTabs a').forEach(a => { const on = a.dataset.view === view; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    current = null;
+    if (!view) return;
+    if (view === 'records') return showRecords();
+    hub.innerHTML = '<div class="sk-stack" aria-label="Loading"><div class="sk" style="height:90px"></div><div class="sk" style="height:300px"></div></div>';
+    let h;
+    try { h = await loadHistory(); }
+    catch(e){ hub.innerHTML = '<div class="empty-note">Couldn\'t load your training. Check your connection and refresh.</div>'; return; }
+    if (new URLSearchParams(location.search).get('view') !== view) return; // moved on while loading
+    if (view === 'fitness'){ hub.innerHTML = '<div id="fitRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); }
+    else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); }
+  }
+  document.getElementById('pTabs').addEventListener('click', e=>{
+    const a = e.target.closest('a[data-view]'); if (!a) return;
+    e.preventDefault();
+    const v = a.dataset.view;
+    history.pushState({ view: v }, '', v ? '?view='+v : location.pathname);
+    showHub(v);
+  });
 
   // ---- records: best power over the key durations, best run times over the key distances ----
   const REC_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600];
@@ -689,7 +751,7 @@ const supabase = createSupabaseClient();
     const recent = bestsOver(ridesOnly.filter(r => r.started_at >= since), 'power_bests', REC_DURS, (a,b)=>a>b);
     const runs = bestsOver(rides.filter(isRun), 'run_bests', RUN_RECS.map(x=>x[0]), (a,b)=>a<b);
     const shortDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' }); };
-    let html = '<button class="back" data-back>‹ Rides</button><div class="d-head"><div><h1>Records</h1><div class="when">Your best power and run times, from TrainerCycle and Strava.</div></div></div>';
+    let html = '<p class="hub-sub">Your best power and run times, from TrainerCycle and Strava.</p>';
     html += '<div class="panel"><div class="panel-title"><span>Power bests</span><span class="rec-legend"><span><i style="background:#45D6C4"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span></div>';
     if (!Object.keys(all).length){
       html += '<div class="empty-note">Ride with a power meter and your best efforts will show here.</div>';
@@ -715,7 +777,7 @@ const supabase = createSupabaseClient();
     return html + '</div>';
   }
   async function showRecords(){
-    const el = document.getElementById('detailView');
+    const el = document.getElementById('hubView');
     document.getElementById('listView').style.display = 'none';
     el.style.display = '';
     window.scrollTo(0,0);
@@ -725,12 +787,7 @@ const supabase = createSupabaseClient();
     }
     el.innerHTML = recordsHtml(el.clientWidth - 34);
   }
-  document.getElementById('recordsBtn').addEventListener('click', e=>{
-    e.preventDefault();
-    history.pushState({ view:'records' }, '', '?view=records');
-    showRecords();
-  });
-  document.getElementById('detailView').addEventListener('click', e=>{
+  document.getElementById('hubView').addEventListener('click', e=>{
     const row = e.target.closest('.rec[data-ride], .run-recs [data-ride]'); if (!row) return;
     history.pushState({ ride: row.dataset.ride }, '', '?ride='+encodeURIComponent(row.dataset.ride));
     showDetail(row.dataset.ride);
@@ -778,17 +835,19 @@ const supabase = createSupabaseClient();
   async function showDetail(id, opts={}){
     const el = document.getElementById('detailView');
     document.getElementById('listView').style.display = 'none';
+    document.getElementById('hubTop').style.display = 'none';
+    document.getElementById('hubView').style.display = 'none';
     el.style.display = '';
     window.scrollTo(0,0);
     let ride = detailCache[id];
     if (!ride){
-      el.innerHTML = '<button class="back" data-back>‹ Rides</button><div class="empty-note">Loading ride…</div>';
+      el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">Loading ride…</div>';
       try {
         const { data, error } = await supabase.from('completed_rides').select('*').eq('id', id).maybeSingle();
         if (error) throw error;
         ride = data;
       } catch(e){ ride = null; }
-      if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Rides</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
+      if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
     if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline, '#C084FC'); return; }
@@ -803,7 +862,7 @@ const supabase = createSupabaseClient();
     const kj = ride.avg_power!=null ? Math.round(ride.avg_power*ride.duration_sec/1000) : null;
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
 
-    let html = '<button class="back" data-back>‹ Rides</button>';
+    let html = '<button class="back" data-back>‹ Activities</button>';
     const pbs = newBests(ride, rides.some(r=>r.id===ride.id) ? rides.map(r=> r.id===ride.id ? Object.assign({}, r, { power_bests: ride.power_bests }) : r) : rides.concat([ride]));
     current.pbs = pbs;
     const pbHtml = pbs.length ? '<div class="pb-chips">'+pbs.map(b=>'<span class="pb-chip" title="Previous best '+b.prev+' W">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';

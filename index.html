@@ -297,6 +297,17 @@
   .adapt-body b{ font-size:14.5px; }
   .adapt-body p{ margin:3px 0 10px; font-size:13px; color:var(--text-dim); line-height:1.45; }
   .adapt-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .sg-opts{ display:flex; flex-direction:column; gap:8px; margin:2px 0 14px; }
+  .sg-row{ display:flex; align-items:center; gap:10px; }
+  .sg-row > span{ font-size:12px; color:var(--text-dim); width:52px; flex-shrink:0; }
+  .sg-seg{ display:inline-flex; flex-wrap:wrap; gap:2px; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:3px; }
+  .sg-seg button{ width:auto; margin:0; background:none; border:none; color:var(--text-dim); font:600 12.5px var(--sans); padding:6px 10px; border-radius:6px; cursor:pointer; }
+  .sg-seg button:hover{ color:var(--text); }
+  .sg-seg button.on{ background:var(--accent); color:#08211E; }
+  @media (max-width:480px){ .sg-row > span{ display:none; } .sg-seg{ display:flex; flex-wrap:nowrap; flex:1; } .sg-seg button{ flex:1; padding:6px 4px; } }
+  .sg-why{ font-size:13.5px; color:var(--text-dim); line-height:1.45; margin-top:8px; max-width:620px; }
+  .sg-short{ margin-top:12px; }
+  .sg-inline{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
   .run-desc{ font-size:14px; color:var(--text-dim); line-height:1.5; margin:10px 0 2px; max-width:560px; }
   .last-foot{ margin-top:10px; display:flex; gap:16px; flex-wrap:wrap; }
   .adapted-note{ font-size:12.5px; color:var(--accent); margin-top:4px; }
@@ -433,6 +444,7 @@ import { openWelcome } from './welcome.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=3';
+import { suggestRide, shorterVersion, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -505,7 +517,7 @@ const supabase = createSupabaseClient();
 
     const today = todayIso();
     let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
-    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null;
+    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null, maxMin = DEFAULT_MAX;
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
       const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes, hol, rpRes, dy] = await Promise.all([
@@ -520,12 +532,12 @@ const supabase = createSupabaseClient();
         supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle(),
         loadHolidays(supabase, user.id),
-        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY]),
+        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY, SUGGEST_MAX_KEY]),
         loadDiary(supabase, user.id)
       ]);
       holidays = hol || [];
       diary = dy || [];
-      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else paceDismissed = Number(r.value && r.value.v) || null; });
+      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else if (r.key === SUGGEST_MAX_KEY) maxMin = Number(r.value && r.value.v) || DEFAULT_MAX; else paceDismissed = Number(r.value && r.value.v) || null; });
       setRunPace(runPace);
       if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
@@ -576,6 +588,59 @@ const supabase = createSupabaseClient();
     const findSession = key => /^d:/.test(key) ? singles.find(x => x.diaryId === key.slice(2)) : sessions.find(x => x.dayIndex === Number(key));
 
     let html = '<div class="today-hello"><h1>'+hello+'</h1><span class="date">'+dateStr+'</span></div>';
+
+    function mountSuggest(){
+      const box = document.getElementById('suggestBox');
+      if (!box) return;
+      let feel = loadFeel(today), pick = 0;
+      const restDay = !!(plan && !todoToday && sessions.some(s => s.date > today && !s.skipped));
+      const maxLabel = m => m < 60 ? m+'m' : Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '');
+      const segs = () => '<div class="sg-opts"><div class="sg-row"><span>Time</span><div class="sg-seg" role="group" aria-label="Most time you have">'
+          + MAX_CHOICES.map(m => '<button data-sg-max="'+m+'" class="'+(m === maxMin ? 'on' : '')+'" aria-pressed="'+(m === maxMin)+'">'+maxLabel(m)+'</button>').join('')+'</div></div>'
+        + (sgMode === 'suggest' ? '<div class="sg-row"><span>Feeling</span><div class="sg-seg" role="group" aria-label="How you feel today">'
+          + [['tired','Tired'],['','Normal'],['fresh','Fresh']].map(([k, t]) => '<button data-sg-feel="'+k+'" class="'+((feel || '') === k ? 'on' : '')+'" aria-pressed="'+((feel || '') === k)+'">'+t+'</button>').join('')+'</div></div>' : '')
+        + '</div>';
+      function workoutBlock(c, why, href){
+        const z = zoneInfo(c.zone), d = difficultyLabel(c.level, levels[c.zone]);
+        const IF = workoutIf(c.w.steps, ftpW), tss = plannedTss(c.w.steps, ftpW);
+        return '<div class="hero-name">'+esc(c.w.name)+'</div>'
+          + '<div class="hero-meta"><span><b>'+fmtMins(c.durationSec)+'</b></span>'+(tss ? '<span><b>'+tss+'</b>TSS</span>' : '')+(IF ? '<span><b>'+IF.toFixed(2)+'</b>IF</span>' : '')
+          + '<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+' · '+d.label+'</span></div>'
+          + (why ? '<div class="sg-why">'+esc(why)+'</div>' : '')
+          + profileSvg(c.w.steps, ftpW)
+          + '<div class="hero-actions"><a class="t-btn primary" href="'+href+'">Ride it</a>'+(sgMode === 'suggest' ? '<button class="t-btn" data-sg-next>Something else</button>' : '')+'</div>';
+      }
+      function draw(){
+        if (sgMode === 'shorter'){
+          const s = rideToday;
+          const fits = s.durationSec && s.durationSec <= maxMin*60 + 60;
+          const alt = fits ? null : shorterVersion(s, library, ftpW, maxMin);
+          box.innerHTML = '<div class="t-label"><span>Shorter version</span></div>' + segs()
+            + (fits ? '<div class="sg-why">Today\'s session already fits in '+maxLabel(maxMin)+'.</div>'
+              : alt ? workoutBlock(alt, 'Same zone as '+s.name+(Math.abs(alt.level - (workoutLevel({ steps:s.steps, category:s.category }, ftpW) || {}).level) > 1 ? ', a little easier' : ', at a similar level')+(alt.over ? '. Nothing in the library fits '+maxMin+' min, so this is the closest.' : '. It still ticks off today\'s session.'),
+                  s.diaryId ? 'live.html?load='+encodeURIComponent(alt.w.id) : 'live.html?load='+encodeURIComponent(alt.w.id)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex)
+              : '<div class="sg-why">Nothing shorter in the same zone in the library.</div>');
+          return;
+        }
+        const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay });
+        if (!res){ box.remove(); return; }
+        const c = res.picks[pick % res.picks.length];
+        const why = pick % res.picks.length === 0 ? res.reason
+          : 'Another option: '+zoneInfo(c.zone).name.toLowerCase().replace('vo2 max', 'VO2')+(c.over ? '. Nothing in the library fits '+maxMin+' min, so this is the closest.' : '.');
+        box.innerHTML = '<div class="t-label"><span>'+(restDay ? 'Rest day · want to ride?' : 'Suggested ride')+'</span><a href="builder.html">Workouts →</a></div>' + segs()
+          + workoutBlock(c, why, 'live.html?load='+encodeURIComponent(c.w.id));
+      }
+      box.addEventListener('click', async e => {
+        const t = e.target.closest('[data-sg-max],[data-sg-feel],[data-sg-next]');
+        if (!t) return;
+        if (t.dataset.sgMax){ maxMin = Number(t.dataset.sgMax); pick = 0; draw(); try { await saveMaxMin(supabase, user.id, maxMin); } catch(_){} }
+        else if (t.dataset.sgFeel != null){ feel = t.dataset.sgFeel || null; pick = 0; saveFeel(today, feel); draw(); }
+        else { pick++; draw(); }
+      });
+      const open = el.querySelector('[data-sg-open]');
+      if (open) open.addEventListener('click', () => { box.hidden = !box.hidden; open.setAttribute('aria-expanded', String(!box.hidden)); });
+      draw();
+    }
 
     // Getting started: the handful of things that make everything else work, until they're done.
     let trainerSeen = false;
@@ -658,7 +723,7 @@ const supabase = createSupabaseClient();
       const z = zoneInfo(wl.zone), d = difficultyLabel(wl.level, levels[wl.zone]);
       return '<span class="lvl-chip" style="--zc:'+z.color+'" title="Your '+z.name+' level is '+fmtLevel(levels[wl.zone])+'">'+z.short+' '+fmtLevel(wl.level)+' · '+d.label+'</span>';
     }
-    function sessionHero(s, heading){
+    function sessionHero(s, heading, extra = ''){
       const IF = !s.isStrength && !s.isBrick && s.steps ? workoutIf(s.steps, ftpW) : null;
       return '<div class="t-panel hero-card"><div class="t-label"><span>'+heading+'</span><a href="calendar.html">Calendar →</a></div>'
         + '<div class="hero-name">'+esc(s.name)+'</div>'
@@ -679,9 +744,14 @@ const supabase = createSupabaseClient();
           : s.isSwim ? '<button class="t-btn primary" data-log-swim="'+keyOf(s)+'">Log swim</button>'
           : s.isRun ? '<button class="t-btn primary" data-log-run="'+keyOf(s)+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
-        + (!s.isStrength && !s.isSwim && !s.isRace && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+keyOf(s)+'">Download file</button>' : '')+'</div></div>';
+        + (!s.isStrength && !s.isSwim && !s.isRace && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+keyOf(s)+'">Download file</button>' : '')+'</div>'+extra+'</div>';
     }
     const awayNow = holidayOn(today, holidays);
+    // Suggested ride: on days with nothing to do (or nothing left), or a shorter version of today's planned ride.
+    const library = Object.values(workouts).filter(w => w.steps);
+    const rideToday = todoToday && !todoToday.isStrength && !todoToday.isRun && !todoToday.isSwim && !todoToday.isRace && !todoToday.isBrick && todoToday.steps ? todoToday : null;
+    const sgMode = !rides.length || awayNow || ridTodayList.length || !library.length ? null : !todoToday ? 'suggest' : rideToday ? 'shorter' : null;
+    const sgBox = '<div class="t-panel sg-card" id="suggestBox"></div>';
     if (awayNow && !todoToday && !ridTodayList.length){
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
         + '<div class="hero-name">Enjoy '+esc(awayNow.name || 'your holiday')+'</div>'
@@ -689,7 +759,8 @@ const supabase = createSupabaseClient();
         + (nextS ? ' Next up: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'.' : '')+'</div>'
         + '<div class="hero-actions"><button class="t-btn" data-log-run="">+ Log a run</button><button class="t-btn" data-log-swim="">+ Log a swim</button><a class="t-btn" href="builder.html">Ride anyway</a></div></div>';
     } else if (todoToday){
-      html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout');
+      html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout', sgMode === 'shorter'
+        ? '<div class="sg-short"><button class="link-btn" data-sg-open>Short on time? Find a shorter version</button></div><div class="sg-inline" id="suggestBox" hidden></div>' : '');
     } else if (ridTodayList.length){
       const r = ridTodayList[ridTodayList.length-1];
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
@@ -703,10 +774,14 @@ const supabase = createSupabaseClient();
         + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : r.sport === 'strength' ? 'See session' : 'See ride')+'</a></div></div>';
     } else if (nextS){
       html += sessionHero(nextS, 'Rest day · up next '+dayLabel(nextS.date));
+      if (sgMode) html += sgBox;
     } else if (plan){
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Plan complete</span></div><div class="hero-name">You finished '+esc(plan.name)+'</div>'
         + '<div class="hero-sub">A Ramp Test now resets your targets for the next block.</div>'
         + '<div class="hero-actions"><a class="t-btn primary" href="live.html?load=prebuilt-ramp-test-25">Take a Ramp Test</a><a class="t-btn" href="plans.html">Choose next plan</a></div></div>';
+      if (sgMode) html += sgBox;
+    } else if (sgMode){
+      html += sgBox.replace('sg-card', 'sg-card hero-card');
     } else {
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span></div><div class="hero-name">What are we riding?</div>'
         + '<div class="hero-sub">Follow a plan and your sessions land here each day, or pick a workout that fits the time you have.</div>'
@@ -753,7 +828,7 @@ const supabase = createSupabaseClient();
       + (streak >= 2 ? '<div class="streak"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.3 1.6 1.2 2.6 2.3 2.8C11 8.6 11.2 5.6 12 3z"/></svg><b>'+streak+'-week streak</b><span>training every week since '+streakSince+'</span></div>' : '')
       + '</div>';
 
-    html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="calendar.html">Chart →</a></div><div class="load-tiles">'
+    html += '<div class="t-panel"><div class="t-label"><span>Fitness &amp; form</span><a href="rides.html?view=fitness">Chart →</a></div><div class="load-tiles">'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-count="'+Math.round(now.ctl)+'">'+Math.round(now.ctl)+'</div><div class="note">42-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" data-count="'+Math.round(now.atl)+'">'+Math.round(now.atl)+'</div><div class="note">7-day load</div></div>'
       + '<div class="load-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val">'+(form>0?'+':'')+form+'</div><div class="note">'+formLabel(form)+'</div></div>'
@@ -779,6 +854,7 @@ const supabase = createSupabaseClient();
       + '</div></div>';
 
     el.innerHTML = html;
+    if (sgMode) mountSuggest();
     el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in');
     countUp(el);
     const welcomeBtn = el.querySelector('[data-welcome]');
