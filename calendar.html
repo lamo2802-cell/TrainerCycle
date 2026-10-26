@@ -290,7 +290,7 @@ import { openExportSheet } from './export.js?v=3';
 import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=2';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtMetres } from './swim.js?v=2';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
-import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=1';
+import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -740,7 +740,7 @@ const supabase = createSupabaseClient();
       + (s.moved ? ' (planned for '+longDate(s.plannedDate)+')' : '')
       + (s.dayObj.holiday ? ' · Easy version for '+s.dayObj.holiday : s.dayObj.swappedFrom ? ' · Adapted from '+((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom) : '')
       + (s.isStrength ? ' · Strength' : ((s.isRun ? ' · Run' : s.isSwim ? ' · Swim' : s.isBrick ? ' · Brick' : s.isRace ? ' · Race' : '')+(s.durationSec ? ' · '+fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : '')));
-    const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
+    const rideHref = s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
     const minDate = todayIso();
     document.getElementById('sheetBody').innerHTML =

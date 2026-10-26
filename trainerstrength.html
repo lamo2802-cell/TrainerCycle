@@ -281,6 +281,33 @@ const supabase = createSupabaseClient();
   let elapsedSec = 0;
   let restRemaining = 0;
   let totalSets = 0;
+  let startedAt = null;  // when the current session started, for the saved record
+  // Plan session this one ticks off, from ?plan=&day= (set by Today and the Calendar).
+  const params = new URLSearchParams(window.location.search);
+  const planLink = params.get('plan') && params.get('day') != null ? { planId: params.get('plan'), dayIndex: Number(params.get('day')), workoutId: params.get('load') } : null;
+
+  // Saves a finished (or stopped part-way) session to the activity history. Strength TSS is a rough
+  // steady estimate (IF 0.6, about 36 an hour) so sessions count a little towards Fitness and Fatigue.
+  const STRENGTH_IF = 0.6;
+  async function saveSession({ completed, durationSec, setsDone }){
+    const w = library.find(x => x.id === document.getElementById('workoutSelect').value);
+    if (!w || durationSec < 60) return null;
+    const record = {
+      id: 'strength_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
+      user_id: user.id, sport:'strength', source:'trainercycle', category:'strength',
+      workout_name: w.name, workout_id: w.id, started_at: startedAt || new Date(Date.now() - durationSec*1000).toISOString(),
+      duration_sec: Math.round(durationSec), completed, samples: [{ sets: setsDone, of: totalSets }],
+      tss: Math.round(durationSec/3600 * STRENGTH_IF * STRENGTH_IF * 100), intensity_factor: STRENGTH_IF,
+      plan_id: planLink && planLink.workoutId === w.id ? planLink.planId : null, plan_day_index: planLink && planLink.workoutId === w.id ? planLink.dayIndex : null,
+    };
+    for (let i = 0; i < 3; i++){
+      const { error } = await supabase.from('completed_rides').insert(record);
+      if (!error) return record;
+      await new Promise(r => setTimeout(r, 1500 * (i+1)));
+    }
+    await notify('Check your connection. The session wasn\'t saved to your history.', 'Couldn\'t save this session');
+    return null;
+  }
 
   // A workout "needs equipment" if any exercise is marked 'required' - 'optional' ones
   // (can be done bodyweight or loaded) don't push a workout into that bucket on their own.
@@ -448,7 +475,7 @@ const supabase = createSupabaseClient();
       return;
     }
     running = true;
-    if (idx === -1 && flat.length) advance();
+    if (idx === -1 && flat.length){ startedAt = new Date().toISOString(); advance(); }
     tickHandle = setInterval(tick, 1000);
     document.getElementById('startBtn').disabled = true;
     document.getElementById('pauseBtn').disabled = false;
@@ -465,13 +492,14 @@ const supabase = createSupabaseClient();
     document.getElementById('pauseBtn').disabled = true;
     releaseWakeLock();
   });
-  function stopSession(completed){
+  async function stopSession(completed){
     running = false;
     clearInterval(tickHandle);
     releaseWakeLock();
     document.querySelector('.live-layout').classList.remove('session-active');
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
+    const setsDone = completed ? totalSets : completedSetsCount();
     idx = -1; elapsedSec = 0;
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'Start';
@@ -479,7 +507,15 @@ const supabase = createSupabaseClient();
     document.getElementById('stopBtn').disabled = true;
     document.getElementById('workoutSelect').disabled = false;
     renderStage();
-    if (completed) showCelebration('Workout Complete!', fmtDur(finalElapsed) + ' · ' + finalSets + ' sets done');
+    if (completed){
+      showCelebration('Workout Complete!', fmtDur(finalElapsed) + ' · ' + finalSets + ' sets done');
+      const saved = await saveSession({ completed:true, durationSec: finalElapsed, setsDone });
+      if (saved) document.getElementById('celebrateSubtitle').textContent += ' · Saved to your history';
+    } else if (setsDone > 0 && finalElapsed >= 60){
+      const keep = await ask('You did '+setsDone+' of '+finalSets+' sets in '+fmtDur(finalElapsed)+'. Save it to your history so it counts?', { title:'Save this session?', ok:'Save', cancel:'Don\'t save' });
+      if (keep && await saveSession({ completed:false, durationSec: finalElapsed, setsDone })) notify('It\'s in your history and counts towards your training load.', 'Session saved');
+    }
+    startedAt = null;
   }
   document.getElementById('stopBtn').addEventListener('click', ()=>stopSession(false));
 

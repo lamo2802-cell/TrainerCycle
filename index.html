@@ -431,7 +431,7 @@ import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=2';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openWelcome } from './welcome.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
-import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=1';
+import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=3';
 const supabase = createSupabaseClient();
 
@@ -569,7 +569,7 @@ const supabase = createSupabaseClient();
     const series = loadSeries(daily, firstDay < today ? firstDay : today, today, today);
     const now = series[series.length-1];
     const form = Math.round(now.ctl - now.atl);
-    const rideHref = s => s.diaryId ? diaryHref(s) : s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)
+    const rideHref = s => s.diaryId ? diaryHref(s) : s.isStrength ? 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
     // Buttons name a session by its plan day, or 'd:'+id for a single planned workout.
     const keyOf = s => s.diaryId ? 'd:'+s.diaryId : String(s.dayIndex);
@@ -700,7 +700,7 @@ const supabase = createSupabaseClient();
           + (r.sport === 'ride' && r.source === 'strava' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
           + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+((r.sport || 'ride') === 'ride' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
         + (nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
-        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : 'See ride')+'</a></div></div>';
+        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : r.sport === 'strength' ? 'See session' : 'See ride')+'</a></div></div>';
     } else if (nextS){
       html += sessionHero(nextS, 'Rest day · up next '+dayLabel(nextS.date));
     } else if (plan){
@@ -768,7 +768,7 @@ const supabase = createSupabaseClient();
     const lastIsRun = last && last.sport === 'run', lastIsSwim = last && last.sport === 'swim';
     const lastBests = last && !lastIsRun && !lastIsSwim ? newBests(last, rides.filter(r => (r.sport || 'ride') === 'ride')) : [];
     const lastBestsHtml = lastBests.length ? '<div class="pb-chips">'+lastBests.map(b=>'<span class="pb-chip">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
-    html += '<div class="t-panel"><div class="t-label"><span>'+(lastIsRun ? 'Last run' : lastIsSwim ? 'Last swim' : 'Last ride')+'</span><a href="rides.html">All activity →</a></div>'
+    html += '<div class="t-panel"><div class="t-label"><span>'+(lastIsRun ? 'Last run' : lastIsSwim ? 'Last swim' : last && last.sport === 'strength' ? 'Last strength session' : 'Last ride')+'</span><a href="rides.html">All activity →</a></div>'
       + (last ? '<a class="last-ride" href="rides.html?ride='+encodeURIComponent(last.id)+'"><div><div class="nm">'+esc(last.workout_name)+'</div><div class="when">'+relDay(isoDate(new Date(last.started_at)))+'</div>'+lastBestsHtml+'</div>'
           + '<div class="stats"><span><b>'+fmtMins(last.duration_sec)+'</b>time</span>'
           + (lastIsSwim ? (last.distance_m ? '<span><b>'+fmtMetres(last.distance_m)+'</b>swim</span><span><b>'+fmtSwimPace(last.duration_sec/(last.distance_m/100))+'</b>/100 m</span>' : '')+(last.tss!=null ? '<span><b>'+last.tss+'</b>TSS</span>' : '')
