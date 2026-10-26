@@ -316,7 +316,7 @@
     <div id="hubTop">
       <div class="page-banner" style="background-image:url('banner-rides.jpg');"></div>
       <div class="hub-head"><h1>Progress</h1>
-        <nav class="p-tabs" id="pTabs" aria-label="Progress"><a data-view="" href="rides.html">Activities</a><a data-view="fitness" href="?view=fitness">Fitness<span class="tab-long"> &amp; form</span></a><a data-view="performance" href="?view=performance">Performance</a><a data-view="records" href="?view=records">Records</a></nav>
+        <nav class="p-tabs" id="pTabs" aria-label="Progress"><a data-view="" href="rides.html">Activities</a><a data-view="fitness" href="?view=fitness">Fitness<span class="tab-long"> &amp; form</span></a><a data-view="performance" href="?view=performance">Performance</a><a data-view="strength" href="?view=strength">Strength</a><a data-view="records" href="?view=records">Records</a></nav>
       </div>
     </div>
     <div id="listView">
@@ -335,19 +335,20 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=2';
-import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS } from './strength-kit.js?v=4';
+import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS, loadBodyLog, logBodyWeight } from './strength-kit.js?v=5';
 import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=5';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=2';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=1';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
+import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + FITNESS_CSS + PERFORMANCE_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -686,7 +687,7 @@ const supabase = createSupabaseClient();
   function showList(){ showHub(''); }
 
   // ---- Progress tabs: Activities (the list), Fitness & form, Performance, Records ----
-  const VIEWS = ['', 'fitness', 'performance', 'records'];
+  const VIEWS = ['', 'fitness', 'performance', 'strength', 'records'];
   let trainHist = null; // { acts, planned, ftp } for Fitness and Performance, loaded once
   async function loadHistory(){
     if (trainHist) return trainHist;
@@ -714,6 +715,7 @@ const supabase = createSupabaseClient();
     current = null;
     if (!view) return;
     if (view === 'records') return showRecords();
+    if (view === 'strength') return showStrength();
     hub.innerHTML = '<div class="sk-stack" aria-label="Loading"><div class="sk" style="height:90px"></div><div class="sk" style="height:300px"></div></div>';
     let h;
     try { h = await loadHistory(); }
@@ -729,6 +731,19 @@ const supabase = createSupabaseClient();
     history.pushState({ view: v }, '', v ? '?view='+v : location.pathname);
     showHub(v);
   });
+
+  // ---- strength: weekly sets, lift trends and body weight ----
+  const isoDay = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  async function showStrength(){
+    const hub = document.getElementById('hubView');
+    hub.innerHTML = '<div class="sk-stack" aria-label="Loading"><div class="sk" style="height:90px"></div><div class="sk" style="height:300px"></div></div>';
+    let history, log;
+    try { [history, log] = await Promise.all([loadStrengthHistory(supabase, user.id, 400), loadBodyLog(supabase, user.id)]); }
+    catch(e){ hub.innerHTML = '<div class="empty-note">Couldn\'t load your lifting. Check your connection and refresh.</div>'; return; }
+    if (new URLSearchParams(location.search).get('view') !== 'strength') return;
+    hub.innerHTML = '<div class="pf-root" id="spRoot"></div>';
+    renderStrength(document.getElementById('spRoot'), { history, log, onLogWeight: kg => { weightKg = null; return logBodyWeight(supabase, user.id, kg, isoDay(new Date())); } });
+  }
 
   // ---- records: best power over the key durations, best run times over the key distances ----
   const REC_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600];

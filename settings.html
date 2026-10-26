@@ -351,7 +351,7 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=5';
 import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
 import { ask } from './sheet.js?v=2';
-import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting } from './strength-kit.js?v=4';
+import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting, logBodyWeight } from './strength-kit.js?v=5';
 import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions } from './diary.js?v=2';
 import { loadFollowState } from './plan-schedule.js?v=4';
@@ -584,11 +584,9 @@ const supabase = createSupabaseClient();
     document.getElementById('weightDisplay').textContent = v;
     updateWattsPerKg();
     try {
-      const { error } = await supabase.from('settings').upsert(
-        { user_id:user.id, key:'weight_kg', value:{v}, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,key' }
-      );
-      if (error) throw error;
+      // Also adds today to the body weight log on Progress → Strength.
+      const d = new Date(), today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      await logBodyWeight(supabase, user.id, v, today);
       msg.textContent = 'Saved.';
     } catch(e){ msg.textContent = 'Saved locally, but sync failed — check connection.'; }
     setTimeout(()=>{ msg.textContent = ''; }, 3000);
