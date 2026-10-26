@@ -138,6 +138,15 @@
   .chip.missed{ opacity:.6; }
   .chip.missed .nm span{ text-decoration:line-through; }
   .chip.dragging{ opacity:.35; }
+  .chip .mv{ color:var(--text-dim); font-weight:400; margin-left:auto; flex-shrink:0; font-size:11px; }
+  .move-days{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; margin-bottom:10px; }
+  .move-days button{ margin:0; padding:6px 0; min-height:44px; display:flex; flex-direction:column; align-items:center; gap:1px; font-size:12px; line-height:1.2; }
+  .move-days button b{ font-family:var(--mono); font-size:14px; }
+  .move-days button.on{ border-color:var(--accent); color:var(--accent); }
+  .move-days button i{ width:5px; height:5px; border-radius:50%; background:var(--text-dim); }
+  .move-days button:disabled{ opacity:.35; cursor:default; }
+  .move-lbl{ font-size:12.5px; color:var(--text-dim); margin:0 0 6px; display:flex; justify-content:space-between; align-items:center; }
+  .move-lbl button{ margin:0; min-height:0; padding:2px 8px; font-size:12px; }
 
   .week-list{ display:flex; flex-direction:column; gap:6px; }
   .week-list .day{ min-height:0; flex-direction:row; align-items:flex-start; gap:10px; padding:10px; }
@@ -257,15 +266,15 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
-import { notify, ask } from './sheet.js?v=2';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=4';
+import { notify, ask, showSheet } from './sheet.js?v=2';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss, moveEntry } from './plan-schedule.js?v=5';
 import { loadSeries, formLabel } from './training-load.js?v=2';
-import { applySwaps, undoSwap } from './adapt.js?v=4';
+import { applySwaps, undoSwap } from './adapt.js?v=5';
 import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=5';
-import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=2';
+import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { openExportSheet } from './export.js?v=3';
-import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=3';
+import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtMetres } from './swim.js?v=2';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=2';
@@ -301,7 +310,7 @@ const supabase = createSupabaseClient();
       supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
       loadFollowState(supabase, user.id),
       supabase.from('workouts').select('id,name,category,steps,duration_sec'),
-      supabase.from('strength_workouts').select('id,name'),
+      supabase.from('strength_workouts').select('id,name,exercises'),
       supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,tss,plan_id,plan_day_index,sport,distance_m')
         .eq('user_id', user.id).gte('started_at', sinceIso).order('started_at', { ascending:true }),
       loadHolidays(supabase, user.id),
@@ -314,7 +323,7 @@ const supabase = createSupabaseClient();
     if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
     follow = st;
     (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
-    (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength' }; });
+    (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength', exercises:w.exercises }; });
     rides = rRes.data || [];
     indexRides();
     if (follow.planId && follow.startedAt){
@@ -353,11 +362,11 @@ const supabase = createSupabaseClient();
       const isSwim = s.dayObj.workoutType === 'swim', isBrick = s.dayObj.workoutType === 'brick', isRace = s.dayObj.workoutType === 'race';
       const run = isRun ? runSession(s.dayObj.workoutId) : null;
       const info = sessionInfo(s.dayObj, workouts, ftp);
-      const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (isSwim || isBrick || isRace) ? { name: info.name, duration_sec: info.durationSec, category: info.category } : wkRaw;
+      const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (isSwim || isBrick || isRace || isStrength) ? { name: info.name, duration_sec: info.durationSec, category: info.category } : wkRaw;
       const item = Object.assign({}, s, {
         name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category,
         isStrength, isRun, isSwim, isBrick, isRace, run, info, durationSec: wk.duration_sec || null,
-        tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isBrick || isRace) ? info.tss : plannedTss(wk.steps, ftp),
+        tss: isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isBrick || isRace || isStrength) ? info.tss : plannedTss(wk.steps, ftp),
         done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay,
       });
       item.missed = !item.done && (item.date < today || item.skipped);
@@ -410,8 +419,8 @@ const supabase = createSupabaseClient();
     const cls = s.missed ? 'missed' : '';
     const draggable = !s.done;
     return '<button class="chip planned '+cls+(s.diaryId ? ' single' : '')+'" '+(s.diaryId ? 'data-diary="'+s.diaryId+'"' : 'data-day="'+s.dayIndex+'"')+(draggable ? ' draggable="true"' : '')+'>'
-      + '<div class="nm"><i class="dot" style="background:'+(ZONE_COLOURS[s.category]||'var(--text-dim)')+'"></i><span>'+escapeHtml(s.name)+'</span></div>'
-      + '<div class="mt">'+(s.missed ? (s.skipped ? 'Skipped' : 'Missed') : (s.isStrength ? 'Strength' : ((s.durationSec ? fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : ''))))+'</div></button>';
+      + '<div class="nm"><i class="dot" style="background:'+(ZONE_COLOURS[s.category]||'var(--text-dim)')+'"></i><span>'+escapeHtml(s.name)+'</span>'+(s.moved ? '<span class="mv" title="Moved from '+longDate(s.plannedDate)+'">↔</span>' : '')+'</div>'
+      + '<div class="mt">'+(s.missed ? (s.skipped ? 'Skipped' : 'Missed') : (s.isStrength && !s.durationSec ? 'Strength' : ((s.durationSec ? fmtMins(s.durationSec) : '')+(s.tss ? ' · '+s.tss+' TSS' : ''))))+'</div></button>';
   }
   // A day's items: notes, rides, then planned sessions that no ride has ticked off yet.
   function itemsFor(date, byDate){
@@ -421,13 +430,13 @@ const supabase = createSupabaseClient();
     return out;
   }
   function weekTotals(mon, byDate){
-    let done = 0, planned = 0, mins = 0;
+    let done = 0, planned = 0, mins = 0, plannedMins = 0;
     for (let i=0;i<7;i++){
       const d = addDays(mon, i);
       (ridesByDate.get(d)||[]).forEach(r=>{ done += r.tss||0; mins += Math.round((r.duration_sec||0)/60); });
-      (byDate.get(d)||[]).forEach(s=>{ planned += s.tss||0; });
+      (byDate.get(d)||[]).forEach(s=>{ planned += s.tss||0; plannedMins += Math.round((s.durationSec||0)/60); });
     }
-    return { done, planned, mins };
+    return { done, planned, mins, plannedMins };
   }
 
   // Holiday marker: the name on the first day (and each Monday it runs into), a tinted band otherwise.
@@ -461,7 +470,7 @@ const supabase = createSupabaseClient();
             + itemsFor(d, byDate).map(chipHtml).join('') + '</div>';
         }
         const t = weekTotals(mon, byDate);
-        html += '<div class="wk-total"><b>'+t.done+'</b>'+(t.planned ? 'of '+t.planned+' TSS' : 'TSS')+'<span>'+fmtMins(t.mins*60)+'</span></div>';
+        html += '<div class="wk-total"><b>'+t.done+'</b>'+(t.planned ? 'of '+t.planned+' TSS' : 'TSS')+'<span>'+fmtMins(t.mins*60)+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span></div>';
       }
       body.innerHTML = html + '</div>';
     } else {
@@ -469,7 +478,7 @@ const supabase = createSupabaseClient();
       const sun = addDays(mon, 6);
       document.getElementById('calTitle').textContent = longDate(mon) + ' – ' + longDate(sun);
       const t = weekTotals(mon, byDate);
-      let html = '<div class="week-sum"><span>Ridden <b>'+t.done+'</b> TSS</span>'+(t.planned ? '<span>Planned <b>'+t.planned+'</b> TSS</span>' : '')+'<span>Time <b>'+fmtMins(t.mins*60)+'</b></span></div><div class="week-list">';
+      let html = '<div class="week-sum"><span>Done <b>'+t.done+'</b> TSS</span>'+(t.planned ? '<span>Planned <b>'+t.planned+'</b> TSS</span>' : '')+'<span>Time <b>'+fmtMins(t.mins*60)+'</b>'+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span></div><div class="week-list">';
       for (let i=0;i<7;i++){
         const d = addDays(mon, i);
         const items = itemsFor(d, byDate);
@@ -498,15 +507,34 @@ const supabase = createSupabaseClient();
   function findSession(dayIndex){
     return plan ? planSessions(plan, follow.startedAt, follow.moves).find(s=>s.dayIndex === dayIndex) : null;
   }
-  async function moveSession(dayIndex, date){
-    const s = findSession(dayIndex);
-    if (!s) return;
+  // changes: [[dayIndex, date]]. Moving a session back to its planned day clears its move.
+  async function moveSessions(changes){
+    const before = follow.moves;
     const moves = Object.assign({}, follow.moves);
-    if (date === s.plannedDate) delete moves[dayIndex]; else moves[dayIndex] = date;
+    for (const [dayIndex, date] of changes){
+      const s = findSession(dayIndex);
+      if (!s) continue;
+      if (date === s.plannedDate) delete moves[dayIndex]; else moves[dayIndex] = moveEntry(s, date);
+    }
     follow.moves = moves;
     rebuildPlan(); render(); computeFitness();
     try { await saveMoves(supabase, user.id, moves); }
-    catch(e){ notify('Check your connection and try again.', 'Couldn\'t save that move'); }
+    catch(e){ follow.moves = before; rebuildPlan(); render(); computeFitness(); notify('Check your connection and try again.', 'Couldn\'t save that move'); }
+  }
+  // Onto a day that already has a plan session still to do: offer to swap the two days.
+  async function moveSession(dayIndex, date){
+    const s = findSession(dayIndex);
+    if (!s || date === s.date) return;
+    const there = (sessionsByDate().get(date) || []).filter(x => !x.diaryId && !x.done && x.dayIndex !== dayIndex);
+    if (there.length === 1 && s.date >= todayIso()){
+      const o = there[0];
+      const r = await showSheet({ title: longDate(date)+' already has '+o.name,
+        text: 'Swap them, so '+o.name+' moves to '+longDate(s.date)+'? Or keep both on '+longDate(date)+'.',
+        buttons:[{ label:'Swap days', value:'swap', kind:'primary' }, { label:'Keep both', value:'both' }], dismissValue:null });
+      if (!r) return;
+      if (r === 'swap') return moveSessions([[dayIndex, date], [o.dayIndex, s.date]]);
+    }
+    return moveSessions([[dayIndex, date]]);
   }
 
   // Single workouts planned on the calendar move by changing their date.
@@ -613,7 +641,9 @@ const supabase = createSupabaseClient();
       : 'live.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
     const minDate = todayIso();
     document.getElementById('sheetBody').innerHTML =
-        '<div class="row"><label for="moveDate" style="color:var(--text-dim); font-size:13px;">Move to</label>'
+        '<div class="move-lbl"><span>Move to</span><span><button id="mvPrev" aria-label="Previous week">‹</button> <button id="mvNext" aria-label="Next week">›</button></span></div>'
+      + '<div class="move-days" id="moveDays"></div>'
+      + '<div class="row"><label for="moveDate" style="color:var(--text-dim); font-size:13px;">Or a date</label>'
       + '<input type="date" id="moveDate" min="'+minDate+'" value="'+(s.date >= minDate ? s.date : minDate)+'">'
       + '<button id="moveSaveBtn">Move</button>'
       + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
@@ -625,6 +655,25 @@ const supabase = createSupabaseClient();
         +(s.isRace ? '' : s.isSwim ? '<button class="primary" id="logSwimBtn">Log swim</button>' : s.isRun ? '<button class="primary" id="logRunBtn">Log run</button>'
         : '<a href="'+rideHref+'"><button class="primary">'+(s.isStrength ? 'Start session' : 'Ride now')+'</button></a>')+'</div>';
     sheet.style.display = 'flex';
+    // One tap moves to a day of the session's week (or this week, for a missed one); arrows step weeks.
+    let moveWeek = mondayOf(s.date >= minDate ? s.date : minDate);
+    const byDay = sessionsByDate();
+    function drawMoveDays(){
+      document.getElementById('mvPrev').disabled = moveWeek <= mondayOf(minDate);
+      document.getElementById('moveDays').innerHTML = [0,1,2,3,4,5,6].map(i=>{
+        const d = addDays(moveWeek, i), busy = (byDay.get(d)||[]).some(x => !x.done && x !== s && x.dayIndex !== s.dayIndex) || (ridesByDate.get(d)||[]).length;
+        return '<button data-to="'+d+'"'+(d === s.date ? ' class="on"' : '')+(d < minDate ? ' disabled' : '')+' aria-label="'+longDate(d)+'">'
+          + WEEKDAYS[parseIso(d).getDay()]+'<b>'+parseIso(d).getDate()+'</b>'+(busy ? '<i></i>' : '<i style="visibility:hidden"></i>')+'</button>';
+      }).join('');
+    }
+    drawMoveDays();
+    document.getElementById('mvPrev').onclick = ()=>{ moveWeek = addDays(moveWeek, -7); drawMoveDays(); };
+    document.getElementById('mvNext').onclick = ()=>{ moveWeek = addDays(moveWeek, 7); drawMoveDays(); };
+    document.getElementById('moveDays').onclick = e=>{
+      const b = e.target.closest('[data-to]');
+      if (!b || b.disabled || b.dataset.to === s.date) return;
+      closeSheet(); moveSession(s.dayIndex, b.dataset.to);
+    };
     document.getElementById('sheetCloseBtn').onclick = closeSheet;
     document.getElementById('moveSaveBtn').onclick = ()=>{
       const v = document.getElementById('moveDate').value;

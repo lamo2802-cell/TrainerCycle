@@ -6,7 +6,7 @@
 //   keep - keep the plan as it is (the days are still shown as away on the calendar)
 // applyHolidays() runs on the plan after addRuns() and applySwaps(), so the rest of the app just sees
 // rest days or easier sessions. The plan keeps its length; the week after a holiday picks up as planned.
-import { planStart, addDays, parseIso } from './plan-schedule.js?v=4';
+import { planStart, addDays, parseIso, movedTo } from './plan-schedule.js?v=5';
 import { showSheet } from './sheet.js?v=2';
 
 export const HOLIDAYS_KEY = 'holidays';
@@ -40,7 +40,8 @@ export function applyHolidays(plan, startedAtIso, moves, holidays){
     days: (w.days||[]).map((d, di)=>{
       if (!d || d.type !== 'workout') return d;
       const dayIndex = wi*7 + di;
-      const h = holidayOn((moves && moves[dayIndex]) || addDays(start, dayIndex), active);
+      const planned = addDays(start, dayIndex);
+      const h = holidayOn(movedTo(moves, dayIndex, planned, d) || planned, active);
       if (!h || d.workoutType === 'race') return d; // a race abroad is still the race
       if (h.mode === 'off' || d.workoutType === 'strength') return { day: d.day, type:'rest', holiday: h.name || 'Holiday' };
       const to = d.workoutType === 'run' ? EASY_RUN : d.workoutType === 'swim' ? EASY_SWIM : (w.deload ? EASY_DELOAD_RIDE : EASY_RIDE);

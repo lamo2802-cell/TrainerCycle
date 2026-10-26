@@ -429,23 +429,23 @@
 
 <script type="module">
 import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=19';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart } from './plan-schedule.js?v=4';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart } from './plan-schedule.js?v=5';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { notify } from './sheet.js?v=2';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
-import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=2';
+import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=4';
 import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=5';
 import { openExportSheet } from './export.js?v=3';
-import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=3';
+import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openWelcome } from './welcome.js?v=2';
 import { WHATS_NEW_KEY, shouldShowWhatsNew, openWhatsNew } from './whatsnew.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
-import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=4';
+import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
 import { suggestRide, shorterVersion, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=2';
 const supabase = createSupabaseClient();

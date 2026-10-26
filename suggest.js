@@ -5,7 +5,7 @@
 // which workout from how close its level is to the target. Nothing is ever generated: when no workout
 // is that close, the nearest length is offered and the reason says so.
 // The chosen length lives in settings key suggest_max_min; "how I feel" is for today only (localStorage).
-import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=4';
+import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=5';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 

@@ -1,6 +1,6 @@
 // Shared rules for where each session of the followed plan falls on the calendar.
 // A session's day index is days after the Monday the plan started (week*7 + weekday, Mon=0).
-// A session can be moved to another date (settings key active_plan_moves: { dayIndex: 'YYYY-MM-DD' }),
+// A session can be moved to another date (settings key active_plan_moves: { dayIndex: move }, see moveEntry),
 // a ride saved with plan_day_index marks it done, and Skip (active_plan_cursor_day) drops every
 // session with a lower day index. Accepted adaptive swaps (active_plan_swaps) are applied to the plan
 // itself by applySwaps() in adapt.js. Used by plans.html, calendar.html, builder.html and live.html.
@@ -33,6 +33,21 @@ export function mondayOnOrAfter(date){
   return isoDate(d);
 }
 
+// A move remembers which session it was made for: { to, from: the date it was planned for, w: its workout
+// before any swap }. The followed plan is composed (strength programme, run plan) and day indexes can come
+// to mean a different session when that changes, so a move only applies while both still match. Older
+// saves are a bare date and always apply.
+export function moveEntry(session, to){
+  return { to, from: session.plannedDate, w: originalWorkout(session.dayObj) };
+}
+export function movedTo(moves, dayIndex, plannedDate, dayObj){
+  const m = moves && moves[dayIndex];
+  if (!m) return null;
+  if (typeof m === 'string') return m;
+  return m.to && m.from === plannedDate && (!m.w || m.w === originalWorkout(dayObj)) ? m.to : null;
+}
+function originalWorkout(d){ return d ? (d.swappedFrom || d.workoutId || null) : null; }
+
 // Every workout session in the plan with its effective date, sorted by date.
 export function planSessions(plan, startedAtIso, moves){
   startedAtIso = planStart(startedAtIso);
@@ -41,7 +56,7 @@ export function planSessions(plan, startedAtIso, moves){
     if (!dayObj || dayObj.type !== 'workout') return;
     const dayIndex = wi*7 + di;
     const planned = addDays(startedAtIso, dayIndex);
-    const moved = moves && moves[dayIndex];
+    const moved = movedTo(moves, dayIndex, planned, dayObj);
     out.push({ dayIndex, date: moved || planned, plannedDate: planned, moved: !!moved && moved !== planned,
       weekNum: w.week || (wi+1), deload: !!w.deload, dayObj });
   }));

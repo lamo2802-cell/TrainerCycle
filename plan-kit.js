@@ -12,7 +12,7 @@
 // run.js and swim.js when the plan is loaded, so every page reads them like any other session.
 import { registerRunSession, runSession, runLoad, plannedRunTss } from './run.js?v=5';
 import { registerSwimSession, swimSession } from './swim.js?v=2';
-import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=4';
+import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=5';
 
 export const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const RACES_BY_ID = {};
@@ -122,6 +122,13 @@ function durationOf(w){
   return t;
 }
 export { durationOf };
+// Rough minutes for a strength workout from its exercises (as sessionMins in strength-programmes.js):
+// 40 s a set, the rests between sets, and a minute to set up each exercise. null without exercises.
+function strengthMins(w){
+  if (!w || !Array.isArray(w.exercises) || !w.exercises.length) return null;
+  const sec = w.exercises.reduce((t, e) => t + (e.sets||1) * 40 + Math.max(0, (e.sets||1) - 1) * (e.restSeconds || 60) + 60, 0);
+  return Math.max(5, Math.round(sec / 300) * 5);
+}
 
 // One way for every page to read a plan day: what it is, how long, its planned TSS and a short description.
 // workouts: id -> library or strength workout. Returns null for rest days.
@@ -142,7 +149,10 @@ export function sessionInfo(d, workouts, ftp){
     return { kind:'race', name: r.name || 'Race day', durationSec: r.mins ? r.mins*60 : null, tss: r.tss || null, text: r.text || '', category:'race' };
   }
   const w = workouts[d.workoutId] || {};
-  if (t === 'strength') return { kind:'strength', name: w.name || d.name || d.workoutId, durationSec: d.mins ? d.mins*60 : null, tss: d.mins ? Math.round(d.mins/60*36) : null, category:'strength' };
+  if (t === 'strength'){
+    const mins = d.mins || strengthMins(w);
+    return { kind:'strength', name: w.name || d.name || d.workoutId, durationSec: mins ? mins*60 : null, tss: mins ? Math.round(mins/60*36) : null, category:'strength' };
+  }
   const rideTss = w.steps ? plannedTss(w.steps, ftp || 200) : null;
   if (t === 'brick'){
     const run = d.runId ? runSession(d.runId) : null;

@@ -10,7 +10,7 @@
 // Accepted swaps live in settings key active_plan_swaps ({ dayIndex: workoutId }) and are
 // applied to the plan with applySwaps() before anything else reads it. Suggestions the rider
 // said no to are kept in plan_adapt_dismissed so they don't come back.
-import { addDays, parseIso } from './plan-schedule.js?v=4';
+import { addDays, parseIso, moveEntry } from './plan-schedule.js?v=5';
 import { workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
 import { runSession } from './run.js?v=5';
 
@@ -85,7 +85,7 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
     if (!free) continue;
     out.push({ id, kind:'missed', title:'You missed '+possessive(dayName(s.date, today))+' '+s.name,
       text:'You have a free day '+dayName(free, today)+'. Move it there so the week still adds up.',
-      accept:{ type:'move', dayIndex:s.dayIndex, date:free }, acceptLabel:'Move to '+dayName(free, today) });
+      accept:{ type:'move', dayIndex:s.dayIndex, date:free, move: moveEntry(s, free) }, acceptLabel:'Move to '+dayName(free, today) });
   }
 
   // How each zone has been going lately: struggling (very hard, all out or unfinished) or cruising (easy, moderate).
@@ -186,7 +186,7 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
     if (!to) continue;
     out.push({ id, kind:'legs', title:'Leg day before '+possessive(dayName(k.date, today))+' '+k.name,
       text: cap(possessive(dayName(s.date, today)))+' '+s.name+' works your legs hard, and '+k.name+' needs them fresh. Move the strength session to '+dayName(to, today)+' instead.',
-      accept:{ type:'move', dayIndex:s.dayIndex, date:to }, acceptLabel:'Move to '+dayName(to, today) });
+      accept:{ type:'move', dayIndex:s.dayIndex, date:to, move: moveEntry(s, to) }, acceptLabel:'Move to '+dayName(to, today) });
     break;
   }
   return out;
@@ -197,7 +197,7 @@ function cap(t){ return t.charAt(0).toUpperCase() + t.slice(1); }
 export async function acceptAdaptation(supabase, userId, follow, a){
   const now = new Date().toISOString();
   if (a.accept.type === 'move'){
-    follow.moves = Object.assign({}, follow.moves, { [a.accept.dayIndex]: a.accept.date });
+    follow.moves = Object.assign({}, follow.moves, { [a.accept.dayIndex]: a.accept.move || a.accept.date });
     await supabase.from('settings').upsert({ user_id:userId, key:'active_plan_moves', value:{v:follow.moves}, updated_at:now }, { onConflict:'user_id,key' });
   } else {
     follow.swaps = Object.assign({}, follow.swaps, { [a.accept.dayIndex]: a.accept.workoutId });
