@@ -258,14 +258,14 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=2';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=3';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss } from './plan-schedule.js?v=4';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { applySwaps, undoSwap } from './adapt.js?v=3';
 import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=5';
 import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=2';
-import { composeFollowed, loadPlanRow } from './run-plans.js?v=3';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { openExportSheet } from './export.js?v=3';
-import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=2';
+import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=3';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtMetres } from './swim.js?v=2';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=2';

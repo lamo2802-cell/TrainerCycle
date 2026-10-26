@@ -1,7 +1,7 @@
 // First-week setup for new riders: three questions pick a plan, then FTP, then the plan starts on
 // Monday and the first session is waiting on Today. Shown on Today until the rider has a plan or a ride.
 import { showSheet } from './sheet.js?v=2';
-import { mondayOnOrAfter, parseIso } from './plan-schedule.js?v=3';
+import { mondayOnOrAfter, parseIso } from './plan-schedule.js?v=4';
 
 export const WELCOME_KEY = 'welcome_done';
 const RAMP_TEST_ID = 'prebuilt-ramp-test-25';

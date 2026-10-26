@@ -6,9 +6,10 @@
 //
 // On its own the run plan is the followed plan (id RUN_PLAN_ID). Alongside a cycling plan its runs are
 // laid onto that plan's rest days by date, and the race always gets its day.
-import { addDays, parseIso, isoDate, mondayOnOrAfter, todayIso, planStart } from './plan-schedule.js?v=3';
+import { addDays, parseIso, isoDate, mondayOnOrAfter, todayIso, planStart } from './plan-schedule.js?v=4';
 import { registerRunSession, addRuns, fmtPace } from './run.js?v=5';
-import { registerPlanSessions } from './plan-kit.js?v=2';
+import { registerPlanSessions } from './plan-kit.js?v=3';
+import { mergeStrength, STRENGTH_PLAN_ID } from './strength-programmes.js?v=1';
 
 export const RUN_PLAN_KEY = 'run_plan';
 export const RUN_PLAN_ID = 'run-plan';
@@ -194,6 +195,14 @@ export function planWeekNote(plan, weekIdx){
 // The plan the rider follows: a cycling plan (with its run days, or a run plan merged in), or the run plan alone.
 // follow: from loadFollowState(); runCfg: settings run_plan or null. Returns { plan, startedAt }.
 export function composeFollowed(cyclingRow, follow, runCfg){
+  const out = composeBase(cyclingRow, follow, runCfg);
+  const sp = follow && follow.strengthPlan;
+  if (!sp) return out;
+  // A strength programme goes on top: on its own it is the plan, otherwise it uses strength and rest days.
+  if (!out.plan) return { plan: mergeStrength(null, sp.start, sp), startedAt: sp.start };
+  return { plan: mergeStrength(out.plan, out.startedAt, sp), startedAt: out.startedAt };
+}
+function composeBase(cyclingRow, follow, runCfg){
   const rp = runCfg ? buildRunPlan(runCfg) : null;
   registerPlanSessions(cyclingRow); // a plan from the plan builder carries its own run and swim sessions
   if (cyclingRow && follow.startedAt){
@@ -268,7 +277,7 @@ export { fmtDuration };
 
 // The followed cycling plan's row (null for a run plan on its own), then the plan as the rider sees it.
 export async function loadPlanRow(supabase, follow){
-  if (!follow.planId || follow.planId === RUN_PLAN_ID) return null;
+  if (!follow.planId || follow.planId === RUN_PLAN_ID || follow.planId === STRENGTH_PLAN_ID) return null;
   const { data } = await supabase.from('training_plans').select('id,name,weeks').eq('id', follow.planId).maybeSingle();
   return data || null;
 }

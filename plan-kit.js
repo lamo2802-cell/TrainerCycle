@@ -12,7 +12,7 @@
 // run.js and swim.js when the plan is loaded, so every page reads them like any other session.
 import { registerRunSession, runSession, runLoad, plannedRunTss } from './run.js?v=5';
 import { registerSwimSession, swimSession } from './swim.js?v=2';
-import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=3';
+import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=4';
 
 export const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const RACES_BY_ID = {};
@@ -142,7 +142,7 @@ export function sessionInfo(d, workouts, ftp){
     return { kind:'race', name: r.name || 'Race day', durationSec: r.mins ? r.mins*60 : null, tss: r.tss || null, text: r.text || '', category:'race' };
   }
   const w = workouts[d.workoutId] || {};
-  if (t === 'strength') return { kind:'strength', name: w.name || d.workoutId, durationSec: null, tss: null, category:'strength' };
+  if (t === 'strength') return { kind:'strength', name: w.name || d.name || d.workoutId, durationSec: d.mins ? d.mins*60 : null, tss: d.mins ? Math.round(d.mins/60*36) : null, category:'strength' };
   const rideTss = w.steps ? plannedTss(w.steps, ftp || 200) : null;
   if (t === 'brick'){
     const run = d.runId ? runSession(d.runId) : null;

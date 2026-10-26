@@ -2,9 +2,9 @@
 // followed plan (Today, Calendar) store the next eight weeks of sessions in settings key calendar_feed;
 // the calendar-feed edge function serves them as an .ics feed to whoever holds the rider's secret
 // link (settings key calendar_feed_token). Nothing is stored until the rider turns the feed on.
-import { planSessions, todayIso, addDays, plannedTss } from './plan-schedule.js?v=3';
+import { planSessions, todayIso, addDays, plannedTss } from './plan-schedule.js?v=4';
 import { runSession } from './run.js?v=5';
-import { sessionInfo } from './plan-kit.js?v=2';
+import { sessionInfo } from './plan-kit.js?v=3';
 
 export const FEED_TOKEN_KEY = 'calendar_feed_token';
 export const FEED_KEY = 'calendar_feed';

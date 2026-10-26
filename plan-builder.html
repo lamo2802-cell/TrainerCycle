@@ -207,11 +207,11 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { showSheet, notify, ask } from './sheet.js?v=2';
-import { parseIso, addDays, todayIso, mondayOnOrAfter, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
+import { parseIso, addDays, todayIso, mondayOnOrAfter, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=4';
 import { setRunPace, RUN_PACE_KEY, runSession } from './run.js?v=5';
 import { setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
 import { DAY_NAMES, RUN_TYPES, SWIM_TYPES, makeRun, makeSwim, runTypeOf, runMinsOf, swimTypeOf, swimMetresOf, assignSessionIds, registerPlanSessions,
-  sessionInfo, durationOf, MULTI_RACES, MULTI_LEVELS, buildMultiPlan, multiPlanDates, blankPlan, weekLoad, SPORT_COLOR } from './plan-kit.js?v=2';
+  sessionInfo, durationOf, MULTI_RACES, MULTI_LEVELS, buildMultiPlan, multiPlanDates, blankPlan, weekLoad, SPORT_COLOR } from './plan-kit.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -239,8 +239,9 @@ const supabase = createSupabaseClient();
   const library = (wRes.data || []).filter(w => w.steps);
   const workouts = {};
   library.forEach(w => { workouts[w.id] = w; });
-  const strength = sRes.data || [];
-  strength.forEach(w => { workouts[w.id] = { name:w.name, category:'strength' }; });
+  // Programme sessions (sp-...) name correctly but aren't offered as single strength days.
+  (sRes.data || []).forEach(w => { workouts[w.id] = { name:w.name, category:'strength' }; });
+  const strength = (sRes.data || []).filter(w => !/^sp-/.test(w.id));
   const plans = pRes.data || [];
   const set = {}; (setRes.data || []).forEach(r => { set[r.key] = r.value && r.value.v; });
   const ftp = Number(set.ftp) || 200;

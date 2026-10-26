@@ -176,6 +176,8 @@
   @media (max-width:560px){ .run-plan-banner{ flex-wrap:wrap; } .rpb-go{ width:100%; } }
   .run-plan-banner.pb{ background:linear-gradient(100deg, rgba(56,189,248,.12), transparent 65%), var(--panel); border-color:rgba(56,189,248,.4); }
   .run-plan-banner.pb:hover{ border-color:#38BDF8; } .run-plan-banner.pb .rpb-tag, .run-plan-banner.pb .rpb-go{ color:#38BDF8; }
+  .run-plan-banner.sp{ background:linear-gradient(100deg, rgba(69,214,196,.12), transparent 65%), var(--panel); border-color:rgba(69,214,196,.4); }
+  .run-plan-banner.sp:hover{ border-color:#45D6C4; } .run-plan-banner.sp .rpb-tag, .run-plan-banner.sp .rpb-go{ color:#45D6C4; }
   .plan-tag.yours{ background:rgba(56,189,248,.16); color:#38BDF8; }
   .edit-link{ font-size:12px; color:var(--text-dim); text-decoration:none; margin-left:10px; white-space:nowrap; }
   .edit-link:hover{ color:var(--accent); }
@@ -222,6 +224,7 @@
       <a href="live.html?load=prebuilt-ramp-test-25"><button class="primary">Start Ramp Test</button></a>
     </div>
 
+    <a class="run-plan-banner sp" href="trainerstrength.html#programmes"><span class="rpb-tag">Strength</span><span class="rpb-text"><b>Strength programmes</b> that fit around your riding: Cyclist Strength, In-season Maintenance, Home Dumbbells and more.</span><span class="rpb-go">Choose one →</span></a>
     <a class="run-plan-banner pb" href="plan-builder.html"><span class="rpb-tag">Plan builder</span><span class="rpb-text"><b>Build your own plan</b> from rides, runs, swims and strength, or get a triathlon or duathlon plan for your race.</span><span class="rpb-go">Build a plan →</span></a>
     <div id="runPlanBanner"></div>
     <div id="followingBanner" style="display:none;"></div>
@@ -266,13 +269,13 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
-import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=3';
+import { nextSession, loadFollowState, loadDoneDays as loadPlanDoneDays, mondayOnOrAfter, parseIso, todayIso, FOLLOW_SETTING_KEYS } from './plan-schedule.js?v=4';
 import { applySwaps } from './adapt.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
-import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=3';
+import { composeFollowed, RUN_GOALS, RUN_PLAN_ID, daysLabel } from './run-plans.js?v=4';
 import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=5';
 import { showSheet } from './sheet.js?v=2';
-import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=2';
+import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=3';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -371,9 +374,9 @@ const supabase = createSupabaseClient();
 
   // Next session to ride for the followed plan (see plan-schedule.js for the calendar rules).
   // The followed plan as the rider sees it: their run days added, then any adaptive swaps.
-  let activeHolidays = [], activeRunPlan = null;
+  let activeHolidays = [], activeRunPlan = null, activeStrengthPlan = null;
   function followed(plan){
-    const base = composeFollowed(plan, { startedAt: activePlanStartedAt, runs: activePlanRuns }, activeRunPlan).plan;
+    const base = composeFollowed(plan, { startedAt: activePlanStartedAt, runs: activePlanRuns, strengthPlan: activeStrengthPlan }, activeRunPlan).plan;
     return applyHolidays(applySwaps(base, activePlanSwaps), activePlanStartedAt, activePlanMoves, activeHolidays);
   }
   function getNextSession(plan, startedAtIso, cursorDay){
@@ -394,7 +397,9 @@ const supabase = createSupabaseClient();
     activePlanRuns = st.runs;
     activeHolidays = await loadHolidays(supabase, user.id);
     activeRunPlan = st.runPlan;
-    if (activePlanId === RUN_PLAN_ID){ activePlanId = null; activePlanStartedAt = null; } // a run plan on its own lives on the Running page
+    activeStrengthPlan = st.strengthPlan;
+    // a run plan or strength programme on its own lives on the Running or TrainerStrength page
+    if (activePlanId === RUN_PLAN_ID || st.strengthOnly){ activePlanId = null; activePlanStartedAt = null; }
     renderRunPlanBanner();
     await loadDoneDays();
   }

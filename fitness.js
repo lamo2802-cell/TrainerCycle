@@ -1,11 +1,11 @@
 // Fitness & form chart (Progress → Fitness) and the planned sessions it projects forward with.
 // The tiles alone also show on Calendar and Today, from training-load.js.
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=3';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=4';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { applySwaps } from './adapt.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
-import { composeFollowed, loadPlanRow } from './run-plans.js?v=3';
-import { sessionInfo } from './plan-kit.js?v=2';
+import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
+import { sessionInfo } from './plan-kit.js?v=3';
 import { loadDiary, diarySessions } from './diary.js?v=1';
 import { setRunPace, RUN_PACE_KEY } from './run.js?v=5';
 import { setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
