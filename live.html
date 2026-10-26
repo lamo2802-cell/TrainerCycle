@@ -343,6 +343,45 @@
     .live-layout:not(.riding-active) .controls button{ padding:15px 14px; font-size:16px; }
   }
 
+  /* Mid-width screens (tablets in portrait such as a Galaxy Tab A7, small TV browsers at 960px):
+     one row can't hold the step name, the two control groups and the Next pill, and the pill was
+     squeezed until the next interval's name and watts disappeared. Let the bar wrap so the pill
+     gets a full-width row of its own. */
+  @media (min-width:601px) and (max-width:1100px){
+    .ride-bar{ flex-wrap:wrap; row-gap:8px; }
+    .ride-bar-step{ flex:1 1 200px; }
+    .ride-bar-meta{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ride-bar .next-pill{ order:3; flex:1 1 100%; }
+  }
+  /* Tablets in portrait have height to spare under a six-across row of small numbers: use 3 x 2. */
+  @media (min-width:601px) and (max-width:1100px) and (orientation:portrait){
+    .dash{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .metric .val{ font-size:clamp(40px, 7.5vw, 76px); }
+    .metric.elapsed .val{ font-size:clamp(34px, 6vw, 60px); }
+    .metric .lbl{ font-size:clamp(12px, 1.8vw, 16px); }
+  }
+  /* Big screens - a TV, or a tablet/laptop cast or mirrored to one - are read from across the
+     room, so the numbers and the Next pill scale with the screen height instead of stopping at
+     desktop sizes, and the page uses the full width. */
+  @media (min-width:1500px) and (min-height:901px){
+    .main{ max-width:96vw; }
+    .metric{ padding:1.4vh 8px; }
+    .metric .val{ font-size:clamp(64px, 8.5vh, 240px); }
+    .metric.elapsed .val{ font-size:clamp(50px, 6.5vh, 190px); }
+    .metric .lbl{ font-size:clamp(14px, 1.6vh, 40px); }
+    .metric .sub-val{ font-size:clamp(13px, 1.4vh, 34px); }
+    .ride-bar{ margin-bottom:1.4vh; }
+    .ride-bar-step > b{ font-size:clamp(18px, 2.7vh, 64px); }
+    .ride-bar-meta{ font-size:clamp(12.5px, 1.6vh, 38px); }
+    .next-pill{ padding:1vh 1.6vh; border-radius:1.2vh; gap:1vh; }
+    .next-dot{ width:clamp(11px, 1.3vh, 30px); height:clamp(11px, 1.3vh, 30px); }
+    .next-tag{ font-size:clamp(11px, 1.4vh, 32px); }
+    .next-body{ font-size:clamp(17px, 2.7vh, 64px); }
+    .next-in{ font-size:clamp(18px, 3vh, 72px); }
+    .chart-panel-title, .chart-legend{ font-size:clamp(11.5px, 1.3vh, 30px); }
+    .controls button{ font-size:clamp(16px, 2vh, 46px); padding:1.6vh 14px; }
+  }
+
 /* Dropdowns: the app's own look instead of the browser's default control. */
 :where(html) select{ padding:8px 10px; min-height:38px; font-size:14px; font-family:inherit; border-radius:8px; }
 html select{ -webkit-appearance:none; appearance:none; background-color:#1D242D; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238C97A6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -1431,11 +1470,9 @@ const supabase = createSupabaseClient();
       }
     }
 
-    if (running){
-      logSample(parsed);
-      drawOverviewChart();
-     
-    }
+    // the chart redraws once a second from tick(); redrawing on every trainer sample (up to 4 a
+    // second on some trainers) was the main cost on low-powered tablets
+    if (running) logSample(parsed);
   }
 
   // Keeps a canvas's actual pixel buffer in sync with its rendered CSS width, so charts
@@ -1467,7 +1504,16 @@ const supabase = createSupabaseClient();
     // trace below, so a rider actually hitting target shows the power line lining up with the
     // TOP of the block it's riding in, rather than the two using unrelated scales.
     const plannedWatts = hasPlan ? flatSteps.map(s=>targetWatts(s)).filter(v=>v!=null) : [];
-    const maxPower = Math.max(200, ...plannedWatts, ...log.map(r=>Number(r.power)||0), ...log.map(r=>Number(r.target)||0)) * 1.15;
+    // plain loops rather than Math.max(...log.map()) - a long ride's log runs to tens of thousands of samples
+    let maxPower = 200, maxHr = 160;
+    for (const v of plannedWatts) if (v > maxPower) maxPower = v;
+    for (const r of log){
+      const p = Number(r.power)||0, t = Number(r.target)||0, hr = Number(r.hr)||0;
+      if (p > maxPower) maxPower = p;
+      if (t > maxPower) maxPower = t;
+      if (hr > maxHr) maxHr = hr;
+    }
+    maxPower *= 1.15; maxHr *= 1.1;
 
     if (hasPlan){
       // background: full workout profile, vivid — matching the Workouts library's chart style.
@@ -1515,22 +1561,28 @@ const supabase = createSupabaseClient();
 
     if (!log.length) return;
     const n = log.length;
-    const maxHr = Math.max(160, ...log.map(r=>Number(r.hr)||0)) * 1.1;
     // x position: aligned to planned timeline if a workout is selected, else spread across full width
     const xAt = hasPlan
       ? (r => Math.min(w, (r.elapsed/totalPlanned)*w))
       : (i => (i/Math.max(1,n-1))*w);
 
     function line(getVal, max, color, outline){
+      // Average the samples that land in each pixel column, so the path never has more points than
+      // the chart is wide - a 2-hour ride is ~30k samples, far more than any screen can show.
+      const pts = [];
+      let col = -1, sum = 0, cnt = 0, lastX = 0;
+      const flush = ()=>{ if (cnt) pts.push(lastX, h - ((sum/cnt)/max)*h); };
+      for (let i=0; i<n; i++){
+        const x = hasPlan ? xAt(log[i]) : xAt(i);
+        const c = Math.floor(x);
+        if (c !== col){ flush(); col = c; sum = 0; cnt = 0; }
+        sum += Number(getVal(log[i], i))||0; cnt++; lastX = x;
+      }
+      flush();
       // draw a dark outline pass first so the trace stays legible over the now-vivid zone background
       [ {c: outline, lw: 4.5}, {c: color, lw: 2} ].forEach(pass=>{
         ctx.beginPath(); ctx.strokeStyle = pass.c; ctx.lineWidth = pass.lw; ctx.setLineDash([]);
-        log.forEach((r,i)=>{
-          const v = Number(getVal(r,i))||0;
-          const x = hasPlan ? xAt(r) : xAt(i);
-          const y = h - (v/max)*h;
-          if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        });
+        for (let k=0; k<pts.length; k+=2){ if (k===0) ctx.moveTo(pts[k], pts[k+1]); else ctx.lineTo(pts[k], pts[k+1]); }
         ctx.stroke();
       });
     }
@@ -1577,16 +1629,16 @@ const supabase = createSupabaseClient();
 
   function smoothedSeries(entries, timeKey){
     if (powerSmoothingSec <= 0) return entries.map(r => Number(r.power)||0);
-    return entries.map((r,i)=>{
-      const t = r[timeKey];
-      let sum = 0, n = 0;
-      for (let j=i; j>=0; j--){
-        const rt = entries[j][timeKey];
-        if (t - rt > powerSmoothingSec) break;
-        sum += Number(entries[j].power)||0; n++;
-      }
-      return n ? sum/n : (Number(r.power)||0);
-    });
+    // sliding window: same result as averaging back over powerSmoothingSec for each sample, in one pass
+    const out = new Array(entries.length);
+    let start = 0, sum = 0;
+    for (let i=0; i<entries.length; i++){
+      const t = entries[i][timeKey];
+      sum += Number(entries[i].power)||0;
+      while (t - entries[start][timeKey] > powerSmoothingSec){ sum -= Number(entries[start].power)||0; start++; }
+      out[i] = sum/(i-start+1);
+    }
+    return out;
   }
 
   function zoneColorRGBA(pct, alpha){
@@ -1668,8 +1720,23 @@ const supabase = createSupabaseClient();
     if (document.visibilityState === 'visible' && running) await requestWakeLock();
   });
 
+  // On a slow tablet a busy page can fire this timer late, and setInterval never makes up the
+  // missed calls, so counting "+1 per call" let the workout clock fall behind real time. Count the
+  // whole seconds that really passed instead (capped, so a long background pause doesn't jump ahead).
+  let tickLastAt = 0, tickCarryMs = 0;
   function tick(){
-    if (!running) return;
+    const now = performance.now();
+    const gap = tickLastAt ? now - tickLastAt : 1000;
+    tickLastAt = now;
+    if (!running){ tickCarryMs = 0; return; }
+    tickCarryMs += gap;
+    const secs = Math.max(1, Math.min(5, Math.floor(tickCarryMs/1000)));
+    tickCarryMs = Math.max(0, tickCarryMs - secs*1000);
+    for (let i=0; i<secs && running; i++) tickSecond();
+    renderStepReadout();
+    drawOverviewChart();
+  }
+  function tickSecond(){
     stepElapsed += 1;
     activeElapsedSec += 1;
     const step = flatSteps[stepIndex];
@@ -1690,9 +1757,6 @@ const supabase = createSupabaseClient();
         rampFailStreak = 0;
       }
     }
-    renderStepReadout();
-    drawOverviewChart();
-   
   }
 
   async function advanceStep(){
@@ -1740,7 +1804,7 @@ const supabase = createSupabaseClient();
       drawOverviewChart();
     }
     if (stepIndex === -1 && flatSteps.length){ await advanceStep(); }
-    if (!tickHandle) tickHandle = setInterval(tick, 1000);
+    if (!tickHandle){ tickLastAt = 0; tickCarryMs = 0; tickHandle = setInterval(tick, 1000); }
     document.getElementById('startBtn').disabled = true;
     document.getElementById('startBtn').textContent = 'Start';
     document.getElementById('pauseBtn').disabled = false;
@@ -1780,7 +1844,9 @@ const supabase = createSupabaseClient();
         category: currentWorkoutMeta.category,
         workoutId: currentWorkoutMeta.workoutId,
         planLink,
-        log
+        // rows rather than objects: a long ride's copy is ~2.5x smaller, so it's quicker to write
+        // (it runs mid-ride) and stays well inside the browser's storage limit
+        rows: log.map(r=>[r.elapsed, r.stepIdx, r.stepElapsed, r.power, r.cadence, r.hr, r.target])
       }));
     } catch(e){ /* storage full/unavailable — best effort */ }
   }
@@ -1804,6 +1870,7 @@ const supabase = createSupabaseClient();
   async function recoverUnsavedRide(){
     let saved;
     try { saved = JSON.parse(localStorage.getItem(autosaveKey) || 'null'); } catch(e){ saved = null; }
+    if (saved && Array.isArray(saved.rows)) saved.log = saved.rows.map(a=>({ elapsed:a[0], stepIdx:a[1], stepElapsed:a[2], power:a[3], cadence:a[4], hr:a[5], target:a[6] }));
     if (!saved || !Array.isArray(saved.log) || !saved.log.length){ clearAutosave(); return; }
     const mins = Math.round((saved.activeElapsedSec||0)/60);
     const sd = new Date(saved.startedAt);
