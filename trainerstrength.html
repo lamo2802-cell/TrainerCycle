@@ -131,6 +131,14 @@
   .stage-action .rir button.on{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:700; }
   .stage-action .log-form > button.primary{ width:100%; margin:0; }
   .log-why{ margin-top:5px; color:var(--text); font-size:13px; line-height:1.4; }
+  .log-warm{ border:1px dashed var(--line); border-radius:8px; padding:8px 11px; margin-bottom:10px; font-size:13px; }
+  .log-warm .lw-t{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+  .log-warm .lw-r{ display:flex; justify-content:space-between; gap:10px; font-family:var(--mono); font-size:12.5px; padding:2px 0; }
+  .log-warm .lw-r span:last-child{ color:var(--text-dim); text-align:right; }
+  .log-more{ display:flex; gap:8px; margin-top:8px; }
+  .stage-action .log-more button{ flex:1; margin:0; padding:9px 6px; font-size:13px; background:transparent; color:var(--text-dim); }
+  .rest-btns{ display:flex; gap:8px; justify-content:center; max-width:420px; margin:0 auto; }
+  .stage-action .rest-btns button{ flex:1 1 0; margin:0; padding:14px 6px; font-size:15px; }
   .log-hint{ font-size:12px; color:var(--text-dim); margin-top:8px; text-align:center; }
   .log-hint a{ color:var(--accent); }
   .prog-name{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:2px; }
@@ -289,7 +297,8 @@ import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, pro
 import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=4';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
-  weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness } from './strength-kit.js?v=2';
+  weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness,
+  swapOptions, isBarbell, platesText, warmups } from './strength-kit.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -346,11 +355,50 @@ const supabase = createSupabaseClient();
   let tickHandle = null;
   let elapsedSec = 0;
   let restRemaining = 0;
+  let restEndsAt = 0;    // wall-clock end of the current rest, so a throttled or locked phone stays on time
+  let lastTickAt = 0;
   let totalSets = 0;
   let startedAt = null;  // when the current session started, for the saved record
   // Plan session this one ticks off, from ?plan=&day= (set by Today and the Calendar).
   const params = new URLSearchParams(window.location.search);
-  const planLink = params.get('plan') && params.get('day') != null ? { planId: params.get('plan'), dayIndex: Number(params.get('day')), workoutId: params.get('load') } : null;
+  let planLink = params.get('plan') && params.get('day') != null ? { planId: params.get('plan'), dayIndex: Number(params.get('day')), workoutId: params.get('load') } : null;
+
+  // ---- sound: beeps for the last 3 seconds of a rest. Audio starts on the Start tap. ----
+  const SOUND_KEY = 'tc_strength_sound';
+  let soundOn = true;
+  try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch(_){}
+  let audioCtx = null;
+  function unlockAudio(){
+    try { if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch(_){}
+  }
+  function beep(freq, ms){
+    if (!soundOn || !audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain(), t = audioCtx.currentTime;
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, t); gain.gain.exponentialRampToValueAtTime(0.4, t+0.01); gain.gain.exponentialRampToValueAtTime(0.001, t+ms/1000);
+      osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(t + ms/1000 + 0.02);
+    } catch(_){}
+  }
+  function buzz(ms){ if (soundOn) try { navigator.vibrate && navigator.vibrate(ms); } catch(_){} }
+
+  // ---- the session in progress, kept on this device so a reload or a locked phone doesn't lose it ----
+  const LIVE_KEY = 'tc_strength_live';
+  let skipped = new Set();  // exercise indexes skipped this session
+  function saveLive(){
+    if (idx < 0 || !flat.length) return;
+    const w = document.getElementById('workoutSelect').value;
+    try { localStorage.setItem(LIVE_KEY, JSON.stringify({ v:1, workoutId:w, flat: flat.map(({ ex, ...r }) => r), idx, logged, exVariant, skipped:[...skipped],
+      elapsedSec, restRemaining, startedAt, totalSets, planLink, running, savedAt: Date.now() })); } catch(_){}
+  }
+  function clearLive(){ try { localStorage.removeItem(LIVE_KEY); } catch(_){} }
+  function readLive(){
+    try {
+      const st = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null');
+      if (st && st.v === 1 && Date.now() - st.savedAt < 12*3600*1000) return st;
+    } catch(_){}
+    clearLive(); return null;
+  }
 
   // Saves a finished (or stopped part-way) session to the activity history. Strength TSS is a rough
   // steady estimate (IF 0.6, about 36 an hour) so sessions count a little towards Fitness and Fatigue.
@@ -479,32 +527,67 @@ const supabase = createSupabaseClient();
     if (!(v.load === 'hand' || v.load === 'total')) weight = null;
     form = { idx, vid, weight, reps: v.load === 'time' ? null : reps, hold: v.load === 'time' ? hold : null, rir: null, note,
       harder: !prev.length && plan.harder && variantAvailable(plan.harder, kit.equipment) ? plan.harder : null, calibrate: plan.calibrate };
+    // Warm-ups on the first set: always for barbell lifts, otherwise only for the session's first loaded move.
+    const firstLoaded = flat.find(e => e.type === 'work' && !skipped.has(e.exIdx) && ['hand','total'].includes(vinfo(variantOf(e.exIdx, e.ex), e.ex).load));
+    if (!prev.length && entry.setNum === 1 && weight != null && (isBarbell(vid) || (firstLoaded && firstLoaded.exIdx === entry.exIdx)))
+      form.warm = warmups(vid, weight, kit.equipment);
+  }
+
+  // Swap the current exercise for another version or a similar move, for this session only.
+  function swapExercise(entry){
+    const cur = form.vid, base = vinfo(cur, entry.ex).base || entry.ex.key;
+    const opts = swapOptions(cur, base, kit.equipment);
+    const box = document.createElement('div');
+    if (!opts.length){ box.innerHTML = '<p>There\'s nothing to swap to with the kit in your settings. You can skip it instead.</p>'; }
+    else box.innerHTML = '<p style="font-size:12.5px;">For this session only. Your history is kept for each move separately.</p>'
+      + opts.map(id => '<button class="lift-row" data-swap="'+id+'"><span><div class="ln">'+VARIANTS[id].name+'</div><div class="ls">'+(VARIANTS[id].base === base ? 'Another version' : 'Similar move')+(lastSession(id) ? ' · last '+setsText(id, lastSession(id).sets) : '')+'</div></span></button>').join('');
+    let picked = null;
+    box.addEventListener('click', e => { const b = e.target.closest('[data-swap]'); if (!b) return; picked = b.dataset.swap; box.closest('.tc-sheet').querySelector('.tc-sheet-btns button').click(); });
+    showSheet({ title:'Swap '+vinfo(cur, entry.ex).name, content: box, buttons:[{ label:'Cancel', value:null, kind:'primary' }], dismissValue:null }).then(()=>{
+      if (!picked || !flat[idx] || flat[idx].exIdx !== entry.exIdx) return;
+      exVariant[entry.exIdx] = picked; form = null;
+      renderStage(true); saveLive();
+    });
+  }
+  // Drop the rest of this exercise's sets from today's session.
+  async function skipExercise(entry){
+    const name = vinfo(form.vid, entry.ex).name;
+    if (!(await ask('Its remaining sets come off today\'s session. Sets you\'ve already logged are kept.', { title:'Skip '+name+'?', ok:'Skip it' }))) return;
+    if (!flat[idx] || flat[idx].exIdx !== entry.exIdx) return;
+    const removed = flat.slice(idx).filter(e => e.exIdx === entry.exIdx && e.type === 'work').length;
+    flat = flat.slice(0, idx).concat(flat.slice(idx).filter(e => e.exIdx !== entry.exIdx));
+    totalSets -= removed; skipped.add(entry.exIdx); form = null;
+    if (idx >= flat.length){ stopSession(true); return; }
+    if (flat[idx].type === 'rest') startRest(flat[idx].duration);
+    renderStage(true); saveLive();
   }
   function renderSetForm(entry){
     const stageAction = document.getElementById('stageAction');
     const vid = form.vid, v = vinfo(vid, entry.ex);
-    const choices = variantsFor(entry.ex.key).filter(id => variantAvailable(id, kit.equipment) || id === vid);
+    const choices = variantsFor(v.base || entry.ex.key).filter(id => variantAvailable(id, kit.equipment) || id === vid);
     const last = lastSession(vid);
     let html = '<div class="log-form">';
     if (choices.length > 1) html += '<select id="variantSelect" aria-label="Which version">' + choices.map(id => '<option value="'+id+'"'+(id===vid?' selected':'')+'>'+VARIANTS[id].name+'</option>').join('') + '</select>';
     html += '<div class="log-last">' + (last ? 'Last time <b>'+setsText(vid, last.sets)+'</b>' : (v.load === 'hand' || v.load === 'total') ? '<span style="color:var(--text); font-weight:600;">Finding your weight</span>' : 'First time logging this. Next time starts from what you do today.')
       + (form.note ? '<div class="log-why">'+form.note+'</div>' : '')
       + (form.harder ? '<div class="log-why">Ready for <b>'+VARIANTS[form.harder].name+'</b>? Switch above.</div>' : '') + '</div>';
+    if (form.warm && form.warm.length) html += '<div class="log-warm"><div class="lw-t">Warm up first</div>' + form.warm.map(s => '<div class="lw-r"><span>'+fmtLoad(vid, s.weight)+' × '+s.reps+'</span>'+(isBarbell(vid) ? '<span>'+platesText(s.weight)+'</span>' : '')+'</div>').join('') + '</div>';
     html += '<div class="log-grid">';
     if (form.weight != null || v.load === 'hand' || v.load === 'total')
-      html += stepperHtml('w', form.weight == null ? '—' : fmtKg(form.weight) + ' kg', v.load === 'hand' ? 'Each hand' : 'Weight');
+      html += stepperHtml('w', form.weight == null ? '—' : fmtKg(form.weight) + ' kg', v.load === 'hand' ? 'Each hand' : isBarbell(vid) && form.weight != null ? platesText(form.weight) : 'Weight');
     if (v.load === 'time') html += stepperHtml('h', form.hold + ' s', 'Held for');
     else html += stepperHtml('r', String(form.reps), 'Reps done');
     const timed = v.load === 'time';
     html += '</div><div class="rir-q">'+(timed ? 'How much longer could you have held?' : 'How many more could you have done?')+'</div><div class="rir" role="group" aria-label="Left in the tank">'
       + [0,1,2,3,4].map(n => '<button data-rir="'+n+'" class="'+(form.rir===n?'on':'')+'" aria-pressed="'+(form.rir===n)+'">'+(timed ? (n*5)+(n===4?'+':'')+' s' : (n===4?'4+':n))+'</button>').join('') + '</div>'
-      + '<button class="primary" id="setCompleteBtn">Log set ✓</button>';
+      + '<button class="primary" id="setCompleteBtn">Log set ✓</button>'
+      + '<div class="log-more"><button id="swapBtn">Swap exercise</button><button id="skipExBtn">Skip exercise</button></div>';
     if (!kit.equipment.set && (v.load === 'hand' || v.load === 'total')) html += '<div class="log-hint">Weights go up in gym steps. <a href="settings.html#strength">Set the weights you own</a> to match yours.</div>';
     stageAction.innerHTML = html + '</div>';
     const sel = document.getElementById('variantSelect');
     if (sel) sel.addEventListener('change', ()=>{
       exVariant[entry.exIdx] = sel.value; form = null;
-      kit.variants = Object.assign({}, kit.variants, { [entry.ex.key]: sel.value });
+      kit.variants = Object.assign({}, kit.variants, { [VARIANTS[sel.value].base]: sel.value });
       saveSetting(supabase, user.id, VARIANTS_KEY, kit.variants).catch(()=>{});
       newForm(entry); renderStage(true);
     });
@@ -526,9 +609,11 @@ const supabase = createSupabaseClient();
       const n = Number(b.dataset.rir); form.rir = form.rir === n ? null : n; renderSetForm(entry);
     }));
     document.getElementById('setCompleteBtn').addEventListener('click', ()=>{
-      logged.push({ exIdx: entry.exIdx, base: entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() });
+      logged.push({ exIdx: entry.exIdx, base: v.base || entry.ex.key, variant: vid, setNo: entry.setNum, weight: form.weight, reps: form.reps, hold: form.hold, rir: form.rir, at: new Date().toISOString() });
       advance();
     });
+    document.getElementById('swapBtn').addEventListener('click', ()=> swapExercise(entry));
+    document.getElementById('skipExBtn').addEventListener('click', ()=> skipExercise(entry));
   }
   function stepperHtml(k, val, label){
     return '<div class="stepper"><button data-step="'+k+':-" aria-label="Less">−</button><div class="sv"><b>'+val+'</b><span>'+label+'</span></div><button data-step="'+k+':+" aria-label="More">+</button></div>';
@@ -537,7 +622,7 @@ const supabase = createSupabaseClient();
   function selectWorkout(id){
     const w = library.find(x=>x.id===id);
     flat = w ? flatten(w.exercises) : [];
-    idx = -1; logged = []; exVariant = {}; exPlan = {}; form = null;
+    idx = -1; logged = []; exVariant = {}; exPlan = {}; form = null; skipped = new Set();
     totalSets = w ? w.exercises.reduce((a,ex)=>a+ex.sets,0) : 0;
     renderExerciseList(w);
     renderStage();
@@ -556,6 +641,7 @@ const supabase = createSupabaseClient();
       const vid = exVariant[i] || pickVariant(ex.key, kit.equipment, kit.variants) || ex.key, v = vinfo(vid, ex);
       const p = planFor(i, ex, vid);
       const lastTxt = p.weight != null ? fmtLoad(vid, p.weight) + (p.calibrate ? ' to start' : '') : p.hold != null && lastSession(vid) ? p.hold + ' s' : '';
+      if (skipped.has(i)) return '<div class="exercise-list-row" style="opacity:.5;"><s>'+v.name+'</s> · skipped</div>';
       return '<div class="exercise-list-row'+(cur?' current':'')+'">'+v.name+icon+' · '+ex.sets+'×'+(v.load==='time' ? holdTarget(ex.notes)+'s' : repRange(ex).join('–'))
         + (lastTxt ? '<div style="font-size:11.5px; opacity:.8;">Today: '+lastTxt+'</div>' : '')+'</div>';
     }).join('');
@@ -623,7 +709,6 @@ const supabase = createSupabaseClient();
   function completedSetsCount(){
     let n = 0;
     for (let i=0;i<idx;i++) if (flat[i] && flat[i].type==='work') n++;
-    if (flat[idx] && flat[idx].type==='rest') n++; // rest step means its preceding work set is done
     return n;
   }
 
@@ -669,13 +754,21 @@ const supabase = createSupabaseClient();
       renderPositions('', document.getElementById('positionsRow'));
       restEl.style.display = 'block';
       restEl.textContent = fmtDur(restRemaining);
-      stageAction.innerHTML = '<button id="skipRestBtn">Skip rest</button>';
-      document.getElementById('skipRestBtn').addEventListener('click', advance);
+      if (!document.getElementById('skipRestBtn')){
+        stageAction.innerHTML = '<div class="rest-btns"><button id="skipRestBtn">Skip rest</button><button id="addRestBtn">+30 s</button><button id="soundBtn" aria-pressed="'+soundOn+'">'+(soundOn ? 'Sound on' : 'Sound off')+'</button></div>';
+        document.getElementById('skipRestBtn').addEventListener('click', advance);
+        document.getElementById('addRestBtn').addEventListener('click', ()=>{ restEndsAt += 30000; restRemaining += 30; restEl.textContent = fmtDur(restRemaining); lastBeep = null; saveLive(); });
+        document.getElementById('soundBtn').addEventListener('click', e=>{
+          soundOn = !soundOn; try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch(_){}
+          e.currentTarget.textContent = soundOn ? 'Sound on' : 'Sound off'; e.currentTarget.setAttribute('aria-pressed', soundOn);
+          if (soundOn){ unlockAudio(); beep(880, 120); }
+        });
+      }
     }
 
     const next = flat[idx+1];
     document.getElementById('nextStepInfo').innerHTML = next
-      ? ('Next: <b>' + (next.type==='work' ? next.ex.name+' (set '+next.setNum+')' : 'Rest') + '</b>')
+      ? ('Next: <b>' + (next.type==='work' ? vinfo(exVariant[next.exIdx] || pickVariant(next.ex.key, kit.equipment, kit.variants) || next.ex.key, next.ex).name+' (set '+next.setNum+')' : 'Rest') + '</b>')
       : 'Last step — finish and stop when ready.';
 
     // refresh sidebar exercise highlight
@@ -683,21 +776,33 @@ const supabase = createSupabaseClient();
     renderExerciseList(w);
   }
 
+  let lastBeep = null;
+  function startRest(sec){ restRemaining = sec; restEndsAt = Date.now() + sec*1000; lastBeep = null; }
   function advance(){
     idx += 1;
     if (idx >= flat.length){ stopSession(true); return; }
-    if (flat[idx].type === 'rest') restRemaining = flat[idx].duration;
+    if (flat[idx].type === 'rest') startRest(flat[idx].duration);
     renderStage();
+    saveLive();
   }
 
+  let ticks = 0;
   function tick(){
     if (!running) return;
-    elapsedSec += 1;
+    const now = Date.now();
+    elapsedSec += Math.max(0, (now - lastTickAt) / 1000);
+    lastTickAt = now;
     if (flat[idx] && flat[idx].type === 'rest'){
-      restRemaining -= 1;
+      restRemaining = Math.max(0, Math.ceil((restEndsAt - now) / 1000));
+      if (restRemaining <= 3 && restRemaining !== lastBeep){
+        lastBeep = restRemaining;
+        if (restRemaining > 0){ beep(660, 110); buzz(60); }
+        else { beep(990, 450); buzz([150, 80, 150]); }
+      }
       if (restRemaining <= 0){ advance(); return; }
     }
     renderStage();
+    if (++ticks % 5 === 0) saveLive();
   }
 
   let wakeLock = null;
@@ -717,6 +822,9 @@ const supabase = createSupabaseClient();
       return;
     }
     running = true;
+    unlockAudio();
+    lastTickAt = Date.now();
+    if (flat[idx] && flat[idx].type === 'rest') restEndsAt = Date.now() + restRemaining*1000;
     if (idx === -1 && flat.length){ startedAt = new Date().toISOString(); advance(); }
     tickHandle = setInterval(tick, 1000);
     document.getElementById('startBtn').disabled = true;
@@ -733,6 +841,7 @@ const supabase = createSupabaseClient();
     document.getElementById('startBtn').textContent = 'Resume';
     document.getElementById('pauseBtn').disabled = true;
     releaseWakeLock();
+    saveLive();
   });
   async function stopSession(completed){
     running = false;
@@ -743,6 +852,7 @@ const supabase = createSupabaseClient();
     const finalSets = totalSets;
     const setsDone = completed ? totalSets : completedSetsCount();
     const sets = logged.slice();
+    clearLive();
     idx = -1; elapsedSec = 0; logged = []; form = null;
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'Start';
@@ -930,7 +1040,37 @@ const supabase = createSupabaseClient();
   loadProgramme();
 
   refreshHistory();
-  loadData().then(()=>{
+  // Offer to pick up a session that was cut off by a reload or the phone closing the page.
+  async function offerResume(){
+    const st = readLive();
+    const w = st && library.find(x => x.id === st.workoutId);
+    if (!w){ clearLive(); return false; }
+    const doneSets = st.flat.slice(0, st.idx).filter(e => e.type === 'work').length;
+    const ago = Math.round((Date.now() - st.savedAt) / 60000);
+    const yes = await ask('You\'d done '+doneSets+' of '+st.totalSets+' sets of '+w.name+(ago >= 2 ? ', '+ago+' minutes ago' : '')+'. Your logged weights are still here.', { title:'Pick up where you left off?', ok:'Pick up', cancel:'Start fresh' });
+    if (!yes){ clearLive(); return false; }
+    if (/^sp-/.test(w.id)) showProgramme.add(w.id);
+    populateWorkoutSelect();
+    document.getElementById('workoutSelect').value = w.id;
+    selectWorkout(w.id);
+    flat = st.flat.map(e => Object.assign({}, e, { ex: w.exercises[e.exIdx] })).filter(e => e.ex);
+    idx = Math.min(st.idx, flat.length - 1); logged = st.logged || []; exVariant = st.exVariant || {}; skipped = new Set(st.skipped || []);
+    totalSets = st.totalSets; startedAt = st.startedAt; planLink = st.planLink || null;
+    // Time away counts as session time when the session was running, up to 20 minutes.
+    elapsedSec = st.elapsedSec + (st.running ? Math.min((Date.now() - st.savedAt) / 1000, 1200) : 0);
+    restRemaining = st.restRemaining || 0;
+    if (flat[idx] && flat[idx].type === 'rest' && st.running) restRemaining = Math.max(5, restRemaining - Math.round((Date.now() - st.savedAt) / 1000));
+    form = null;
+    document.getElementById('startBtn').textContent = 'Resume';
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('workoutSelect').disabled = true;
+    document.querySelector('.live-layout').classList.add('session-active');
+    renderStage(true);
+    return true;
+  }
+
+  loadData().then(async ()=>{
+    if (await offerResume()){ window.history.replaceState({}, '', window.location.pathname); return; }
     const loadParam = new URLSearchParams(window.location.search).get('load');
     if (loadParam) showProgramme.add(loadParam);
     if (loadParam && library.find(x=>x.id===loadParam)){

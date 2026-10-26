@@ -323,3 +323,47 @@ export async function tiredness(supabase, userId){
   } catch(_){}
   return null;
 }
+
+// Swaps for when the kit's taken or something hurts: other versions of the same move first,
+// then moves that work the same muscles.
+const SWAP_TO = {
+  squat:['lunge','glute_bridge'], lunge:['squat','glute_bridge'], deadlift:['glute_bridge','squat'], glute_bridge:['deadlift','lunge'],
+  pushup:['shoulder_press'], shoulder_press:['pushup'], row:['bicep_curl'], bicep_curl:['row'],
+  plank:['situp','mountain_climber'], situp:['plank','mountain_climber'], mountain_climber:['plank','situp'],
+  clamshell:['standing_hip_abduction','glute_bridge'], standing_hip_abduction:['clamshell','glute_bridge'],
+};
+export function swapOptions(vid, base, eq){
+  const bases = [base].concat(SWAP_TO[base] || []);
+  return bases.flatMap(b => variantsFor(b)).filter(id => id !== vid && variantAvailable(id, eq));
+}
+
+// Barbell lifts: plates for each side of a 20 kg bar, heaviest first.
+const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+export const BAR_KG = 20;
+export function isBarbell(id){ const v = VARIANTS[id]; return !!v && (v.equip || []).length === 1 && v.equip[0] === 'barbell'; }
+export function platesText(w){
+  let side = Math.round((w - BAR_KG) / 2 * 100) / 100;
+  if (side <= 0) return 'Just the bar';
+  const out = [];
+  PLATES.forEach(p => { while (side >= p - 1e-9){ out.push(p); side = Math.round((side - p) * 100) / 100; } });
+  return out.map(p => String(p)).join(' + ') + ' each side';
+}
+
+// Warm-up sets before the first working set. Barbell lifts build up from the empty bar;
+// dumbbell and kettlebell moves get one lighter set. Not logged, so they don't touch progression.
+export function warmups(id, w, eq){
+  const v = VARIANTS[id]; if (!v || w == null || !(v.load === 'hand' || v.load === 'total')) return [];
+  const opts = weightOptions(id, eq);
+  if (isBarbell(id)){
+    if (w < 30) return [];
+    const steps = [[0, 10], [0.5, 5], [0.7, 3]].concat(w >= 80 ? [[0.85, 2]] : []);
+    const out = [];
+    steps.forEach(([f, reps]) => {
+      const kg = f ? Math.max(BAR_KG, nearestOption(w * f, opts, 'down')) : BAR_KG;
+      if (kg < w - 1e-9 && !out.some(s => s.weight === kg)) out.push({ weight: kg, reps });
+    });
+    return out;
+  }
+  const kg = nearestOption(w * 0.5, opts, 'down');
+  return kg < w - 1e-9 && w >= (v.load === 'hand' ? 8 : 12) ? [{ weight: kg, reps: 8 }] : [];
+}
