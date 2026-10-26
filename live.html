@@ -553,8 +553,9 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=2';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
+import { suggestRide, SUGGEST_MAX_KEY, DEFAULT_MAX, loadFeel } from './suggest.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays } from './plan-schedule.js?v=3';
+import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays, isoDate } from './plan-schedule.js?v=3';
 import { applySwaps } from './adapt.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
 import { addRuns } from './run.js?v=5';
@@ -752,6 +753,7 @@ const supabase = createSupabaseClient();
   }
 
   // The header above the profile: what's about to be ridden, and whether it's from the plan.
+  let preselectedSuggestion = null; // workout id picked because it's today's suggested ride (see suggest.js)
   let preselectedFromPlan = null; // workout id picked automatically because it's today's plan session
   function renderPreride(){
     const id = document.getElementById('workoutSelect').value;
@@ -772,7 +774,7 @@ const supabase = createSupabaseClient();
     if (!w) return;
     const st = computeStats(w.steps);
     const tss = st.IF!=null ? Math.round(st.totalDur/3600*st.IF*st.IF*100) : null;
-    kicker.textContent = planLink ? (preselectedFromPlan === id ? 'Today\'s plan session' : 'From your plan') : (w.category ? categoryLabel(w.category) : 'Workout');
+    kicker.textContent = planLink ? (preselectedFromPlan === id ? 'Today\'s plan session' : 'From your plan') : preselectedSuggestion === id ? 'Suggested for today' : (w.category ? categoryLabel(w.category) : 'Workout');
     name.textContent = w.name;
     const intervals = flatten(w.steps).filter(x=> effectivePct(x) != null && effectivePct(x) >= 88).length;
     const mins = Math.round(st.totalDur/60);
@@ -786,12 +788,13 @@ const supabase = createSupabaseClient();
       meta.innerHTML += ' <span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(wl.level)+(d ? ' · '+d.label : '')+'</span>';
     }
   }
-  let riderLevels = null;
+  let riderLevels = null, riderByRide = {}, riderRides = [];
   async function loadRiderLevels(){
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss').eq('user_id', user.id);
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
-      riderLevels = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp).levels;
+      riderRides = data || [];
+      ({ levels: riderLevels, byRide: riderByRide } = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp));
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
@@ -2118,7 +2121,21 @@ const supabase = createSupabaseClient();
         selectWorkout(wid);
       }
     }
+    if (!loadParam && document.getElementById('workoutSelect').value === '') preselectSuggestion();
   });
+  // Nothing planned today and nothing chosen: have today's suggested ride ready, as on Today.
+  async function preselectSuggestion(){
+    const today = todayIso();
+    if (!riderLevels || !riderRides.length || riderRides.some(r => isoDate(new Date(r.started_at)) === today)) return;
+    let maxMin = DEFAULT_MAX;
+    try { const { data } = await supabase.from('settings').select('value').eq('key', SUGGEST_MAX_KEY).eq('user_id', user.id).maybeSingle(); maxMin = Number(data && data.value && data.value.v) || DEFAULT_MAX; } catch(_){}
+    const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin, feel: loadFeel(today), restDay: !!activePlan });
+    const id = res && res.picks[0].w.id;
+    if (!id || document.getElementById('workoutSelect').value !== '') return;
+    preselectedSuggestion = id;
+    document.getElementById('workoutSelect').value = id;
+    selectWorkout(id);
+  }
   renderStepReadout();
   updateStartAvailability();
   setTimeout(recoverUnsavedRide, 1500); // after FTP has loaded, offer to save a ride lost to a crash/close
