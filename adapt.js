@@ -5,6 +5,8 @@
 //     can swap for a library workout of similar length that's a better fit
 //   - when they're very tired, the next hard session can swap for an endurance ride
 //   - when they're very tired or their last two runs felt hard, the next quality run can swap for an easy run
+//   - a leg-heavy strength session the day before a key session (hard ride, test, race, brick or quality run)
+//     can move to a nearby day that keeps the legs fresh. Sessions need legHeavy set by the caller.
 // Accepted swaps live in settings key active_plan_swaps ({ dayIndex: workoutId }) and are
 // applied to the plan with applySwaps() before anything else reads it. Suggestions the rider
 // said no to are kept in plan_adapt_dismissed so they don't come back.
@@ -166,8 +168,30 @@ export function findAdaptations({ sessions, rides, levels, byRide, library, ftp,
         accept:{ type:'swap', dayIndex:next.dayIndex, workoutId:'run-easy-'+mins }, acceptLabel:'Swap to '+alt.name+' '+mins+' min' });
     }
   }
+
+  // 5. Leg day the day before a key session -> nearest day within 3 days that isn't.
+  const isKey = s => s.isRace || s.isBrick || s.category === 'test'
+    || (s.dayObj.workoutType === 'run' && (runSession(s.dayObj.workoutId) || {}).kind === 'quality')
+    || (!s.isStrength && s.steps && HARD_ZONES.includes((workoutLevel({ steps:s.steps, category:s.category }, ftp) || {}).zone));
+  const keys = live.filter(s => !s.done && s.date >= today && isKey(s));
+  const keyOn = d => keys.find(k => k.date === d);
+  const firstFree = ridToday ? addDays(today, 1) : today;
+  const taken = new Set(out.filter(a => a.accept.type === 'move').map(a => a.accept.date));
+  for (const s of live.filter(s => s.isStrength && s.legHeavy && !s.done && s.date >= today && s.date <= addDays(today, 6))){
+    const k = keyOn(addDays(s.date, 1));
+    const id = k && 'legs:'+s.dayIndex+':'+s.date;
+    if (!k || no.has(id)) continue;
+    const to = [-1, 2, -2, 3, -3].map(o => addDays(s.date, o))
+      .find(d => d >= firstFree && !busy.has(d) && !taken.has(d) && !keyOn(d) && !keyOn(addDays(d, 1)) && !(away && away(d)));
+    if (!to) continue;
+    out.push({ id, kind:'legs', title:'Leg day before '+possessive(dayName(k.date, today))+' '+k.name,
+      text: cap(possessive(dayName(s.date, today)))+' '+s.name+' works your legs hard, and '+k.name+' needs them fresh. Move the strength session to '+dayName(to, today)+' instead.',
+      accept:{ type:'move', dayIndex:s.dayIndex, date:to }, acceptLabel:'Move to '+dayName(to, today) });
+    break;
+  }
   return out;
 }
+function cap(t){ return t.charAt(0).toUpperCase() + t.slice(1); }
 
 // Persist an accepted suggestion. follow is from loadFollowState().
 export async function acceptAdaptation(supabase, userId, follow, a){

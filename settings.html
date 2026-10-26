@@ -252,6 +252,8 @@
         <option value="regular">Lift regularly</option>
       </select>
       <div class="msg" id="expMsg"></div>
+      <label style="display:flex; gap:8px; align-items:flex-start; margin-top:14px; font-size:13.5px; line-height:1.4;"><input type="checkbox" id="rideAware" style="margin-top:2px;"> <span><b>Ease off in big riding weeks.</b> When you've ridden a lot more than usual, sessions start as a lighter version with 2 sets of each exercise. You can still do the full session.</span></label>
+      <div class="msg" id="rideAwareMsg"></div>
     </div>
     </div>
 
@@ -349,12 +351,12 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=5';
 import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
 import { ask } from './sheet.js?v=2';
-import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting } from './strength-kit.js?v=3';
+import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting } from './strength-kit.js?v=4';
 import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions } from './diary.js?v=2';
 import { loadFollowState } from './plan-schedule.js?v=4';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
-import { applySwaps } from './adapt.js?v=3';
+import { applySwaps } from './adapt.js?v=4';
 import { loadHolidays, applyHolidays } from './holidays.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -529,6 +531,7 @@ const supabase = createSupabaseClient();
   loadStrengthSettings(supabase, user.id).then(k => {
     showEquipment(k.equipment.set ? k.equipment : { dumbbell:{ from:2, to:20, step:2 } });
     document.getElementById('strengthExp').value = k.experience || '';
+    document.getElementById('rideAware').checked = k.rideAware;
     if (!k.equipment.set) document.getElementById('eqMsg').textContent = 'Not saved yet. Until you save, TrainerStrength assumes a full gym.';
   });
   async function saveEquipment(){
@@ -549,6 +552,12 @@ const supabase = createSupabaseClient();
   }
   document.getElementById('eqSaveBtn').addEventListener('click', saveEquipment);
   document.getElementById('eqGymBtn').addEventListener('click', ()=>{ showEquipment(GYM_EQUIPMENT); saveEquipment(); });
+  document.getElementById('rideAware').addEventListener('change', async e => {
+    const msg = document.getElementById('rideAwareMsg');
+    try { const { error } = await saveSetting(supabase, user.id, 'strength_ride_aware', e.target.checked); if (error) throw error; msg.textContent = 'Saved.'; }
+    catch(_){ msg.textContent = 'Couldn\'t save. Check your connection and try again.'; }
+    setTimeout(()=>{ msg.textContent = ''; }, 3000);
+  });
   document.getElementById('strengthExp').addEventListener('change', async e => {
     const msg = document.getElementById('expMsg');
     try { const { error } = await saveSetting(supabase, user.id, 'strength_experience', e.target.value || null); if (error) throw error; msg.textContent = 'Saved.'; }
