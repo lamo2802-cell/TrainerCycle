@@ -335,6 +335,7 @@
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=2';
+import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS } from './strength-kit.js?v=2';
 import { openRunLog, fmtPace, fmtKm, syncStrava } from './run.js?v=5';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
@@ -518,7 +519,21 @@ const supabase = createSupabaseClient();
       + '<div class="d-stats">'
       + stat(fmtDur(r.duration_sec),'Duration') + stat(sets ? sets.sets+' / '+sets.of : null,'Sets done') + stat(r.tss,'TSS')
       + '</div>'
-      + '<div class="panel empty-note">Strength sessions count a little towards your Fitness, Fatigue and Form: about 36 TSS an hour.</div>';
+      + '<div class="panel" id="strengthSets"><div class="empty-note">Loading sets…</div></div>'
+      + '<div class="panel empty-note">Strength sessions count a little towards your Fitness, Fatigue and Form: 30 to 45 TSS an hour, more when your sets were close to the limit.</div>';
+  }
+  async function mountStrengthSets(el, r){
+    const box = el.querySelector('#strengthSets'); if (!box) return;
+    try {
+      const { data, error } = await supabase.from('strength_sets').select('variant,exercise_key,set_no,weight_kg,reps,hold_sec,rir,performed_at').eq('session_id', r.id).order('performed_at');
+      if (error) throw error;
+      if (!data || !data.length){ box.innerHTML = '<div class="empty-note">No weights or reps were logged for this session.</div>'; return; }
+      const groups = [];
+      data.forEach(x => { x.weight_kg = x.weight_kg == null ? null : Number(x.weight_kg); let g = groups.find(q => q.v === x.variant); if (!g){ g = { v:x.variant, sets:[] }; groups.push(g); } g.sets.push(x); });
+      box.innerHTML = '<div class="panel-title"><span>Sets</span></div><table class="run-recs"><thead><tr><th>Exercise</th><th>Sets</th><th class="opt">Left in tank</th></tr></thead><tbody>'
+        + groups.map(g => '<tr><td>'+escapeHtml(VARIANTS[g.v] ? VARIANTS[g.v].name : g.v)+'</td><td class="t">'+setsText(g.v, g.sets)+'</td><td class="p opt">'+g.sets.map(x => x.rir == null ? '–' : (x.rir >= 4 ? '4+' : x.rir)).join(', ')+'</td></tr>').join('')
+        + '</tbody></table>';
+    } catch(_){ box.innerHTML = '<div class="empty-note">Sets couldn\'t be loaded.</div>'; }
   }
   const STRENGTH_ICON = '<svg viewBox="0 0 24 24"><path d="M6 7v10M18 7v10M3 9.5v5M21 9.5v5M6 12h12"/></svg>';
   function strengthRowHtml(r){
@@ -720,6 +735,7 @@ const supabase = createSupabaseClient();
   const REC_KEY = [5, 60, 300, 1200, 3600];
   const RUN_RECS = [[400,'400 m'],[1000,'1K'],[1609,'1 mile'],[5000,'5K'],[10000,'10K'],[21097,'Half marathon'],[42195,'Marathon']];
   let weightKg = null;
+  let strengthLifts = [];
   function bestsOver(list, key, durs, better){
     const out = {};
     for (const r of list){
@@ -751,7 +767,7 @@ const supabase = createSupabaseClient();
     const recent = bestsOver(ridesOnly.filter(r => r.started_at >= since), 'power_bests', REC_DURS, (a,b)=>a>b);
     const runs = bestsOver(rides.filter(isRun), 'run_bests', RUN_RECS.map(x=>x[0]), (a,b)=>a<b);
     const shortDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' }); };
-    let html = '<p class="hub-sub">Your best power and run times, from TrainerCycle and Strava.</p>';
+    let html = '<p class="hub-sub">Your best power, run times and lifts, from TrainerCycle and Strava.</p>';
     html += '<div class="panel"><div class="panel-title"><span>Power bests</span><span class="rec-legend"><span><i style="background:#45D6C4"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span></div>';
     if (!Object.keys(all).length){
       html += '<div class="empty-note">Ride with a power meter and your best efforts will show here.</div>';
@@ -774,6 +790,17 @@ const supabase = createSupabaseClient();
           return '<tr data-ride="'+b.r.id+'"><td>'+label+'</td><td class="t">'+fmtDur(b.v)+'</td><td class="p">'+fmtPace(b.v/(m/1000))+'<span class="opt"> /km</span></td><td class="opt">'+escapeHtml(b.r.workout_name)+'</td><td>'+shortDate(b.r.started_at)+'</td></tr>'; }).join('')
         + '</tbody></table>';
     }
+    html += '</div><div class="panel"><div class="panel-title"><span>Strength bests</span></div>';
+    const lifts = strengthLifts.filter(L => L.best || L.top);
+    if (!lifts.length){
+      html += '<div class="empty-note">Log weights and reps in TrainerStrength and your best sets show here.</div>';
+    } else {
+      html += '<table class="run-recs"><thead><tr><th>Exercise</th><th>Best set</th><th class="opt">Est. max</th><th>Date</th></tr></thead><tbody>'
+        + lifts.map(L => { const t = L.best ? L.best.set : L.top, at = L.best ? L.best.at : L.top.at, sid = L.best ? L.best.session_id : L.top.session_id;
+          const set = L.load === 'time' ? t.hold_sec+' s' : L.load === 'bw' ? t.reps+' reps' : fmtLoad(L.id, t.weight_kg)+' × '+t.reps;
+          return '<tr data-ride="'+sid+'"><td>'+escapeHtml(L.name)+'</td><td class="t">'+set+'</td><td class="p opt">'+(L.best ? fmtLoad(L.id, L.best.e) : '–')+'</td><td>'+shortDate(at)+'</td></tr>'; }).join('')
+        + '</tbody></table>';
+    }
     return html + '</div>';
   }
   async function showRecords(){
@@ -785,6 +812,7 @@ const supabase = createSupabaseClient();
     if (weightKg == null){
       try { const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle(); weightKg = (data && data.value && Number(data.value.v)) || 0; } catch(_){ weightKg = 0; }
     }
+    try { const h = await loadStrengthHistory(supabase, user.id); strengthLifts = Object.keys(h).map(id => liftSummary(id, h[id])).sort((a,b)=>a.name.localeCompare(b.name)); } catch(e){ console.error('strength history', e); strengthLifts = []; }
     el.innerHTML = recordsHtml(el.clientWidth - 34);
   }
   document.getElementById('hubView').addEventListener('click', e=>{
@@ -852,7 +880,7 @@ const supabase = createSupabaseClient();
     }
     if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline, '#C084FC'); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
-    if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); return; }
+    if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
     if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
