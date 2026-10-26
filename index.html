@@ -440,7 +440,8 @@ import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStr
 import { openExportSheet } from './export.js?v=3';
 import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=3';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
-import { openWelcome } from './welcome.js?v=1';
+import { openWelcome } from './welcome.js?v=2';
+import { WHATS_NEW_KEY, shouldShowWhatsNew, openWhatsNew } from './whatsnew.js?v=1';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=3';
 import { loadDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=3';
@@ -517,6 +518,7 @@ const supabase = createSupabaseClient();
 
     const today = todayIso();
     let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
+    let whatsNewSeen = null;
     let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null, maxMin = DEFAULT_MAX;
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
@@ -532,12 +534,12 @@ const supabase = createSupabaseClient();
         supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle(),
         loadHolidays(supabase, user.id),
-        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY, SUGGEST_MAX_KEY]),
+        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY, SUGGEST_MAX_KEY, WHATS_NEW_KEY]),
         loadDiary(supabase, user.id)
       ]);
       holidays = hol || [];
       diary = dy || [];
-      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else if (r.key === SUGGEST_MAX_KEY) maxMin = Number(r.value && r.value.v) || DEFAULT_MAX; else paceDismissed = Number(r.value && r.value.v) || null; });
+      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else if (r.key === SUGGEST_MAX_KEY) maxMin = Number(r.value && r.value.v) || DEFAULT_MAX; else if (r.key === WHATS_NEW_KEY) whatsNewSeen = r.value && r.value.v; else paceDismissed = Number(r.value && r.value.v) || null; });
       setRunPace(runPace);
       if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
@@ -866,6 +868,7 @@ const supabase = createSupabaseClient();
       try { shown = !!localStorage.getItem('tc_welcome_shown_' + user.id); localStorage.setItem('tc_welcome_shown_' + user.id, '1'); } catch(_){}
       if (!shown) runWelcome();
     }
+    else if (shouldShowWhatsNew({ user, seenId:whatsNewSeen, isNew })) openWhatsNew({ supabase, user });
     const gsHide = el.querySelector('[data-gs-hide]');
     if (gsHide) gsHide.addEventListener('click', async ()=>{
       gsHide.closest('.gs-card').remove();

@@ -2,6 +2,7 @@
 // Monday and the first session is waiting on Today. Shown on Today until the rider has a plan or a ride.
 import { showSheet } from './sheet.js?v=2';
 import { mondayOnOrAfter, parseIso } from './plan-schedule.js?v=4';
+import { whatsNewRow } from './whatsnew.js?v=1';
 
 export const WELCOME_KEY = 'welcome_done';
 const RAMP_TEST_ID = 'prebuilt-ramp-test-25';
@@ -122,6 +123,7 @@ export async function openWelcome({ supabase, user, ftp }){
       { user_id:user.id, key:'active_plan_started_at', value:{ v:start }, updated_at:now },
       { user_id:user.id, key:'active_plan_cursor_day', value:{ v:0 }, updated_at:now },
       { user_id:user.id, key:WELCOME_KEY, value:{ v:{ at:now, goal:st.goal, level:st.level, days:st.days, ramp:st.ramp } }, updated_at:now },
+      whatsNewRow(user), // everything on the What's new list is new to them anyway
     ];
     if (!st.ramp && st.ftp) rows.push({ user_id:user.id, key:'ftp', value:{ v:Number(st.ftp) }, updated_at:now });
     await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves', 'active_plan_swaps', 'run_plan']);
