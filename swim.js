@@ -4,8 +4,8 @@
 // IF = CSS pace / swim pace, and sTSS = hours x IF^3 x 100 (cubed, because water resistance rises
 // steeply with speed). Without a distance (or a CSS) IF comes from how the swim felt instead.
 
-import { showSheet, notify } from './sheet.js?v=2';
-import { parseDuration } from './run.js?v=5';
+import { showSheet, notify } from './sheet.js?v=3';
+import { parseDuration } from './run.js?v=6';
 
 export const SWIM_CSS_KEY = 'swim_css';
 

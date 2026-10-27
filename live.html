@@ -590,14 +590,14 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=19';
-import { notify, ask, showSheet } from './sheet.js?v=2';
+import { notify, ask, showSheet } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, SUGGEST_MAX_KEY, DEFAULT_MAX, loadFeel } from './suggest.js?v=2';
+import { suggestRide, SUGGEST_MAX_KEY, DEFAULT_MAX, loadFeel } from './suggest.js?v=3';
 import { powerBests } from './ftp-estimate.js?v=1';
-import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays, isoDate } from './plan-schedule.js?v=5';
+import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays, isoDate } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns } from './run.js?v=5';
+import { addRuns } from './run.js?v=6';
 import { isBikeDay } from './plan-kit.js?v=4';
 const supabase = createSupabaseClient();
 
@@ -903,7 +903,7 @@ const supabase = createSupabaseClient();
     if (!activePlan) return null;
     const { plan, state, doneDays } = activePlan;
     const weekAhead = addDays(todayIso(), 7);
-    const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
+    const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, skips: state.skips, doneDays,
       filter: s => isBikeDay(s.dayObj) });
     return (next && next.date < weekAhead && next.dayObj.workoutId === workoutId) ? { planId: plan.id, dayIndex: next.dayIndex } : null;
   }
@@ -2179,7 +2179,7 @@ const supabase = createSupabaseClient();
     } else if (!loadParam && activePlan && document.getElementById('workoutSelect').value === ''){
       // Nothing chosen yet: if the plan has a ride due today, have it ready to go.
       const { plan, state, doneDays } = activePlan;
-      const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, doneDays,
+      const next = nextSession(plan, state.startedAt, { cursorDay: state.cursorDay, moves: state.moves, skips: state.skips, doneDays,
         filter: x => isBikeDay(x.dayObj) });
       const wid = next && next.date === todayIso() && next.dayObj.workoutId;
       if (wid && library.find(x=>x.id===wid)){

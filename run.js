@@ -4,7 +4,7 @@
 // IF comes from how the run felt instead. Threshold pace lives in settings key run_threshold_pace
 // (seconds per km).
 
-import { showSheet, notify } from './sheet.js?v=2';
+import { showSheet, notify } from './sheet.js?v=3';
 
 export const RUN_PACE_KEY = 'run_threshold_pace';
 export const RUN_PLAN_KEY = 'active_plan_runs';
@@ -82,6 +82,24 @@ export function runSession(id){
   if (!s) return null;
   const load = runLoad(s);
   return Object.assign({}, s, { id, mins: Math.round(load.secs/60), IF: load.IF, tss: load.tss, text: describeRun(s) });
+}
+// Other run sessions about as long as this one (within 5 minutes), for swapping in on the day:
+// the same kind first, then easier ones. [{ id, session, group:'same'|'easier'|'harder' }].
+const RUN_EFFORT = { easy:0, long:1, quality:2 };
+export function runAlternatives(id){
+  const own = runSession(id);
+  if (!own) return [];
+  const mine = RUN_EFFORT[own.kind] ?? 1;
+  const out = [], seen = new Set([own.name+'|'+own.mins]);
+  for (const other of Object.keys(RUN_SESSIONS)){
+    const s = other === id ? null : runSession(other);
+    if (!s || !(s.kind in RUN_EFFORT) || Math.abs(s.mins - own.mins) > 5 || seen.has(s.name+'|'+s.mins)) continue;
+    seen.add(s.name+'|'+s.mins);
+    const e = RUN_EFFORT[s.kind] ?? 1;
+    out.push({ id: other, session: s, group: e === mine && s.kind === own.kind ? 'same' : e < mine ? 'easier' : 'harder', off: Math.abs(s.mins - own.mins) });
+  }
+  const order = { same:0, easier:1, harder:2 };
+  return out.sort((a, b) => order[a.group] - order[b.group] || a.off - b.off).slice(0, 5);
 }
 export function plannedRunTss(id){ const s = runSession(id); return s ? s.tss : null; }
 

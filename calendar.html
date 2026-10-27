@@ -266,17 +266,17 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
-import { notify, ask, showSheet } from './sheet.js?v=2';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss, moveEntry } from './plan-schedule.js?v=5';
+import { notify, ask, showSheet } from './sheet.js?v=3';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, saveMoves, plannedTss, moveEntry, isSkipped, skipEntry, saveSkips } from './plan-schedule.js?v=6';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { applySwaps, undoSwap } from './adapt.js?v=5';
-import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=5';
+import { runSession, plannedRunTss, openRunLog, fmtKm, setRunPace, RUN_PACE_KEY } from './run.js?v=6';
 import { loadHolidays, applyHolidays, holidayOn, openHolidaySheet, holidayLabel } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { openExportSheet } from './export.js?v=3';
 import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtMetres } from './swim.js?v=2';
-import { feedEvents, syncCalendarFeed } from './calfeed.js?v=4';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=2';
 const supabase = createSupabaseClient();
 
@@ -295,7 +295,7 @@ const supabase = createSupabaseClient();
 
   // ---- data ----
   let ftp = 250, runPace = null;
-  let follow = { planId:null, startedAt:null, cursorDay:0, moves:{} };
+  let follow = { planId:null, startedAt:null, cursorDay:0, moves:{}, skips:{} };
   let plan = null, planRaw = null;
   let doneDays = new Map();
   let holidays = [];
@@ -367,7 +367,7 @@ const supabase = createSupabaseClient();
         name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category,
         isStrength, isRun, isSwim, isBrick, isRace, run, info, durationSec: wk.duration_sec || null,
         tss: isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isBrick || isRace || isStrength) ? info.tss : plannedTss(wk.steps, ftp),
-        done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay,
+        done: doneDays.has(s.dayIndex), skipped: isSkipped(follow, s),
       });
       item.missed = !item.done && (item.date < today || item.skipped);
       add(item);
@@ -509,17 +509,29 @@ const supabase = createSupabaseClient();
   }
   // changes: [[dayIndex, date]]. Moving a session back to its planned day clears its move.
   async function moveSessions(changes){
-    const before = follow.moves;
-    const moves = Object.assign({}, follow.moves);
+    const before = follow.moves, skipsBefore = follow.skips;
+    const moves = Object.assign({}, follow.moves), skips = Object.assign({}, follow.skips);
     for (const [dayIndex, date] of changes){
       const s = findSession(dayIndex);
       if (!s) continue;
       if (date === s.plannedDate) delete moves[dayIndex]; else moves[dayIndex] = moveEntry(s, date);
+      delete skips[dayIndex]; // moving a skipped session means doing it after all
     }
-    follow.moves = moves;
+    const unskipped = Object.keys(skips).length !== Object.keys(follow.skips || {}).length;
+    follow.moves = moves; follow.skips = skips;
     rebuildPlan(); render(); computeFitness();
-    try { await saveMoves(supabase, user.id, moves); }
-    catch(e){ follow.moves = before; rebuildPlan(); render(); computeFitness(); notify('Check your connection and try again.', 'Couldn\'t save that move'); }
+    try { await saveMoves(supabase, user.id, moves); if (unskipped) await saveSkips(supabase, user.id, skips); }
+    catch(e){ follow.moves = before; follow.skips = skipsBefore; rebuildPlan(); render(); computeFitness(); notify('Check your connection and try again.', 'Couldn\'t save that move'); }
+  }
+  // Skip a session (it stays on the calendar, marked skipped) or put a skipped one back.
+  async function setSkipped(s, on){
+    const before = follow.skips;
+    const skips = Object.assign({}, follow.skips);
+    if (on) skips[s.dayIndex] = skipEntry(s); else delete skips[s.dayIndex];
+    follow.skips = skips;
+    refresh();
+    try { await saveSkips(supabase, user.id, skips); }
+    catch(e){ follow.skips = before; refresh(); notify('Check your connection and try again.', 'Couldn\'t change your plan'); }
   }
   // Onto a day that already has a plan session still to do: offer to swap the two days.
   async function moveSession(dayIndex, date){
@@ -648,6 +660,8 @@ const supabase = createSupabaseClient();
       + '<button id="moveSaveBtn">Move</button>'
       + (s.moved ? '<button id="moveResetBtn">Back to '+escapeHtml(longDate(s.plannedDate))+'</button>' : '')
       + '</div>'
+      + (s.skipped && follow.skips && follow.skips[s.dayIndex] && !s.done ? '<div class="row"><button id="unskipBtn">Put it back (you skipped it)</button></div>'
+        : !s.skipped && !s.done && !s.isRace && s.date >= minDate ? '<div class="row"><button id="skipBtn">Skip this session</button></div>' : '')
       + (s.dayObj.swappedFrom && !s.dayObj.holiday ? '<div class="row"><button id="undoSwapBtn">Go back to '+escapeHtml((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+'</button></div>' : '')
       + (s.isRun ? '<p class="run-desc">'+escapeHtml(s.run.text)+'</p>' : (s.isSwim || s.isBrick || s.isRace) && s.info.text ? '<p class="run-desc">'+escapeHtml(s.info.text)+'</p>' : '')
       + '<div class="actions"><button id="sheetCloseBtn">Close</button>'
@@ -703,6 +717,9 @@ const supabase = createSupabaseClient();
       try { await undoSwap(supabase, user.id, follow, s.dayIndex); rebuildPlan(); render(); computeFitness(); }
       catch(e){ notify('Check your connection and try again.', 'Couldn\'t undo that'); }
     };
+    const skipBtn = document.getElementById('skipBtn'), unskipBtn = document.getElementById('unskipBtn');
+    if (skipBtn) skipBtn.onclick = ()=>{ closeSheet(); setSkipped(s, true); };
+    if (unskipBtn) unskipBtn.onclick = ()=>{ closeSheet(); setSkipped(s, false); };
     const resetBtn = document.getElementById('moveResetBtn');
     if (resetBtn) resetBtn.onclick = ()=>{ closeSheet(); moveSession(s.dayIndex, s.plannedDate); };
   });

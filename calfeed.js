@@ -3,8 +3,8 @@
 // the calendar-feed edge function serves them as an .ics feed to whoever holds the rider's secret
 // link (settings key calendar_feed_token), and send-reminders uses them for session reminders
 // (reminders.js). Nothing is stored until the rider turns the feed or reminders on.
-import { planSessions, todayIso, addDays, plannedTss } from './plan-schedule.js?v=5';
-import { runSession } from './run.js?v=5';
+import { planSessions, todayIso, addDays, plannedTss, isSkipped } from './plan-schedule.js?v=6';
+import { runSession } from './run.js?v=6';
 import { sessionInfo } from './plan-kit.js?v=4';
 
 export const FEED_TOKEN_KEY = 'calendar_feed_token';
@@ -20,7 +20,7 @@ function durOf(steps){ let t = 0; (function walk(l, n){ for (const s of l || [])
 export function feedEvents(plan, follow, workouts, ftp, extra = []){
   const today = todayIso(), end = addDays(today, WEEKS_AHEAD * 7);
   const fromPlan = plan && follow && follow.startedAt ? planSessions(plan, follow.startedAt, follow.moves)
-    .filter(s => s.dayIndex >= (follow.cursorDay || 0)) : [];
+    .filter(s => !isSkipped(follow, s)) : [];
   return fromPlan.concat(extra || []).filter(s => s.date >= today && s.date <= end)
     .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
     .map(s => dayEvent(s.date, s.dayObj, workouts, ftp)).filter(Boolean);

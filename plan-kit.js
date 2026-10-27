@@ -10,9 +10,9 @@
 //   race      { type:'workout', workoutType:'race', workoutId, race:{ name, mins, tss, text } }
 // Run and swim sessions are written into the plan itself (their makers are below) and registered with
 // run.js and swim.js when the plan is loaded, so every page reads them like any other session.
-import { registerRunSession, runSession, runLoad, plannedRunTss } from './run.js?v=5';
+import { registerRunSession, runSession, runLoad, plannedRunTss } from './run.js?v=6';
 import { registerSwimSession, swimSession } from './swim.js?v=2';
-import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=5';
+import { plannedTss, parseIso, addDays, todayIso, mondayOnOrAfter } from './plan-schedule.js?v=6';
 
 export const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const RACES_BY_ID = {};

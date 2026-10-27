@@ -10,9 +10,9 @@
 // Accepted swaps live in settings key active_plan_swaps ({ dayIndex: workoutId }) and are
 // applied to the plan with applySwaps() before anything else reads it. Suggestions the rider
 // said no to are kept in plan_adapt_dismissed so they don't come back.
-import { addDays, parseIso, moveEntry } from './plan-schedule.js?v=5';
+import { addDays, parseIso, moveEntry } from './plan-schedule.js?v=6';
 import { workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { runSession } from './run.js?v=5';
+import { runSession } from './run.js?v=6';
 
 export const SWAPS_KEY = 'active_plan_swaps';
 export const DISMISSED_KEY = 'plan_adapt_dismissed';

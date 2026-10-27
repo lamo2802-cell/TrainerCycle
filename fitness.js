@@ -1,13 +1,13 @@
 // Fitness & form chart (Progress → Fitness) and the planned sessions it projects forward with.
 // The tiles alone also show on Calendar and Today, from training-load.js.
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=5';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, isSkipped } from './plan-schedule.js?v=6';
 import { loadSeries, formLabel } from './training-load.js?v=2';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { sessionInfo } from './plan-kit.js?v=4';
 import { loadDiary, diarySessions } from './diary.js?v=1';
-import { setRunPace, RUN_PACE_KEY } from './run.js?v=5';
+import { setRunPace, RUN_PACE_KEY } from './run.js?v=6';
 import { setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
 
 // Every planned session (followed plan and single calendar workouts) as
@@ -37,7 +37,7 @@ export async function loadPlanned(supabase, userId, rides){
       const doneDays = await loadDoneDays(supabase, userId, plan.id, st.startedAt);
       planSessions(plan, st.startedAt, st.moves).forEach(s => {
         const info = sessionInfo(s.dayObj, workouts, ftp) || {};
-        const done = doneDays.has(s.dayIndex), skipped = s.dayIndex < st.cursorDay;
+        const done = doneDays.has(s.dayIndex), skipped = isSkipped(st, s);
         out.push({ date:s.date, tss:info.tss || 0, done, skipped, missed:!done && (s.date < today || skipped), sport:sportOf(s.dayObj) });
       });
     }

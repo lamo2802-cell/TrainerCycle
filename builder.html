@@ -359,13 +359,13 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
-import { notify, ask } from './sheet.js?v=2';
+import { notify, ask } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, loadFeel } from './suggest.js?v=2';
-import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=5';
+import { suggestRide, loadFeel } from './suggest.js?v=3';
+import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns } from './run.js?v=5';
+import { addRuns } from './run.js?v=6';
 import { openExportSheet } from './export.js?v=3';
 const supabase = createSupabaseClient();
 (async function(){
@@ -701,7 +701,7 @@ const supabase = createSupabaseClient();
       if (!planRow) return;
       const plan = applyHolidays(applySwaps(addRuns(planRow, st.runs), st.swaps), st.startedAt, st.moves, await loadHolidays(supabase, user.id));
       const doneDays = await loadDoneDays(supabase, user.id, plan.id, st.startedAt);
-      const s = nextSession(plan, st.startedAt, { cursorDay: st.cursorDay, moves: st.moves, doneDays });
+      const s = nextSession(plan, st.startedAt, { cursorDay: st.cursorDay, moves: st.moves, skips: st.skips, doneDays });
       const next = s ? { day: s.dayObj, isToday: s.date === todayIso(), dayIndex: s.dayIndex } : null;
       if (!next || next.day.workoutType === 'strength' || next.day.workoutType === 'run') return;
       const w = library.find(x=>x.id===next.day.workoutId);

@@ -1,7 +1,7 @@
 // First-week setup for new riders: three questions pick a plan, then FTP, then the plan starts on
 // Monday and the first session is waiting on Today. Shown on Today until the rider has a plan or a ride.
-import { showSheet } from './sheet.js?v=2';
-import { mondayOnOrAfter, parseIso } from './plan-schedule.js?v=5';
+import { showSheet } from './sheet.js?v=3';
+import { mondayOnOrAfter, parseIso } from './plan-schedule.js?v=6';
 import { whatsNewRow } from './whatsnew.js?v=1';
 
 export const WELCOME_KEY = 'welcome_done';
@@ -126,7 +126,7 @@ export async function openWelcome({ supabase, user, ftp }){
       whatsNewRow(user), // everything on the What's new list is new to them anyway
     ];
     if (!st.ramp && st.ftp) rows.push({ user_id:user.id, key:'ftp', value:{ v:Number(st.ftp) }, updated_at:now });
-    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves', 'active_plan_swaps', 'run_plan']);
+    await supabase.from('settings').delete().eq('user_id', user.id).in('key', ['active_plan_moves', 'active_plan_swaps', 'active_plan_skips', 'run_plan']);
     const { error } = await supabase.from('settings').upsert(rows, { onConflict:'user_id,key' });
     if (error) throw error;
     if (!st.ramp && st.ftp) try { localStorage.setItem('tc_ftp_' + user.id, String(Number(st.ftp))); } catch(_){}

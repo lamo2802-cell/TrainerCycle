@@ -1,7 +1,7 @@
 // One-time "What's new" sheet for riders who were already here before the 25-26 Oct 2026 releases.
 // Shown once on Today; the settings row records which release they've seen, so a later release can
 // bump WHATS_NEW_ID and show its own list. Brand-new riders get the first-week setup instead.
-import { showSheet } from './sheet.js?v=2';
+import { showSheet } from './sheet.js?v=3';
 
 export const WHATS_NEW_KEY = 'whats_new_seen';
 export const WHATS_NEW_ID = '2026-10-26';

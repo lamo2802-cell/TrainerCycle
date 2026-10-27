@@ -7,7 +7,7 @@
 // The rider's programme is settings key strength_plan: { id, start: 'YYYY-MM-DD' Monday }.
 // Followed on its own (no cycling or run plan) it is the followed plan, id STRENGTH_PLAN_ID.
 
-import { addDays, parseIso, planStart, mondayOnOrAfter, todayIso, daysBetween } from './plan-schedule.js?v=5';
+import { addDays, parseIso, planStart, mondayOnOrAfter, todayIso, daysBetween } from './plan-schedule.js?v=6';
 
 export const STRENGTH_PLAN_KEY = 'strength_plan';
 export const STRENGTH_PLAN_ID = 'strength-plan';

@@ -5,7 +5,7 @@
 // which workout from how close its level is to the target. Nothing is ever generated: when no workout
 // is that close, the nearest length is offered and the reason says so.
 // The chosen length lives in settings key suggest_max_min; "how I feel" is for today only (localStorage).
-import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=5';
+import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 
@@ -146,6 +146,41 @@ export function shorterVersion(session, library, ftp, maxMin){
     if (!best || c.rank < best.rank) best = c;
   }
   return best;
+}
+
+// Other workouts for a plan session, each the same length as it (within 5 minutes), so swapping one in
+// keeps the day the same size: the closest in the session's own zone first, then easier ones (a lower
+// zone, for when the legs aren't there) and one a step harder. Returns
+// [{ w, zone, level, durationSec, group:'same'|'easier'|'harder' }], same first.
+const ZONE_ORDER = LEVEL_ZONES.map(z => z.key);
+export function alternativesFor(session, library, ftp){
+  const wl = session.steps ? workoutLevel({ steps: session.steps, category: session.category }, ftp) : null;
+  if (!wl) return [];
+  const own = session.durationSec || durationOf({ steps: session.steps });
+  const zi = ZONE_ORDER.indexOf(wl.zone);
+  const skip = new Set([session.dayObj.workoutId, session.dayObj.swappedFrom]);
+  const cands = [];
+  for (const w of library){
+    if (!w.steps || skip.has(w.id) || w.category === 'test') continue;
+    const d = durationOf(w);
+    if (!d || Math.abs(d - own) > CLOSE_SEC) continue;
+    const l = w.category === 'recovery' ? { zone:'endurance', level:1 } : workoutLevel(w, ftp);
+    if (!l) continue;
+    const oi = ZONE_ORDER.indexOf(l.zone);
+    const group = w.category === 'recovery' && session.category !== 'recovery' ? 'easier' : oi === zi ? 'same' : oi < zi ? 'easier' : 'harder';
+    cands.push({ w, zone: l.zone, level: l.level, durationSec: d, group, oi,
+      rank: Math.abs(oi - zi) * 3 + Math.abs(l.level - wl.level) + Math.abs(d - own) / 600 });
+  }
+  cands.sort((a, b) => a.rank - b.rank);
+  const pick = (group, n, onePerZone) => {
+    const out = [], zones = new Set();
+    for (const c of cands){
+      if (c.group !== group || out.length >= n || (onePerZone && zones.has(c.zone))) continue;
+      zones.add(c.zone); out.push(c);
+    }
+    return out;
+  };
+  return pick('same', 3).concat(pick('easier', 2, true), pick('harder', 1));
 }
 
 export function loadFeel(today){

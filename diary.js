@@ -4,8 +4,8 @@
 //   { id, date, kind:'planned', day:{ type:'workout', workoutType:'cycling'|'run'|'swim'|'strength', workoutId, session? } }
 // Run and swim specs live inline on day.session, as in plan-builder plans, under workoutId 'cal-'+id.
 // A planned workout counts as done when an activity of the same sport on that date isn't part of a plan.
-import { showSheet, notify, ask } from './sheet.js?v=2';
-import { registerRunSession, openRunLog, parseDuration } from './run.js?v=5';
+import { showSheet, notify, ask } from './sheet.js?v=3';
+import { registerRunSession, openRunLog, parseDuration } from './run.js?v=6';
 import { registerSwimSession, openSwimLog } from './swim.js?v=2';
 import { sessionInfo, RUN_TYPES, SWIM_TYPES, makeRun, makeSwim, runTypeOf, runMinsOf, swimTypeOf, swimMetresOf, durationOf } from './plan-kit.js?v=4';
 
