@@ -387,10 +387,10 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=19';
-import { notify, ask, showSheet } from './sheet.js?v=2';
+import { notify, ask, showSheet } from './sheet.js?v=3';
 import { openBuilder } from './strength-builder.js?v=1';
 import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks, retestLifts } from './strength-programmes.js?v=2';
-import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=5';
+import { loadFollowState, planSessions, loadDoneDays, todayIso, addDays, mondayOnOrAfter, parseIso } from './plan-schedule.js?v=6';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory, liftSummary, setsText, variantsFor, variantAvailable, pickVariant,
   weightOptions, nearestOption, fmtKg, fmtLoad, holdTarget, e1rm, sessionIF, suggestNext, adjustNextSet, repRange, tiredness,

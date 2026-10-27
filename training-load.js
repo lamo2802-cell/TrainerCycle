@@ -1,6 +1,6 @@
 // Fitness / Fatigue / Form from daily TSS (exponentially weighted: 42-day and 7-day).
 // Shared by calendar.html and the Today screen on index.html.
-import { addDays } from './plan-schedule.js?v=5';
+import { addDays } from './plan-schedule.js?v=6';
 
 export const CTL_DAYS = 42, ATL_DAYS = 7;
 

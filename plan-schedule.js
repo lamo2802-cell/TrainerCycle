@@ -1,8 +1,9 @@
 // Shared rules for where each session of the followed plan falls on the calendar.
 // A session's day index is days after the Monday the plan started (week*7 + weekday, Mon=0).
 // A session can be moved to another date (settings key active_plan_moves: { dayIndex: move }, see moveEntry),
-// a ride saved with plan_day_index marks it done, and Skip (active_plan_cursor_day) drops every
-// session with a lower day index. Accepted adaptive swaps (active_plan_swaps) are applied to the plan
+// a ride saved with plan_day_index marks it done, and a skipped session is left out of what's next
+// (active_plan_skips: { dayIndex: skipEntry }; older saves moved active_plan_cursor_day instead, which
+// skips every session with a lower day index). Accepted adaptive swaps (active_plan_swaps) are applied to the plan
 // itself by applySwaps() in adapt.js. Used by plans.html, calendar.html, builder.html and live.html.
 
 export function isoDate(d){
@@ -46,6 +47,17 @@ export function movedTo(moves, dayIndex, plannedDate, dayObj){
   if (typeof m === 'string') return m;
   return m.to && m.from === plannedDate && (!m.w || m.w === originalWorkout(dayObj)) ? m.to : null;
 }
+// A skip remembers its session the same way a move does, so it never lands on a different session.
+export function skipEntry(session){
+  return { from: session.plannedDate, w: originalWorkout(session.dayObj) };
+}
+// follow: from loadFollowState(); s: from planSessions().
+export function isSkipped(follow, s){
+  if (!follow) return false;
+  if (s.dayIndex < (follow.cursorDay || 0)) return true;
+  const k = follow.skips && follow.skips[s.dayIndex];
+  return !!k && k.from === s.plannedDate && (!k.w || k.w === originalWorkout(s.dayObj));
+}
 function originalWorkout(d){ return d ? (d.swappedFrom || d.workoutId || null) : null; }
 
 // Every workout session in the plan with its effective date, sorted by date.
@@ -65,14 +77,14 @@ export function planSessions(plan, startedAtIso, moves){
 }
 
 // The next session still to ride: on or after today, not done, not skipped. null = plan finished.
-export function nextSession(plan, startedAtIso, { cursorDay=0, moves=null, doneDays=null, filter=null } = {}){
+export function nextSession(plan, startedAtIso, { cursorDay=0, moves=null, skips=null, doneDays=null, filter=null } = {}){
   const today = todayIso();
   return planSessions(plan, startedAtIso, moves).find(s =>
-    s.date >= today && s.dayIndex >= cursorDay && !(doneDays && doneDays.has(s.dayIndex)) && (!filter || filter(s))
+    s.date >= today && !isSkipped({ cursorDay, skips }, s) && !(doneDays && doneDays.has(s.dayIndex)) && (!filter || filter(s))
   ) || null;
 }
 
-const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps','active_plan_runs'];
+const FOLLOW_KEYS = ['active_plan_id','active_plan_started_at','active_plan_cursor_day','active_plan_moves','active_plan_swaps','active_plan_runs','active_plan_skips'];
 // A race-goal run plan (settings key run_plan, see run-plans.js) is followed on its own when no cycling
 // plan is: planId is then 'run-plan' and the plan starts on the run plan's start date.
 export async function loadFollowState(supabase, userId){
@@ -85,7 +97,7 @@ export async function loadFollowState(supabase, userId){
   const strengthOnly = !v.active_plan_id && !runPlan && !!strengthPlan;
   return { planId: runOnly ? 'run-plan' : strengthOnly ? 'strength-plan' : (v.active_plan_id || null),
     startedAt: runOnly ? runPlan.start : strengthOnly ? strengthPlan.start : (v.active_plan_started_at || null),
-    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null,
+    cursorDay: v.active_plan_cursor_day || 0, moves: v.active_plan_moves || {}, skips: v.active_plan_skips || {}, swaps: v.active_plan_swaps || {}, runs: v.active_plan_runs || null,
     runPlan, runOnly, strengthPlan, strengthOnly };
 }
 export const FOLLOW_SETTING_KEYS = FOLLOW_KEYS;
@@ -100,6 +112,12 @@ export async function loadDoneDays(supabase, userId, planId, startedAtIso){
   return done;
 }
 
+export async function saveSkips(supabase, userId, skips){
+  await supabase.from('settings').upsert(
+    { user_id:userId, key:'active_plan_skips', value:{v:skips}, updated_at:new Date().toISOString() },
+    { onConflict:'user_id,key' }
+  );
+}
 export async function saveMoves(supabase, userId, moves){
   await supabase.from('settings').upsert(
     { user_id:userId, key:'active_plan_moves', value:{v:moves}, updated_at:new Date().toISOString() },

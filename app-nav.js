@@ -3,7 +3,7 @@
 // account menu under your avatar. Phone: a bottom tab bar with a raised Ride button in the middle; Training,
 // Ride and the account menu open as sheets from the bottom. Mounted from renderSidebarUserBadge in auth.js,
 // which every signed-in page already calls. The ride screens get a back button instead.
-import { ask } from './sheet.js?v=2';
+import { ask } from './sheet.js?v=3';
 
 const svg = (paths, cls = '') => '<svg viewBox="0 0 24 24" aria-hidden="true"'+(cls ? ' class="'+cls+'"' : '')+'>'+paths+'</svg>';
 const ICONS = {

@@ -364,14 +364,14 @@
 
 <script type="module">
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge, saveMarketingConsent, PLAY_MANAGE_URL, isPlayApp, startCheckout } from './auth.js?v=19';
-import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=5';
+import { RUN_PACE_KEY, parsePace, parseDuration, fmtPace, thresholdFrom5k, setRunPace } from './run.js?v=6';
 import { SWIM_CSS_KEY, parseSwimPace, fmtSwimPace, cssFromTimeTrial } from './swim.js?v=2';
-import { ask } from './sheet.js?v=2';
+import { ask } from './sheet.js?v=3';
 import { EQUIPMENT_KEY, GYM_EQUIPMENT, loadStrengthSettings, saveSetting, logBodyWeight } from './strength-kit.js?v=6';
-import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=4';
+import { FEED_TOKEN_KEY, FEED_KEY, feedLink, feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { pushSupported, needsHomeScreen, loadReminders, saveReminders, deviceHasReminders, enableDevice, disableAll } from './reminders.js?v=1';
 import { loadDiary, diarySessions } from './diary.js?v=2';
-import { loadFollowState } from './plan-schedule.js?v=5';
+import { loadFollowState } from './plan-schedule.js?v=6';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';

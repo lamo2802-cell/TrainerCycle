@@ -33,7 +33,8 @@ function ensureStyle(){
 
 // buttons: [{ label, value, kind:'primary'|'danger'|undefined }], first one is the main action.
 // Resolves with the chosen button's value, or `dismissValue` on Escape / tapping outside.
-// content: an optional element (e.g. a small form) shown above the buttons.
+// content: an optional element (e.g. a small form) shown above the buttons. Tapping anything in it
+// with a data-sheet-value attribute closes the sheet with that value (a list to pick from).
 // onAction(value): optional check before closing; return false (or a promise of false) to keep it open.
 export function showSheet({ title = '', text = '', content = null, buttons = [{ label:'OK', value:true, kind:'primary' }], dismissValue = null, onAction = null } = {}){
   ensureStyle();
@@ -58,6 +59,7 @@ export function showSheet({ title = '', text = '', content = null, buttons = [{ 
       setTimeout(()=> back.remove(), 170);
       resolve(v);
     }
+    if (content) content.addEventListener('click', e => { const t = e.target.closest('[data-sheet-value]'); if (t) close(t.dataset.sheetValue); });
     function onKey(e){ if (e.key === 'Escape'){ e.stopPropagation(); close(dismissValue); } }
     buttons.forEach(b => {
       const btn = document.createElement('button');

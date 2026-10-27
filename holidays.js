@@ -6,8 +6,8 @@
 //   keep - keep the plan as it is (the days are still shown as away on the calendar)
 // applyHolidays() runs on the plan after addRuns() and applySwaps(), so the rest of the app just sees
 // rest days or easier sessions. The plan keeps its length; the week after a holiday picks up as planned.
-import { planStart, addDays, parseIso, movedTo } from './plan-schedule.js?v=5';
-import { showSheet } from './sheet.js?v=2';
+import { planStart, addDays, parseIso, movedTo } from './plan-schedule.js?v=6';
+import { showSheet } from './sheet.js?v=3';
 
 export const HOLIDAYS_KEY = 'holidays';
 export const HOLIDAY_MODES = [

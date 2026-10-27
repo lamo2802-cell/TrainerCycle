@@ -2,7 +2,7 @@
 // (user_id = the rider, source 'custom'). The row has the same shape as library sessions, so plans,
 // the calendar, Today and progression all work with it. An exercise with superset:true is done in
 // rounds with the one above it (A1, B1, rest, A2, B2, ...).
-import { showSheet, ask } from './sheet.js?v=2';
+import { showSheet, ask } from './sheet.js?v=3';
 
 // Moves to pick from, by base key. The rider's own version (goblet squat, barbell squat...) is used in the session.
 export const MOVES = [

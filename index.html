@@ -307,7 +307,20 @@
   .sg-seg button.on{ background:var(--accent); color:#08211E; }
   @media (max-width:480px){ .sg-row > span{ display:none; } .sg-seg{ display:flex; flex-wrap:nowrap; flex:1; } .sg-seg button{ flex:1; padding:6px 4px; } }
   .sg-why{ font-size:13.5px; color:var(--text-dim); line-height:1.45; margin-top:8px; max-width:620px; }
-  .sg-short{ margin-top:12px; }
+  .hero-more{ display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; }
+  .hero-more .link-btn{ font-size:13.5px; padding:4px 0; }
+  .hero-more [data-skip]{ color:var(--text-dim); }
+  .skip-note{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--text-dim); padding:10px 14px; }
+  .skip-note .link-btn{ font-size:13px; }
+  .alt-group{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); margin:14px 0 6px; }
+  .alt-row{ display:flex; align-items:center; gap:12px; width:100%; margin:0 0 6px; padding:10px 12px; text-align:left; cursor:pointer;
+    background:#1D242D; border:1px solid #2A323D; border-radius:10px; color:var(--text); font:inherit; text-transform:none; letter-spacing:0; }
+  .alt-row:hover, .alt-row:focus-visible{ border-color:var(--accent); }
+  .alt-main{ flex:1; min-width:0; }
+  .alt-main b{ display:block; font-size:14px; font-weight:600; margin-bottom:3px; }
+  .alt-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; font-size:12.5px; color:var(--text-dim); }
+  .alt-meta .lvl-chip{ font-size:11px; padding:1px 6px; }
+  .alt-profile{ flex:none; width:84px; height:30px; }
   .sg-inline{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
   .run-desc{ font-size:14px; color:var(--text-dim); line-height:1.5; margin:10px 0 2px; max-width:560px; }
   .last-foot{ margin-top:10px; display:flex; gap:16px; flex-wrap:wrap; }
@@ -429,25 +442,25 @@
 
 <script type="module">
 import { createSupabaseClient, renderSidebarUserBadge, showSubscribeNudge, requireAuth, checkBluetoothSupport } from './auth.js?v=19';
-import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart, saveMoves, moveEntry } from './plan-schedule.js?v=5';
+import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, nextSession, loadFollowState, loadDoneDays, plannedTss, planStart, saveMoves, moveEntry, isSkipped, skipEntry, saveSkips } from './plan-schedule.js?v=6';
 import { loadSeries, formLabel } from './training-load.js?v=2';
-import { notify, showSheet } from './sheet.js?v=2';
+import { notify, showSheet } from './sheet.js?v=3';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
 import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=4';
-import { addRuns, runSession, plannedRunTss, openRunLog, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=5';
+import { addRuns, runSession, plannedRunTss, openRunLog, runAlternatives, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=6';
 import { openExportSheet } from './export.js?v=3';
 import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openWelcome } from './welcome.js?v=2';
 import { WHATS_NEW_KEY, shouldShowWhatsNew, openWhatsNew } from './whatsnew.js?v=1';
-import { feedEvents, syncCalendarFeed } from './calfeed.js?v=4';
+import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
-import { suggestRide, shorterVersion, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=2';
+import { suggestRide, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=3';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -578,7 +591,7 @@ const supabase = createSupabaseClient();
       const info = sessionInfo(s.dayObj, workouts, ftpW);
       const wk = run ? { name: run.name, duration_sec: run.mins*60 } : (isSwim || isRace || isBrick) ? { name: info.name, duration_sec: info.durationSec, steps: info.steps, category: info.category } : (workouts[s.dayObj.workoutId] || {});
       return Object.assign(s, { legHeavy: isStrength && legHeavy(wk.exercises), name: wk.name || s.dayObj.workoutId, category: isStrength ? 'strength' : isRun ? 'run' : isSwim ? 'swim' : isRace ? 'race' : wk.category, isStrength, isRun, isSwim, isBrick, isRace, run, info, steps: wk.steps,
-        durationSec: wk.duration_sec, tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isRace || isBrick) ? info.tss : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: s.dayIndex < follow.cursorDay });
+        durationSec: wk.duration_sec, tss: isStrength ? null : isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isRace || isBrick) ? info.tss : plannedTss(wk.steps, ftpW), done: doneDays.has(s.dayIndex), skipped: isSkipped(follow, s) });
     }) : [];
     const daily = new Map();
     rides.forEach(r=>{ if (r.tss!=null){ const d = isoDate(new Date(r.started_at)); daily.set(d, (daily.get(d)||0) + r.tss); } });
@@ -718,17 +731,30 @@ const supabase = createSupabaseClient();
           + '<div class="adapt-actions"><button class="t-btn primary sm" data-adapt-accept="'+i+'">'+esc(a.acceptLabel)+'</button><button class="t-btn sm" data-adapt-dismiss="'+i+'">No thanks</button></div></div></div>').join('')
         + '</div>';
     }
-    const next = nextSession(plan || { weeks:[] }, follow && follow.startedAt || today, { cursorDay: follow ? follow.cursorDay : 0, moves: follow ? follow.moves : {}, doneDays });
+    const next = nextSession(plan || { weeks:[] }, follow && follow.startedAt || today, { cursorDay: follow ? follow.cursorDay : 0, moves: follow ? follow.moves : {}, skips: follow ? follow.skips : {}, doneDays });
     const nextPlanS = next && sessions.find(s=>s.dayIndex === next.dayIndex);
     const nextSingle = singles.find(s => s.date > today && !s.done);
     const nextS = nextSingle && (!nextPlanS || nextSingle.date < nextPlanS.date) ? nextSingle : nextPlanS;
+    // Suggested ride: on days with nothing to do (or nothing left), or a shorter version of today's planned ride.
+    const library = Object.values(workouts).filter(w => w.steps);
+    function zoneOf(s){
+      const wl = !s.isStrength && s.steps ? workoutLevel({ steps:s.steps, category:s.category }, ftpW) : null;
+      return wl ? zoneInfo(wl.zone) : null;
+    }
     function levelChip(s){
       const wl = !s.isStrength && s.steps ? workoutLevel({ steps:s.steps, category:s.category }, ftpW) : null;
       if (!wl) return '';
       const z = zoneInfo(wl.zone), d = difficultyLabel(wl.level, levels[wl.zone]);
       return '<span class="lvl-chip" style="--zc:'+z.color+'" title="Your '+z.name+' level is '+fmtLevel(levels[wl.zone])+'">'+z.short+' '+fmtLevel(wl.level)+' · '+d.label+'</span>';
     }
-    function sessionHero(s, heading, extra = ''){
+    // A plan session can be skipped, or swapped for another workout of the same length.
+    const canChange = s => !s.diaryId && !s.done && !s.isRace;
+    const canSwap = s => canChange(s) && (s.isRun ? runAlternatives(s.dayObj.workoutId).length > 0
+      : !s.isStrength && !s.isSwim && !s.isBrick && !!s.steps && alternativesFor(s, library, ftpW).length > 0);
+    function sessionHero(s, heading, extra = '', shortLink = false){
+      const more = [shortLink ? '<button class="link-btn" data-sg-open>Short on time?</button>' : '',
+        canSwap(s) ? '<button class="link-btn" data-alt="'+keyOf(s)+'">Choose another workout</button>' : '',
+        canChange(s) ? '<button class="link-btn" data-skip="'+keyOf(s)+'">Skip</button>' : ''].filter(Boolean);
       const IF = !s.isStrength && !s.isBrick && s.steps ? workoutIf(s.steps, ftpW) : null;
       return '<div class="t-panel hero-card"><div class="t-label"><span>'+heading+'</span><a href="calendar.html">Calendar →</a></div>'
         + '<div class="hero-name">'+esc(s.name)+'</div>'
@@ -742,21 +768,24 @@ const supabase = createSupabaseClient();
         + '</div>'
         + '<div class="hero-sub">'+(s.diaryId ? 'Planned on your calendar' : esc(plan.name)+' · Week '+s.weekNum+(s.deload ? ' · Deload week' : ''))+'</div>'
         + (s.dayObj.holiday ? '<div class="adapted-note">Easy version of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' while you\'re away</div>'
-          : s.dayObj.swappedFrom ? '<div class="adapted-note">Adapted from '+esc((workouts[s.dayObj.swappedFrom]||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
+          : s.dayObj.swappedFrom ? '<div class="adapted-note">Instead of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : (s.isSwim || s.isBrick || s.isRace) && s.info.text ? '<div class="run-desc">'+esc(s.info.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRace ? '<a class="t-btn primary" href="calendar.html">See race week</a>'
           : s.isSwim ? '<button class="t-btn primary" data-log-swim="'+keyOf(s)+'">Log swim</button>'
           : s.isRun ? '<button class="t-btn primary" data-log-run="'+keyOf(s)+'">Log run</button>'
           : '<a class="t-btn primary" href="'+rideHref(s)+'">'+(s.isStrength ? 'Start session' : 'Ride now')+'</a>')
-        + (!s.isStrength && !s.isSwim && !s.isRace && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+keyOf(s)+'">Download file</button>' : '')+'</div>'+extra+'</div>';
+        + (!s.isStrength && !s.isSwim && !s.isRace && (s.isRun || s.steps) ? '<button class="t-btn" data-export="'+keyOf(s)+'">Download file</button>' : '')+'</div>'
+        + (more.length ? '<div class="hero-more">'+more.join('')+'</div>' : '')+extra+'</div>';
     }
     const awayNow = holidayOn(today, holidays);
-    // Suggested ride: on days with nothing to do (or nothing left), or a shorter version of today's planned ride.
-    const library = Object.values(workouts).filter(w => w.steps);
     const rideToday = todoToday && !todoToday.isStrength && !todoToday.isRun && !todoToday.isSwim && !todoToday.isRace && !todoToday.isBrick && todoToday.steps ? todoToday : null;
     const sgMode = !rides.length || awayNow || ridTodayList.length || !library.length ? null : !todoToday ? 'suggest' : rideToday ? 'shorter' : null;
     const sgBox = '<div class="t-panel sg-card" id="suggestBox"></div>';
+    // A session skipped today can be put back until the day is over.
+    sessions.filter(s => s.date === today && s.skipped && !s.done && follow.skips && follow.skips[s.dayIndex]).forEach(s => {
+      html += '<div class="t-panel skip-note"><span>You skipped '+esc(s.name)+' today.</span><button class="link-btn" data-unskip="'+s.dayIndex+'">Undo</button></div>';
+    });
     if (awayNow && !todoToday && !ridTodayList.length){
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
         + '<div class="hero-name">Enjoy '+esc(awayNow.name || 'your holiday')+'</div>'
@@ -764,8 +793,7 @@ const supabase = createSupabaseClient();
         + (nextS ? ' Next up: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'.' : '')+'</div>'
         + '<div class="hero-actions"><button class="t-btn" data-log-run="">+ Log a run</button><button class="t-btn" data-log-swim="">+ Log a swim</button><a class="t-btn" href="builder.html">Ride anyway</a></div></div>';
     } else if (todoToday){
-      html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout', sgMode === 'shorter'
-        ? '<div class="sg-short"><button class="link-btn" data-sg-open>Short on time? Find a shorter version</button></div><div class="sg-inline" id="suggestBox" hidden></div>' : '');
+      html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout', sgMode === 'shorter' ? '<div class="sg-inline" id="suggestBox" hidden></div>' : '', sgMode === 'shorter');
     } else if (ridTodayList.length){
       const r = ridTodayList[ridTodayList.length-1];
       html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
@@ -804,7 +832,7 @@ const supabase = createSupabaseClient();
       ss.forEach(s=>{ planned += s.tss||0; });
       let marks = rs.length ? '<span class="tick">✓</span>' : '';
       ss.filter(s=>!s.done).forEach(s=>{
-        marks += (d < today || s.skipped) ? '<span class="miss" title="Missed"></span>' : '<span class="dot" style="background:'+(ZONE_DOT[s.category]||'var(--text-dim)')+'"></span>';
+        marks += (d < today || s.skipped) ? '<span class="miss" title="'+(s.skipped ? 'Skipped' : 'Missed')+'"></span>' : '<span class="dot" style="background:'+(ZONE_DOT[s.category]||'var(--text-dim)')+'"></span>';
       });
       cells += '<a class="wd'+(d===today ? ' today' : '')+'" href="calendar.html"><div class="l">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]+'</div><div class="n">'+parseIso(d).getDate()+'</div><div class="m">'+marks+'</div></a>';
     }
@@ -946,6 +974,55 @@ const supabase = createSupabaseClient();
       b.disabled = true;
       try { await undoSwap(supabase, user.id, follow, Number(b.dataset.undoSwap)); renderToday(user); }
       catch(e){ b.disabled = false; notify('Check your connection and try again.', 'Couldn\'t undo that'); }
+    }));
+    el.querySelectorAll('[data-skip]').forEach(b=> b.addEventListener('click', async ()=>{
+      const s = findSession(b.dataset.skip);
+      if (!s) return;
+      const tomorrow = addDays(today, 1);
+      const canMove = s.date === today && !sessions.some(x => x !== s && x.date === tomorrow && !x.done && !x.skipped) && !holidayOn(tomorrow, holidays);
+      const r = await showSheet({ title:'Skip '+s.name+'?',
+        text:'It stays on your calendar marked as skipped, and the rest of your plan doesn\'t change.'+(canMove ? ' Tomorrow is free if you\'d rather do it then.' : ''),
+        buttons:[{ label:'Skip it', value:'skip', kind:'primary' }].concat(canMove ? [{ label:'Move to tomorrow', value:'move' }] : [], [{ label:'Keep it', value:null }]), dismissValue:null });
+      if (!r) return;
+      try {
+        if (r === 'move'){ follow.moves = Object.assign({}, follow.moves, { [s.dayIndex]: moveEntry(s, tomorrow) }); await saveMoves(supabase, user.id, follow.moves); }
+        else { follow.skips = Object.assign({}, follow.skips, { [s.dayIndex]: skipEntry(s) }); await saveSkips(supabase, user.id, follow.skips); }
+      } catch(e){ return notify('Check your connection and try again.', 'Couldn\'t change your plan'); }
+      renderToday(user);
+    }));
+    el.querySelectorAll('[data-unskip]').forEach(b=> b.addEventListener('click', async ()=>{
+      b.disabled = true;
+      const skips = Object.assign({}, follow.skips); delete skips[b.dataset.unskip];
+      try { await saveSkips(supabase, user.id, skips); follow.skips = skips; renderToday(user); }
+      catch(e){ b.disabled = false; notify('Check your connection and try again.', 'Couldn\'t undo that'); }
+    }));
+    // Another workout for a plan session, each the same length, so the day (and the week) stays the same size.
+    el.querySelectorAll('[data-alt]').forEach(b=> b.addEventListener('click', async ()=>{
+      const s = findSession(b.dataset.alt);
+      if (!s) return;
+      const own = zoneOf(s);
+      const opts = s.isRun
+        ? runAlternatives(s.dayObj.workoutId).map(a => ({ id:a.id, group:a.group, name:a.session.name, meta:'<span>'+a.session.mins+' min</span><span>'+a.session.tss+' TSS</span>' }))
+        : alternativesFor(s, library, ftpW).map(c => {
+          const z = zoneInfo(c.zone), d = difficultyLabel(c.level, levels[c.zone]), tss = plannedTss(c.w.steps, ftpW);
+          return { id:c.w.id, group:c.group, name:c.w.name, profile:profileSvg(c.w.steps, ftpW).replace('hero-profile', 'alt-profile'),
+            meta:'<span>'+fmtMins(c.durationSec)+'</span>'+(tss ? '<span>'+tss+' TSS</span>' : '')+'<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+' · '+d.label+'</span>' };
+        });
+      if (!opts.length) return;
+      const heads = { same: s.isRun ? 'Same kind of run' : own ? 'More '+own.name : 'Same focus', easier:'Easier', harder:'A step harder' };
+      const box = document.createElement('div');
+      box.innerHTML = ['same','easier','harder'].map(g => {
+        const rows = opts.filter(o => o.group === g);
+        return rows.length ? '<div class="alt-group">'+heads[g]+'</div>' + rows.map(o => '<button type="button" class="alt-row" data-sheet-value="'+esc(o.id)+'">'
+          + '<span class="alt-main"><b>'+esc(o.name)+'</b><span class="alt-meta">'+o.meta+'</span></span>'+(o.profile || '')+'</button>').join('') : '';
+      }).join('');
+      const pick = await showSheet({ title:'Choose another workout',
+        text:'Instead of '+s.name+(s.durationSec ? '. Each of these is within 5 minutes of its '+fmtMins(s.durationSec).trim()+', so your day stays the same length.' : '.'),
+        content:box, buttons:[{ label:'Cancel', value:null }], dismissValue:null });
+      if (!pick) return;
+      try { await acceptAdaptation(supabase, user.id, follow, { accept:{ type:'swap', dayIndex:s.dayIndex, workoutId:pick } }); }
+      catch(e){ return notify('Check your connection and try again.', 'Couldn\'t change your plan'); }
+      renderToday(user);
     }));
     // Bring in new runs from Strava in the background, then redraw if any arrived.
     if (stravaOn) syncStrava(supabase, user.id).then(async res=>{
