@@ -3,7 +3,8 @@
 // A run only gets a workout analysis when the intervals are clear: from the laps when the watch
 // recorded them (lap button or a structured workout), otherwise from the pace trace. Anything
 // borderline (a hilly easy run, a fartlek with no pattern, a few strides) shows splits only.
-import { fmtPace, fmtKm } from './run.js?v=9';
+// Every run with a trace also gets a pace / heart rate / elevation chart and time in zones.
+import { fmtPace, fmtKm, PACE_ZONES } from './run.js?v=9';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const sum = a => a.reduce((x, y) => x + y, 0);
@@ -65,6 +66,9 @@ function buildWorkout(pieces, { minReps, minRepSec, ratio, gap, speedCv, regular
   if (reps.some(r => r.e < minRepSec || r.d < 80)) return null;
   if (reps.length === 2 && reps.some(r => r.e < 240)) return null;   // two reps only count when they're long ones
   if (!recs.length) return null;
+  // A steady run with a stop or two (traffic lights, a gate) isn't reps: real recoveries take a fair
+  // share of the time, even short standing ones.
+  if (sum(recs.map(r => r.e)) < 0.15 * sum(reps.map(r => r.e)) && median(recs.map(r => r.speed)) < 1.5) return null;
   const repSp = reps.map(r => r.speed), recSp = recs.map(r => r.speed);
   if (median(repSp) < ratio * median(recSp)) return null;
   // Every rep clearly quicker than the recoveries either side of it.
@@ -161,14 +165,16 @@ export function analyseRun(detail){
 function splitsTable(splits){
   const speeds = splits.map(x => x.d / x.t), top = Math.max(...speeds), low = Math.min(...speeds);
   const fastest = splits.length > 2 ? speeds.indexOf(top) : -1;
+  const gap = splits.some(x => x.gap);
   let km = 0;
-  return '<table class="run-recs ra-splits"><thead><tr><th>Km</th><th>Pace</th><th class="ra-barcol"></th><th>HR</th><th class="opt">Elev</th></tr></thead><tbody>'
+  return '<table class="run-recs ra-splits"><thead><tr><th>Km</th><th>Pace</th>' + (gap ? '<th title="Grade-adjusted pace: the flat-ground pace for the same effort">GAP</th>' : '')
+    + '<th class="ra-barcol"></th><th>HR</th><th class="opt">Elev</th></tr></thead><tbody>'
     + splits.map((x, i) => {
       km += x.d;
       const whole = x.d >= 980;
       const w = top > low ? 35 + 65 * (speeds[i] - low) / (top - low) : 100;
       return '<tr' + (i === fastest ? ' class="ra-best"' : '') + '><td class="p">' + (whole ? Math.round(km / 1000) : (x.d / 1000).toFixed(2)) + '</td>'
-        + '<td class="t">' + paceOf(x.d, x.t) + '</td><td class="ra-barcol"><span class="ra-bar" style="width:' + w.toFixed(0) + '%"></span></td>'
+        + '<td class="t">' + paceOf(x.d, x.t) + '</td>' + (gap ? '<td class="t ra-gap">' + (x.gap ? fmtPace(100000 / x.gap) : '–') + '</td>' : '') + '<td class="ra-barcol"><span class="ra-bar" style="width:' + w.toFixed(0) + '%"></span></td>'
         + '<td class="p">' + (x.hr ?? '–') + '</td><td class="p opt">' + (x.el == null ? '–' : (x.el > 0 ? '+' : '') + x.el + ' m') + '</td></tr>';
     }).join('') + '</tbody></table>';
 }
@@ -239,7 +245,204 @@ export function workoutPanelHtml(a, detail){
     + '</div>';
 }
 
-// Splits/Laps switch inside the panel.
+
+// ---- the whole run: chart, zones ----
+
+// The trace as per-point series: speed and grade-adjusted speed (m/s), heart rate, cadence, elevation
+// and distance so far. Elevation comes from Strava's altitude, or is built up from the gradient.
+function series(detail){
+  const s = detail && detail.s;
+  if (!s || !s.v || s.v.length < 24) return null;   // under 2 minutes
+  const dt = s.dt || 5, n = s.v.length;
+  const sp = s.v.map(v => v / 100);
+  const gap = sp.map((v, i) => v * gradeFactor(s.g && s.g[i]));
+  const dist = [], alt = [];
+  let d = 0, a = 0;
+  for (let i = 0; i < n; i++){
+    const step = sp[i] * dt;
+    if (!s.a) a += (s.g && s.g[i] != null ? s.g[i] / 100 : 0) * step;
+    d += step; dist.push(d);
+    alt.push(s.a ? s.a[i] : a);
+  }
+  return { dt, n, sp, gap, hr: s.h, cad: s.c, alt: s.a || s.g ? alt : null, dist };
+}
+// Centred moving average over k points either side, skipping gaps.
+function smoothed(a, k){
+  const n = a.length, out = new Array(n);
+  for (let i = 0; i < n; i++){ let t = 0, c = 0; for (let j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) if (a[j] != null){ t += a[j]; c++; } out[i] = c ? t / c : null; }
+  return out;
+}
+
+// Grade-adjusted pace, cadence and moving time for the run as a whole.
+export function runSummary(detail){
+  const z = series(detail);
+  const splits = (detail && detail.splits || []).filter(x => x.d >= 20 && x.t > 0);
+  let gapPace = null;
+  const withGap = splits.filter(x => x.gap);
+  if (withGap.length && sum(withGap.map(x => x.d)) >= 0.9 * sum(splits.map(x => x.d)))
+    gapPace = sum(withGap.map(x => x.d / (x.gap / 100))) / (sum(withGap.map(x => x.d)) / 1000);
+  let moving = null;
+  if (z){
+    const mv = z.sp.map((v, i) => v >= STANDING ? i : -1).filter(i => i >= 0);
+    moving = mv.length * z.dt;
+    if (gapPace == null && mv.length) gapPace = moving / (sum(mv.map(i => z.gap[i])) * z.dt / 1000);
+  }
+  let cad = detail && detail.cad || null;
+  if (!cad && z && z.cad){ const c = z.cad.filter((x, i) => x && z.sp[i] >= STANDING); if (c.length) cad = Math.round(median(c)); }
+  return { gapPace, cad, moving };
+}
+
+const CHARTS = new Map();   // chart id -> series, for reading values under a finger
+let chartSeq = 0;
+
+// Pace (faster is higher) with heart rate over it and an elevation strip underneath.
+export function runChartHtml(detail, summary){
+  const z = series(detail);
+  if (!z) return '';
+  const id = 'rc' + (++chartSeq);
+  const W = 1000, H = 170, EH = 46, total = z.n * z.dt;
+  const x = i => ((i + 0.5) * z.dt / total * W).toFixed(1);
+  const sp = smoothed(z.sp, 4);
+  const sorted = sp.filter(v => v != null).sort((a, b) => a - b);
+  const hi = Math.max(sorted[Math.floor(sorted.length * 0.995)] * 1.05, 3);
+  const lo = Math.max(0, Math.min(sorted[Math.floor(sorted.length * 0.05)] * 0.92, hi * 0.5));
+  const yP = v => (H - Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * (H - 10) - 5).toFixed(1);
+  const paceLine = sp.map((v, i) => x(i) + ',' + yP(v)).join(' ');
+  let hrLine = '', hrLabs = '';
+  if (z.hr){
+    const hr = smoothed(z.hr, 2), hs = hr.filter(v => v != null).sort((a, b) => a - b);
+    const hlo = hs[Math.floor(hs.length * 0.02)] - 5, hhi = hs[hs.length - 1] + 3;
+    const yH = v => H - (v - hlo) / (hhi - hlo) * (H - 10) - 5;
+    // Break the line where there's no heart rate rather than drawing across the gap.
+    let seg = [];
+    const segs = [];
+    hr.forEach((v, i) => { if (v == null){ if (seg.length) segs.push(seg); seg = []; } else seg.push(x(i) + ',' + yH(v).toFixed(1)); });
+    if (seg.length) segs.push(seg);
+    hrLine = segs.map(p => '<polyline points="' + p.join(' ') + '" class="ra-hr" vector-effect="non-scaling-stroke"/>').join('');
+    const t1 = Math.round(hhi - (hhi - hlo) * 0.15), t2 = Math.round(hlo + (hhi - hlo) * 0.25);
+    hrLabs = [t1, t2].map(v => '<span class="ra-tick r" style="top:' + (yH(v) / H * 100).toFixed(1) + '%">' + v + '</span>').join('');
+  }
+  // Pace ticks at two round-ish paces inside the range.
+  const pTicks = [hi - (hi - lo) * 0.15, lo + (hi - lo) * 0.3].map(v => '<span class="ra-tick" style="top:' + (yP(v) / H * 100).toFixed(1) + '%">' + fmtPace(Math.round(1000 / v / 5) * 5) + '</span>').join('');
+  let elev = '';
+  if (z.alt){
+    const al = smoothed(z.alt, 2), amin = Math.min(...al), amax = Math.max(...al), span = Math.max(amax - amin, 10);
+    const yA = v => (EH - 3 - (v - amin) / span * (EH - 8)).toFixed(1);
+    const pts = al.map((v, i) => x(i) + ',' + yA(v)).join(' ');
+    elev = '<div class="ra-elev"><svg viewBox="0 0 ' + W + ' ' + EH + '" preserveAspectRatio="none" aria-hidden="true">'
+      + '<polygon points="0,' + EH + ' ' + pts + ' ' + W + ',' + EH + '" class="ra-alt"/></svg>'
+      + '<span class="ra-tick">' + Math.round(amax) + ' m</span><span class="ra-tick b">' + Math.round(amin) + ' m</span><div class="ra-cur" data-ra-cur></div></div>';
+  }
+  CHARTS.set(id, z);
+  const stat = (v, l) => '<div class="d-stat"><div class="val">' + v + '</div><div class="lbl">' + l + '</div></div>';
+  const sm = summary || {};
+  const stats = [sm.gapPace ? stat(fmtPace(sm.gapPace), 'Grade-adjusted pace') : '', sm.cad ? stat(sm.cad, 'Cadence (spm)') : '', sm.moving ? stat(fmtTime(sm.moving), 'Moving time') : ''].filter(Boolean);
+  const legend = '<span class="chart-legend"><span><i style="background:#C084FC"></i>Pace</span>' + (z.hr ? '<span><i style="background:#E5484D"></i>Heart rate</span>' : '')
+    + (z.alt ? '<span><i style="background:#8C97A6"></i>Elevation</span>' : '') + '</span>';
+  return '<div class="panel ra-panel ra-run"><div class="panel-title"><span>Your run</span>' + legend + '</div>'
+    + (stats.length ? '<div class="d-stats ra-stats ra-stats-' + stats.length + '">' + stats.join('') + '</div>' : '')
+    + '<div class="ra-read" data-ra-read>Drag across the chart to see your pace, heart rate and hills at any point.</div>'
+    + '<div class="ra-scrub" data-ra-chart="' + id + '">'
+    + '<div class="ra-chart ra-main"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + hrLine
+    + '<polyline points="' + paceLine + '" class="ra-line" vector-effect="non-scaling-stroke"/></svg>' + pTicks + hrLabs + '<div class="ra-cur" data-ra-cur></div></div>'
+    + elev
+    + '<div class="ra-xlab"><span>0:00</span><span>' + fmtTime(total / 2) + '</span><span>' + fmtTime(total) + '</span></div></div></div>';
+}
+
+function readAt(z, i){
+  const bits = [fmtTime((i + 1) * z.dt), (z.dist[i] / 1000).toFixed(2) + ' km'];
+  // Pace over ~30 s so one GPS jump doesn't show as a sprint.
+  const win = (a, k) => { let t = 0, c = 0; for (let j = Math.max(0, i - k); j <= Math.min(z.n - 1, i + k); j++) if (a[j] != null){ t += a[j]; c++; } return c ? t / c : null; };
+  const v = win(z.sp, 3), g = win(z.gap, 3);
+  bits.push(v >= STANDING ? '<b>' + fmtPace(1000 / v) + '</b> /km' : '<b>Stopped</b>');
+  if (v >= STANDING && Math.abs(g - v) / v > 0.02) bits.push('GAP ' + fmtPace(1000 / g));
+  if (z.hr && z.hr[i] != null) bits.push('<b>' + z.hr[i] + '</b> bpm');
+  if (z.cad && z.cad[i]) bits.push(z.cad[i] + ' spm');
+  if (z.alt) bits.push(Math.round(z.alt[i]) + ' m');
+  return bits.join(' · ');
+}
+
+// Pace zones by grade-adjusted pace against threshold pace, edges halfway between the session paces
+// in run.js, plus a Recovery band for anything slower than Easy.
+function paceBands(T){
+  const zs = PACE_ZONES, edge = k => (zs[k].lo + zs[k + 1].hi) / 2;   // between zone k and the next quicker one
+  const out = [{ key:'recovery', name:'Recovery', color:'#8C97A6', min: zs[0].hi + 0.04, max: Infinity }];
+  zs.forEach((zn, k) => out.push({ key: zn.id, name: zn.name, color: zn.color, min: k < zs.length - 1 ? edge(k) : 0, max: k ? edge(k - 1) : zs[0].hi + 0.04 }));
+  return out.map(b => Object.assign(b, {
+    range: b.max === Infinity ? 'slower than ' + fmtPace(T * b.min) : !b.min ? 'under ' + fmtPace(T * b.max) : fmtPace(T * b.min) + '–' + fmtPace(T * b.max),
+  }));
+}
+// Heart rate zones as a share of threshold heart rate (Friel's running zones).
+const HR_BANDS = [
+  { key:'z1', name:'Recovery', color:'#8C97A6', min:0, max:0.85 },
+  { key:'z2', name:'Aerobic', color:'#4C8BF5', min:0.85, max:0.90 },
+  { key:'z3', name:'Tempo', color:'#3DBE7A', min:0.90, max:0.95 },
+  { key:'z4', name:'Threshold', color:'#E8B93D', min:0.95, max:1.00 },
+  { key:'z5', name:'Max', color:'#E5484D', min:1.00, max:Infinity },
+];
+
+// Seconds in each pace zone (moving only) and heart rate zone.
+export function runZones(detail, { pace, lthr } = {}){
+  const z = series(detail);
+  if (!z) return null;
+  let paceZ = null, hrZ = null;
+  if (pace){
+    const bands = paceBands(pace), g = smoothed(z.gap, 1);
+    const secs = bands.map(() => 0);
+    g.forEach((v, i) => {
+      if (z.sp[i] < STANDING || !v) return;
+      const r = 1000 / v / pace, k = bands.findIndex(b => r >= b.min && r < b.max);
+      if (k >= 0) secs[k] += z.dt;
+    });
+    const tot = sum(secs);
+    if (tot >= 120) paceZ = bands.map((b, k) => Object.assign({}, b, { sec: secs[k], pct: secs[k] / tot }));
+  }
+  if (lthr && z.hr){
+    const secs = HR_BANDS.map(() => 0);
+    z.hr.forEach(h => { if (h == null) return; const k = HR_BANDS.findIndex(b => h / lthr >= b.min && h / lthr < b.max); if (k >= 0) secs[k] += z.dt; });
+    const tot = sum(secs);
+    if (tot >= 120) hrZ = HR_BANDS.map((b, k) => Object.assign({}, b, { sec: secs[k], pct: secs[k] / tot,
+      range: b.max === Infinity ? Math.round(lthr * b.min) + '+' : !b.min ? 'under ' + Math.round(lthr * b.max) : Math.round(lthr * b.min) + '–' + (Math.round(lthr * b.max) - 1) }));
+  }
+  return paceZ || hrZ ? { pace: paceZ, hr: hrZ } : null;
+}
+
+// One line on how the run's pace was spread. intent: 'easy' when the session was meant to be easy.
+export function zoneVerdict(zones, { intent, workout } = {}){
+  const p = zones && zones.pace;
+  if (!p || workout) return null;
+  const pct = k => sum(p.filter(b => k.includes(b.key)).map(b => b.pct));
+  const easy = pct(['recovery', 'easy']), hard = 1 - easy, P = x => Math.round(x * 100) + '%';
+  if (intent === 'easy') return hard >= 0.2
+    ? { tone:'warn', text:'Meant to be easy, but ' + P(hard) + ' was at Steady pace or quicker. Easy runs do the most good when they stay easy.' }
+    : { tone:'good', text:'Kept easy, as planned: ' + P(easy) + ' at Easy pace or slower.' };
+  if (easy >= 0.85) return { tone:'good', text:'An easy run: ' + P(easy) + ' at Easy pace or slower.' };
+  if (easy >= 0.5 && hard >= 0.2) return { tone:'warn', text:'Mostly easy, but ' + P(hard) + ' drifted into Steady or quicker. If this was meant to be an easy run, ease off a little.' };
+  const top = p.slice(1).reduce((a, b) => b.pct > a.pct ? b : a);
+  return { tone:'', text:'Most of this run was at ' + top.name + ' pace (' + P(top.pct) + ').' };
+}
+
+function zoneRows(bands){
+  const top = Math.max(...bands.map(b => b.pct));
+  return '<div class="ra-zones">' + bands.map(b => '<div class="ra-zrow"><span class="ra-zname"><span><i style="background:' + b.color + '"></i>' + esc(b.name) + '</span>'
+    + '<span class="ra-dim">' + esc(b.range) + '</span></span><span class="ra-ztrack"><span style="width:' + (top ? b.pct / top * 100 : 0).toFixed(1) + '%;background:' + b.color + '"></span></span>'
+    + '<span class="ra-zt">' + (b.sec ? fmtTime(b.sec) : '–') + '</span><span class="ra-zp">' + Math.round(b.pct * 100) + '%</span></div>').join('') + '</div>';
+}
+
+// note: what to show when a zone set is missing (e.g. no threshold pace set).
+export function zonesPanelHtml(zones, { verdict, paceNote, hrNote } = {}){
+  if (!zones) return paceNote ? '<div class="panel ra-panel"><div class="panel-title"><span>Time in zones</span></div><div class="ra-note" style="margin:0">' + paceNote + '</div></div>' : '';
+  const both = zones.pace && zones.hr;
+  const tabs = both ? '<div class="seg ra-seg"><button class="on" data-ra-tab="pace">Pace</button><button data-ra-tab="hr">Heart rate</button></div>' : '';
+  return '<div class="panel ra-panel"><div class="panel-title"><span>Time in ' + (both ? '' : zones.pace ? 'pace ' : 'heart rate ') + 'zones</span>' + tabs + '</div>'
+    + (verdict ? '<div class="ra-verdict ' + verdict.tone + '">' + esc(verdict.text) + '</div>' : '')
+    + (zones.pace ? '<div data-ra-pane="pace">' + zoneRows(zones.pace) + '<div class="ra-note">By grade-adjusted pace against your threshold pace, so hills don\'t throw it out.</div></div>' : '')
+    + (zones.hr ? '<div data-ra-pane="hr"' + (zones.pace ? ' hidden' : '') + '>' + zoneRows(zones.hr) + (hrNote ? '<div class="ra-note">' + hrNote + '</div>' : '') + '</div>' : '')
+    + (!zones.pace && paceNote ? '<div class="ra-note">' + paceNote + '</div>' : '')
+    + '</div>';
+}
+
+// Splits/Laps and Pace/Heart rate switches inside a panel, and reading the run chart under a finger.
 export function wireRunAnalysis(root){
   root.addEventListener('click', e => {
     const b = e.target.closest('[data-ra-tab]'); if (!b) return;
@@ -247,6 +450,16 @@ export function wireRunAnalysis(root){
     panel.querySelectorAll('[data-ra-tab]').forEach(x => x.classList.toggle('on', x === b));
     panel.querySelectorAll('[data-ra-pane]').forEach(x => { x.hidden = x.dataset.raPane !== b.dataset.raTab; });
   });
+  const move = e => {
+    const el = e.target.closest && e.target.closest('[data-ra-chart]'); if (!el) return;
+    const z = CHARTS.get(el.dataset.raChart); if (!z) return;
+    const box = el.getBoundingClientRect(), f = Math.max(0, Math.min(0.9999, (e.clientX - box.left) / box.width));
+    const i = Math.floor(f * z.n);
+    el.querySelectorAll('[data-ra-cur]').forEach(c => { c.style.left = (f * 100).toFixed(2) + '%'; c.hidden = false; });
+    const read = el.parentNode.querySelector('[data-ra-read]'); if (read){ read.innerHTML = readAt(z, i); read.classList.add('on'); }
+  };
+  root.addEventListener('pointermove', move);
+  root.addEventListener('pointerdown', move);
 }
 
 export const RUN_ANALYSIS_CSS = `
@@ -269,4 +482,30 @@ export const RUN_ANALYSIS_CSS = `
   .ra-xlab{ display:flex; justify-content:space-between; font:11px var(--mono); color:var(--text-dim); margin-top:4px; }
   .ra-dim{ color:var(--text-dim); opacity:.75; }
   .ra-note{ font-size:12.5px; color:var(--text-dim); margin-top:10px; }
+  .ra-splits td.ra-gap{ color:var(--text-dim); }
+  .ra-note a{ color:var(--accent); }
+  .ra-stats-1{ grid-template-columns:1fr !important; } .ra-stats-2{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; }
+  @media (min-width:700px){ .ra-stats-3{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  @media (max-width:699px){ .ra-stats-3{ grid-template-columns:repeat(3, minmax(0,1fr)); } .ra-stats-3 .val{ font-size:15px; } }
+  .ra-scrub{ position:relative; touch-action:pan-y; cursor:crosshair; user-select:none; -webkit-user-select:none; }
+  .ra-main{ height:170px; margin:0; } .ra-main svg{ height:170px; border-radius:8px 8px 0 0; }
+  .ra-hr{ fill:none; stroke:#E5484D; stroke-width:1.2; stroke-linejoin:round; opacity:.8; }
+  .ra-tick{ position:absolute; left:6px; transform:translateY(-50%); font:11px var(--mono); color:var(--text-dim); pointer-events:none; }
+  .ra-tick.r{ left:auto; right:6px; color:#F08A8D; }
+  .ra-elev{ position:relative; height:46px; } .ra-elev svg{ width:100%; height:46px; display:block; background:var(--panel-2); border-radius:0 0 8px 8px; border-top:1px solid var(--line); }
+  .ra-elev .ra-tick{ top:10px; } .ra-elev .ra-tick.b{ top:auto; bottom:-2px; }
+  .ra-alt{ fill:rgba(140,151,166,.45); stroke:none; }
+  .ra-cur{ position:absolute; top:0; bottom:0; width:0; border-left:1px solid var(--text); opacity:.7; pointer-events:none; }
+  .ra-cur:not([style]){ display:none; }
+  .ra-read{ font:12.5px var(--mono); color:var(--text-dim); min-height:20px; margin-bottom:8px; }
+  .ra-read.on{ color:var(--text); } .ra-read b{ font-weight:600; }
+  .ra-verdict{ font-size:13.5px; padding:9px 12px; border-radius:8px; background:var(--panel-2); margin-bottom:12px; }
+  .ra-verdict.good{ background:rgba(61,190,122,.12); color:#7FDCAA; } .ra-verdict.warn{ background:rgba(232,185,61,.12); color:#F0CC6E; }
+  .ra-zones{ display:grid; gap:9px; }
+  .ra-zrow{ display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 52px 38px; gap:10px; align-items:center; font-size:13px; }
+  .ra-zname{ display:flex; align-items:baseline; gap:4px 8px; min-width:0; flex-wrap:wrap; } .ra-zname i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:7px; }
+  .ra-zname .ra-dim{ font:11px var(--mono); }
+  .ra-ztrack{ height:9px; border-radius:5px; background:var(--panel-2); overflow:hidden; } .ra-ztrack span{ display:block; height:100%; border-radius:5px; }
+  .ra-zt, .ra-zp{ font:12px var(--mono); text-align:right; font-variant-numeric:tabular-nums; } .ra-zp{ color:var(--text-dim); }
+  @media (max-width:520px){ .ra-zname{ flex-direction:column; gap:1px; } .ra-zname .ra-dim{ padding-left:16px; } .ra-zrow{ grid-template-columns:minmax(0,1.4fr) minmax(0,1.4fr) 44px 32px; gap:7px; } }
 `;
