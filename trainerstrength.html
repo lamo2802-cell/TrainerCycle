@@ -270,6 +270,10 @@
      screen height, whatever size the TV's browser says it is (Silk on a 1080p Fire TV reports
      960x540). During a session the set sits on the left and what you tap on the right, so
      nothing needs scrolling. */
+  .tv-only{ display:none; }
+  html.tv .tv-only{ display:block; }
+  html.tv body.focus .tv-gym{ display:none; }
+  html.tv .tv-gym{ text-align:center; margin-top:2.4vh; font-size:3vh; color:var(--accent); }
   html.tv .main{ max-width:none; padding-left:4vw; padding-right:4vw; }
   html.tv body.focus .main{ padding-top:3vh; padding-bottom:2vh; }
   html.tv .sstrip{ margin-bottom:2.4vh; }
@@ -362,6 +366,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
         <a href="builder.html">Workouts</a>
         <a href="live.html">Live Ride</a>
         <a href="trainerstrength.html" class="active">TrainerStrength</a>
+        <a href="gym.html" class="tv-only">Gym display</a>
         <a href="rides.html">Rides</a>
         <a href="settings.html">Settings</a>
         <a href="help.html">How to Use</a>
@@ -428,6 +433,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <button class="danger" id="stopBtn" disabled>Stop</button>
           <div class="live-bar" id="liveBar"></div>
         </div>
+        <a href="gym.html" class="tv-only tv-gym">Show the gym display (logo and clock)</a>
       </div>
     </div>
   </div>
