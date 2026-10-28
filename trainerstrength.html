@@ -13,6 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script>/* No session to open (?load, ?retest or one to resume): show the front page with the app nav; the player opens after Start. TVs go straight to the player. */try{var q=new URLSearchParams(location.search),L=JSON.parse(localStorage.getItem('tc_strength_live')||'null');if(!document.documentElement.classList.contains('tv')&&!q.has('load')&&!q.has('retest')&&!(L&&L.v===1&&Date.now()-L.savedAt<432e5))document.documentElement.classList.add('ts-home','has-appnav');}catch(e){}</script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
 <link rel="stylesheet" href="app-nav.css?v=6">
 <style>
@@ -84,6 +85,24 @@
   .side-panel .block{ margin-bottom:0; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
   .live-main{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; overflow-y:auto; justify-content:safe center; }
   .live-layout.session-active .side-panel{ display:none; }
+  /* front page: today's session, programme, library and lifts; the player is hidden until Start */
+  .ts-home-head{ display:none; }
+  html.ts-home .ts-home-head{ display:block; max-width:980px; margin:0 auto 14px; width:100%; }
+  html.ts-home .ts-home-head h1{ font-size:26px; margin:0 0 4px; }
+  html.ts-home .ts-sub{ color:var(--text-dim); font-size:13.5px; margin:0 0 16px; }
+  html.ts-home .live-main, html.ts-home #exercisesBlock{ display:none; }
+  html.ts-home .live-layout{ display:block; max-width:980px; margin:0 auto; width:100%; }
+  html.ts-home .side-panel{ width:auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; overflow:visible; }
+  html.ts-home .side-panel .block{ padding:16px 18px; }
+  html.ts-home .main{ overflow-y:auto; }
+  .ts-today{ background:linear-gradient(110deg, rgba(69,214,196,.13), transparent 60%), var(--panel); border:1px solid rgba(69,214,196,.45); border-radius:14px; padding:18px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .ts-today .tt-body{ flex:1; min-width:200px; }
+  .ts-today .tt-kicker{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin-bottom:4px; }
+  .ts-today .tt-name{ font-size:20px; font-weight:700; }
+  .ts-today .tt-sub{ color:var(--text-dim); font-size:13px; margin-top:3px; }
+  .ts-today .tt-go{ display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#0B0F14; font-weight:700; font-size:16px; padding:13px 34px; border-radius:10px; text-decoration:none; }
+  .ts-today .tt-go:hover{ filter:brightness(1.08); }
+  @media (max-width:600px){ .ts-today .tt-go{ width:100%; } }
   @media (max-width:800px){
     /* Phones scroll the whole page; the controls stay pinned to the bottom of the screen. */
     .main{ height:auto; min-height:100vh; min-height:100dvh; overflow:visible; }
@@ -375,6 +394,11 @@ html select option{ background:#1D242D; color:#E7ECF2; }
   </div>
 
   <div class="main">
+    <div class="ts-home-head">
+      <h1>TrainerStrength</h1>
+      <p class="ts-sub">Strength sessions that fit around your riding and running. Pick one and press Start.</p>
+      <div class="ts-today" id="tsToday"><div class="tt-body"><div class="tt-kicker">Today</div><div class="tt-sub">Loading…</div></div></div>
+    </div>
     <div class="live-layout">
       <div class="side-panel">
         <div class="block" id="programmes">
@@ -392,7 +416,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <div class="wk-actions"><button id="buildBtn">+ Build a session</button><button id="editBtn" hidden>Edit</button></div>
         </div>
 
-        <div class="block">
+        <div class="block" id="exercisesBlock">
           <div class="block-title">Exercises</div>
           <div class="exercise-list" id="exerciseList"></div>
           <div style="font-size:11.5px; color:var(--text-dim); line-height:1.4; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">
@@ -449,7 +473,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=20';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive } from './auth.js?v=21';
 import { notify, ask, showSheet } from './sheet.js?v=3';
 import { openBuilder } from './strength-builder.js?v=1';
 import { PROGRAMMES, PHASES, STRENGTH_PLAN_KEY, phaseColor, programmeStatus, programmeWeeks, retestLifts } from './strength-programmes.js?v=2';
@@ -462,6 +486,8 @@ import { VARIANTS, VARIANTS_KEY, loadStrengthSettings, saveSetting, loadHistory,
 const supabase = createSupabaseClient();
 
 (async function(){
+  const HOME = document.documentElement.classList.contains('ts-home'); // front page, not the player
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
   const user = await requireAuth(supabase);
   renderSidebarUserBadge(supabase, user, document.querySelector('.sidebar'));
   await requireSubscription(supabase, user);
@@ -818,6 +844,7 @@ const supabase = createSupabaseClient();
   const wantFull = new Set();
   function canLighten(w){ return !!(w && bigWeek && kit.rideAware && w.exercises.some(e => e.sets > 2)); }
   function selectWorkout(id, opts = {}){
+    if (HOME && id){ location.href = 'trainerstrength.html?load='+encodeURIComponent(id); return; } // the front page hands over to the player
     const w = library.find(x=>x.id===id);
     lighter = opts.lighter != null ? opts.lighter : canLighten(w) && !wantFull.has(id);
     curWorkout = w ? Object.assign({}, w, { exercises: lighter ? lighterWorkout(w.exercises) : w.exercises }) : null;
@@ -831,6 +858,19 @@ const supabase = createSupabaseClient();
     selectWorkout(e.target.value);
     updateBuildButtons();
   });
+
+  // ---- front page: today's session with one big Start ----
+  function renderToday(sess, next){
+    const el = document.getElementById('tsToday');
+    if (!el) return;
+    if (!sess){
+      try { const t = JSON.parse(localStorage.getItem('tc_today_session') || 'null'); if (t && t.date === todayIso() && t.kind === 'strength' && t.href) sess = { name:t.name, href:t.href, sub:'From your plan' }; } catch(_){}
+    }
+    el.innerHTML = sess
+      ? '<div class="tt-body"><div class="tt-kicker">'+(sess.kicker || 'Today\'s session')+'</div><div class="tt-name">'+esc(sess.name)+'</div>'+(sess.sub ? '<div class="tt-sub">'+esc(sess.sub)+'</div>' : '')+'</div><a class="tt-go" href="'+sess.href+'">Start</a>'
+      : '<div class="tt-body"><div class="tt-kicker">Today</div><div class="tt-name">No strength session today</div><div class="tt-sub">'
+        + (next ? 'Next: '+esc(next)+'. ' : '')+'Pick any session from the library below to train now.</div></div>';
+  }
 
   // ---- build your own: new, edit your own, or copy a library session ----
   function updateBuildButtons(){
@@ -1382,6 +1422,7 @@ const supabase = createSupabaseClient();
       const follow = await loadFollowState(supabase, user.id);
       progCfg = follow.strengthPlan;
       if (!progCfg || !PROGRAMMES[progCfg.id]){
+        renderToday(null, null);
         box.innerHTML = '<p style="margin:0 0 8px;">Follow a multi-week strength programme. Its sessions go on your calendar around your riding.</p><button id="progPick" class="primary" style="margin-bottom:0;">Choose a programme</button>';
         document.getElementById('progPick').addEventListener('click', pickProgramme);
         if (location.hash === '#programmes') pickProgramme();
@@ -1403,17 +1444,25 @@ const supabase = createSupabaseClient();
           const href = 'trainerstrength.html?load='+encodeURIComponent(s.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+s.dayIndex;
           return '<div class="prog-sess"><span>'+niceDate(s.date)+' · '+(s.dayObj.name || '').replace(st.programme.name+' ', '')+'</span>'+(isDone ? '<span class="ok">Done ✓</span>' : '<a href="'+href+'">'+(s.date === today ? 'Start today' : 'Open')+'</a>')+'</div>';
         }).join('') : '<div class="prog-sess"><span>No strength sessions this week.</span></div>';
+      const todays = week.find(s => s.date === today && !done.has(s.dayIndex)), upcoming = week.find(s => s.date > today && !done.has(s.dayIndex));
+      const missed = !todays && week.find(s => s.date < today && !done.has(s.dayIndex)), pick = todays || missed;
+      renderToday(pick && { name: pick.dayObj.name || st.programme.name, kicker: missed ? 'Still to do this week' : null,
+        sub: missed ? 'Planned for '+niceDate(missed.date)+'. Fine to do it today.' : st.programme.name+' · week '+(st.week+1)+' of '+st.programme.weeks,
+        href: 'trainerstrength.html?load='+encodeURIComponent(pick.dayObj.workoutId)+'&plan='+encodeURIComponent(plan.id)+'&day='+pick.dayIndex },
+        upcoming && niceDate(upcoming.date)+' · '+(upcoming.dayObj.name || '').replace(st.programme.name+' ', ''));
       const canRetest = !st.notStarted && (st.done || st.week >= st.programme.weeks - 1);
       if (canRetest) html += '<div class="prog-sess"><span>'+(st.done ? 'See how much stronger you are.' : 'Last week: see how much stronger you are.')+'</span><button class="link-btn" id="progRetest">Retest</button></div>';
       html += '<button id="progChange" style="margin:10px 0 0;">'+(st.done ? 'Choose another' : 'Change or stop')+'</button>';
       box.innerHTML = html;
       document.getElementById('progChange').addEventListener('click', pickProgramme);
       if (canRetest) document.getElementById('progRetest').addEventListener('click', () => {
+        if (HOME){ location.href = 'trainerstrength.html?retest=1'; return; }
         if (running || idx !== -1) return notify('Finish or stop the current session first.', 'Session in progress');
         startRetest(retestWorkout(progCfg.id, st.programme.name+' retest', retestLifts(progCfg.id)), { from: new Date(progCfg.start+'T00:00:00').toISOString(), to: new Date(addDays(progCfg.start, 14)+'T00:00:00').toISOString(), label:'in the first two weeks' });
       });
       if (week.length) populateWorkoutSelect();
-    } catch(e){ box.textContent = 'Couldn\'t load your programme. Check your connection.'; }
+      if (canRetest && !HOME && new URLSearchParams(location.search).has('retest')){ window.history.replaceState({}, '', window.location.pathname); document.getElementById('progRetest').click(); }
+    } catch(e){ renderToday(null, null); box.textContent = 'Couldn\'t load your programme. Check your connection.'; }
   }
   async function saveProgramme(cfg){
     const { error } = await saveSetting(supabase, user.id, STRENGTH_PLAN_KEY, cfg);
@@ -1498,6 +1547,8 @@ const supabase = createSupabaseClient();
       document.getElementById('workoutSelect').value = loadParam;
       selectWorkout(loadParam);
       window.history.replaceState({}, '', window.location.pathname);
+      // phones stack the panels above the player; jump to it so Start is right there
+      if (window.matchMedia('(max-width:800px)').matches) document.querySelector('.live-main').scrollIntoView({ block:'start' });
     }
   });
   renderStage();
