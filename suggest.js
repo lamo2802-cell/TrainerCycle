@@ -10,8 +10,8 @@ import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
-import { BEGINNER_RUNS, runSession } from './run.js?v=8';
-import { goalPull, goalReason } from './goals.js?v=1';
+import { BEGINNER_RUNS, runSession, TT_5K } from './run.js?v=9';
+import { goalPull, goalReason } from './goals.js?v=2';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
@@ -21,6 +21,7 @@ const OFFSET = [-10, 0.25, 1, 2];           // target level above the rider's, b
 const RECENT_DAYS = 10;                       // don't suggest a workout ridden this recently
 const GAP_CAP = 21;
 const CLOSE_SEC = 5 * 60;                    // within 5 minutes of the time picked counts as a match
+const RAMP_TEST = 'prebuilt-ramp-test-25';
 const REST_FORM = -18;                       // Form at or below this, with nothing else saying go, means rest
 
 export function durationOf(w){
@@ -129,7 +130,8 @@ export function saveLength(today, v){
 // goal: the riding goal's guidance from goalGuide() (goals.js), or null. It pulls towards the goal's zones
 // while key sessions are owed this week, and on the long day (length on Auto, fresh enough) it's the long ride.
 // focus: { zone: weight } from focusWeights() (focus.js): what recent training is missing, added to the zone score.
-export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null }){
+// benchmark: an FTP test is due (benchmarkDue() in focus.js): on a fresh day with the length on Auto, it's the Ramp Test.
+export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
   if (!library || !library.length) return null;
 
   // 1. How hard today can be, and how long.
@@ -182,6 +184,14 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   const endu = picks.findIndex(c => c.zone === 'endurance');
   if (endu > 3 && !picks[endu].over){ const [e] = picks.splice(endu, 1); picks.splice(3, 0, e); }
 
+  // A fresh day with an old FTP: test first, so everything after it fits.
+  const test = benchmark && band === 3 && auto && !rest && !long && !restDay ? library.find(w => w.id === RAMP_TEST) : null;
+  if (test){
+    const t = { w: test, zone:'threshold', level: levels.threshold || 1, durationSec: durationOf(test), off:0, over:false, test:true };
+    picks.unshift(t);
+    return { picks: picks.slice(0, 6), band, form, rest, maxMin, auto, long, test:true,
+      reason: 'Form is ' + signed(form) + ' and your FTP hasn\'t been tested for a while, so a Ramp Test: about half an hour, and every target after it fits you better.' };
+  }
   const top = picks[0];
   const parts = ['Form is ' + signed(form)].concat(why);
   if (!why.length){
@@ -303,7 +313,8 @@ export function recommendedRunLength(rides, band, today){
 // rides: completed_rides (all sports). runLevels/byRun: from computeRunLevels(). maxMin: minutes or 'auto'.
 // Returns { picks:[{ id, session, zone, level, mins, over }], band, form, reason, rest, maxMin, auto, beginner }.
 // goal: the running goal's guidance from goalGuide() (goals.js), or null, used as in suggestRide(). focus: as in suggestRide().
-export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null }){
+// benchmark: a timed 5K is due (benchmarkDue() in focus.js): on a fresh day, or a good one at the weekend, it's the 5K time trial.
+export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
   const rd = readiness({ rides, today, feel, restDay });
   const { form, band, rest, why } = rd;
   const levels = Object.assign({}, runLevels || Object.fromEntries(RUN_LEVEL_ZONES.map(z => [z.key, 1])));
@@ -356,6 +367,13 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
   for (const c of cands){ if (bucket(c) === bucket(cands[0]) && !seen.has(c.zone)){ seen.add(c.zone); picks.push(c); } }
   cands.forEach(c => { if (!picks.includes(c)) picks.push(c); });
 
+  const wd = (new Date(today + 'T12:00:00').getDay() + 6) % 7;
+  if (benchmark && auto && !rest && !long && !qualitySoon && !restDay && (band === 3 || (band === 2 && wd >= 5))){
+    const s = runSession(TT_5K);
+    picks.unshift({ id: TT_5K, session: s, zone:'interval', level: levels.threshold || 1, mins: s.mins, off:0, over:false, test:true });
+    return { picks: picks.slice(0, 6), band, form, rest, maxMin, auto, beginner:false, levels, long, test:true,
+      reason: 'Form is ' + signed(form) + ', so a good day to time a 5K. It sets your threshold pace' + (goal ? ', your paces and your goal prediction.' : ' and your paces.') };
+  }
   const top = picks[0];
   const zn = z => runZoneInfo(z).name.toLowerCase();
   const parts = ['Form is ' + signed(form)].concat(why);

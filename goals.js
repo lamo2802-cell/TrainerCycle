@@ -9,7 +9,7 @@
 // set, pickSport() says which of the two to do today. Readiness still decides how hard, and rest wins.
 import { isoDate, parseIso, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { RUN_GOALS, predictTime, fmtDuration } from './run-plans.js?v=4';
-import { fmtPace, parseDuration } from './run.js?v=8';
+import { fmtPace, parseDuration } from './run.js?v=9';
 import { showSheet } from './sheet.js?v=3';
 
 export const GOALS_KEY = 'goals';
@@ -224,10 +224,16 @@ export function pickSport({ rideGuide, runGuide, rides, byRun = {}, band, beginn
 // ---- The goals card and the set-goal sheet ----
 const STATE_WORD = { there:'Reached', 'on-track':'On track', stretch:'Stretch', open:'In progress', unknown:'Set up' };
 // One row per goal, plus a button to add the missing one. statuses: { run, ride } from the *GoalStatus functions.
-export function goalsCardHtml(goals, statuses, esc){
+// A goal with a date 8+ weeks away gets a link into a plan for it, unless the rider already follows one (onPlan).
+export function planLinkFor(sport, g){
+  if (!g || !g.date || daysBetween(isoDate(new Date()), g.date) < 56) return null;
+  return sport === 'run' ? { href:'trainerrun.html?build=' + g.goal + '&race=' + g.date, label:'Build me a plan for this' } : { href:'plans.html', label:'Find a plan for this' };
+}
+export function goalsCardHtml(goals, statuses, esc, { onPlan = false } = {}){
   const row = (sport, g, st) => '<div class="goal-row" data-goal-edit="'+sport+'"><span class="goal-sport">'+(sport === 'run' ? 'Run' : 'Ride')+'</span>'
     + '<div class="goal-body"><b>'+esc(goalLabel(sport, g))+(g.date ? ' · '+parseIso(g.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year: g.date.slice(0,4) === String(new Date().getFullYear()) ? undefined : 'numeric' }) : '')+'</b>'
-    + '<p>'+esc(st.text)+'</p></div><span class="goal-state s-'+st.state+'">'+STATE_WORD[st.state]+'</span></div>';
+    + '<p>'+esc(st.text)+'</p>'+(!onPlan && planLinkFor(sport, g) ? '<a class="goal-plan" href="'+planLinkFor(sport, g).href+'">'+planLinkFor(sport, g).label+' →</a>' : '')
+    + '</div><span class="goal-state s-'+st.state+'">'+STATE_WORD[st.state]+'</span></div>';
   const rows = [goals.run ? row('run', goals.run, statuses.run) : '', goals.ride ? row('ride', goals.ride, statuses.ride) : ''].join('');
   const add = [!goals.ride ? '<button class="link-btn" data-goal-edit="ride">+ Riding goal</button>' : '', !goals.run ? '<button class="link-btn" data-goal-edit="run">+ Running goal</button>' : ''].join('');
   return rows ? '<div class="goal-rows">'+rows+'</div>'+(add ? '<div class="goal-add">'+add+'</div>' : '')
@@ -241,6 +247,7 @@ export const GOALS_CSS = `
 .goal-body{ min-width:0; } .goal-body b{ font-size:14.5px; } .goal-body p{ margin:3px 0 0; font-size:13px; line-height:1.45; color:var(--text-dim, #8C97A6); }
 .goal-state{ font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; color:var(--text-dim, #8C97A6); }
 .goal-state.s-there, .goal-state.s-on-track{ color:#3DBE7A; } .goal-state.s-stretch{ color:#E8B93D; }
+.goal-plan{ display:inline-block; margin-top:5px; font-size:13px; font-weight:600; color:var(--accent, #45D6C4); text-decoration:none; }
 .goal-add{ display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; }
 .goal-empty{ margin:0 0 4px; font-size:13.5px; color:var(--text-dim, #8C97A6); line-height:1.5; }
 .gs-form{ display:flex; flex-direction:column; gap:12px; margin:6px 0 2px; }

@@ -76,6 +76,8 @@ const LIB = [
   ['rl-fast-10x30', 'Speed 10 × 30 s', 'quality', [W(15), R(10, { secs:30 }, 'fast', { secs:90, kind:'jog' }), W(10)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
   ['rl-fast-12x30', 'Speed 12 × 30 s', 'quality', [W(15), R(12, { secs:30 }, 'fast', { secs:90, kind:'jog' }), W(12)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
   ['rl-fast-8x45', 'Hill sprints 8 × 45 s', 'quality', [W(15), R(8, { secs:45 }, 'fast', { mins:2, kind:'walk' }), W(10)], 'On a short hill: drive the arms, walk back down.'],
+  // A benchmark: a timed 5K resets the threshold pace (logged with its 5K time, it's saved as a 5K best).
+  ['rl-tt-5k', '5K time trial', 'test', [W(15), R(3, { secs:20 }, 'fast', { secs:60, kind:'walk' }), { km:5, zone:'race', IF:1.04 }, W(10)], 'Warm up well, then run 5K as fast as you can hold evenly: start controlled and finish hard. Log just the 5K: its time and 5 km.'],
   // Walk/run for new runners: a little more running and a little less walking each step, up to 25 minutes non-stop.
   ['rl-wr-1', 'Walk/run 1', 'beginner', [{ mins:5, zone:'walk' }, R(8, { mins:1 }, 'easy', { secs:90, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between. Done twice and feeling fine? Move on to the next one.'],
   ['rl-wr-2', 'Walk/run 2', 'beginner', [{ mins:5, zone:'walk' }, R(6, { mins:2 }, 'easy', { mins:1, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between.'],
@@ -87,6 +89,8 @@ const LIB = [
 ];
 LIB.forEach(([id, name, kind, steps, blurb]) => { RUN_SESSIONS[id] = blurb ? { name, kind, blurb, steps } : { name, kind, steps }; });
 export const BEGINNER_RUNS = LIB.filter(x => x[2] === 'beginner').map(x => x[0]);
+
+export const TT_5K = 'rl-tt-5k';
 
 export function registerRunSession(id, spec){ RUN_SESSIONS[id] = spec; }
 
@@ -225,6 +229,8 @@ export async function saveRun(supabase, userId, { name, startedAt, durationSec, 
     plan_id: plan || null, plan_day_index: dayIndex != null ? dayIndex : null,
     workout_id: workoutId && RUN_SESSIONS[workoutId] ? workoutId : null,
   };
+  // A 5K time trial logged at about 5 km counts as a 5K best, so it sets the threshold pace like a Strava 5K.
+  if (workoutId === TT_5K && distanceM >= 4900 && distanceM <= 5300) record.run_bests = { 5000: Math.round(durationSec * 5000 / distanceM) };
   const { error } = await supabase.from('completed_rides').insert(record);
   if (error) throw error;
   return record;
@@ -255,6 +261,7 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
     if (data && data.value && data.value.v) thresholdPace = Number(data.value.v);
   } catch(_){}
   const planned = session ? runSession(session.workoutId) : null;
+  const tt = !!(session && session.workoutId === TT_5K);
   const today = localIso(new Date());
   const date = onDate && onDate <= today ? onDate : session && session.date <= today ? session.date : today;
   const form = document.createElement('div');
@@ -262,8 +269,9 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
   form.innerHTML = (planned ? '<p class="rl-note">'+planned.text+'</p>' : '')
     + '<div><label for="rlName">Name</label><input id="rlName" value="'+(planned ? planned.name : 'Run')+'"></div>'
     + '<div class="rl-row"><div><label for="rlDate">Date</label><input id="rlDate" type="date" max="'+today+'" value="'+date+'"></div>'
-    + '<div><label for="rlTime">Time (min or h:mm:ss)</label><input id="rlTime" inputmode="numeric" placeholder="'+(planned ? planned.mins : 40)+'"'+(planned ? ' value="'+planned.mins+'"' : '')+'></div></div>'
-    + '<div><label for="rlDist">Distance (km, optional)</label><input id="rlDist" inputmode="decimal" placeholder="e.g. 8.2"></div>'
+    + '<div><label for="rlTime">Time (min or h:mm:ss)</label><input id="rlTime" inputmode="numeric" placeholder="'+(tt ? 'e.g. 23:40' : planned ? planned.mins : 40)+'"'+(planned && !tt ? ' value="'+planned.mins+'"' : '')+'></div></div>'
+    + '<div><label for="rlDist">Distance (km, optional)</label><input id="rlDist" inputmode="decimal" placeholder="e.g. 8.2"'+(tt ? ' value="5"' : '')+'></div>'
+    + (tt ? '<p class="rl-note">Enter your 5K time only, not the warm-up. It sets your threshold pace and race predictions.</p>' : '')
     + '<div><label>How did it feel?</label><div class="rl-feel">'+['Easy','Moderate','Hard','Very hard','All out'].map((l,i)=>'<button type="button" data-v="'+(i+1)+'">'+l+'</button>').join('')+'</div></div>'
     + '<div class="rl-sum" id="rlSum"></div>';
   let feel = null;
