@@ -13,12 +13,31 @@ const rzn = z => runZoneInfo(z).name;
 const LEVEL_CHECK = ['endurance', 'tempo', 'sweet_spot', 'threshold', 'vo2max'];   // anaerobic is a sharpener: never "behind"
 const median = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 
+// Is a benchmark due? run: a timed 5K, for someone who runs regularly (and has a running goal or no
+// threshold pace) with no 5K best in 90 days. ride: a Ramp Test, when the FTP setting is 8 weeks old
+// (6 with an FTP goal) with 6+ rides since. Returns { run, ride, ftpWeeks, runEver }.
+export function benchmarkDue({ rides, runLevels = null, guides = {}, runPace = null, ftpSetAt = null, today }){
+  const runs = rides.filter(r => r.sport === 'run' && dayOf(r) < today);
+  const regular = runs.filter(r => dayOf(r) >= addDays(today, -42)).length >= 4 && !!runLevels && runLevels.easy >= 3.8;
+  const has5k = r => r.run_bests && Number(r.run_bests[5000]) > 0;
+  const runEver = runs.some(has5k);
+  const run = regular && (!!guides.run || !runPace) && !runs.some(r => has5k(r) && dayOf(r) >= addDays(today, -90));
+  let ride = false, ftpWeeks = null;
+  if (ftpSetAt){
+    const age = daysBetween(isoDate(new Date(ftpSetAt)), today);
+    ftpWeeks = Math.floor(age / 7);
+    const ridesSince = rides.filter(r => (r.sport || 'ride') === 'ride' && r.started_at >= ftpSetAt).length;
+    ride = age >= (guides.ride && guides.ride.goal.type === 'ftp' ? 42 : 56) && ridesSince >= 6;
+  }
+  return { run, ride, ftpWeeks, runEver };
+}
+
 // rides: completed_rides (all sports). byRide/levels: computeLevels(). byRun/runLevels: computeRunLevels().
 // guides: { ride, run } from guidesFor() (goals.js), or nulls. rideZone(r, byRide): from suggest.js.
 // ftpSetAt: when the FTP setting was last saved (settings.updated_at), or null.
 // Returns [{ key, sport, title, text, weights, action }] (at most 3), most useful first.
 // action: optional { label, href } for a button.
-export function focusPoints({ rides, byRide = {}, levels = {}, byRun = {}, runLevels = null, guides = {}, rideZone, ftpSetAt = null, today }){
+export function focusPoints({ rides, byRide = {}, levels = {}, byRun = {}, runLevels = null, guides = {}, rideZone, ftpSetAt = null, runPace = null, today }){
   const out = [];
   const since = n => addDays(today, -n);
   const past = rides.filter(r => dayOf(r) < today);
@@ -89,14 +108,14 @@ export function focusPoints({ rides, byRide = {}, levels = {}, byRun = {}, runLe
     text:'You\'ve trained on ' + recent + ' day' + (recent === 1 ? '' : 's') + ' in the last two weeks, down from about ' + Math.round(before) + '. Three shorter sessions a week build more than one long one.',
     weights: null });
 
-  // 7. An FTP that's getting old.
-  if (ftpSetAt && bikes.length){
-    const age = daysBetween(isoDate(new Date(ftpSetAt)), today);
-    const ridesSince = bikes.filter(r => r.started_at >= ftpSetAt).length;
-    if (age >= 56 && ridesSince >= 6) out.push({ key:'ftp-old', sport:'ride', title:'Your FTP is ' + Math.floor(age / 7) + ' weeks old',
-      text:'A Ramp Test would make every target, and every suggestion, fit you better.',
-      weights: null, action: { label:'Take a Ramp Test', href:'live.html?load=prebuilt-ramp-test-25' } });
-  }
+  // 7. Benchmarks that are due: an old FTP, or no timed 5K for a while.
+  const bench = benchmarkDue({ rides, runLevels, guides, runPace, ftpSetAt, today });
+  if (bench.ride) out.push({ key:'ftp-old', sport:'ride', title:'Your FTP is ' + bench.ftpWeeks + ' weeks old',
+    text:'A Ramp Test would make every target, and every suggestion, fit you better.' + (guides.ride && guides.ride.goal.type === 'ftp' ? ' It\'s also how you\'ll see your progress towards ' + guides.ride.phrase + '.' : ''),
+    weights: null, action: { label:'Take a Ramp Test', href:'live.html?load=prebuilt-ramp-test-25' } });
+  if (bench.run) out.push({ key:'run-5k', sport:'run', title: bench.runEver ? 'Time to time a 5K again' : 'Time a 5K',
+    text:(bench.runEver ? 'It\'s been over 3 months since your last timed 5K. ' : 'We haven\'t seen a timed 5K from you yet. ') + 'A 5K time trial sets your threshold pace, so your paces' + (guides.run ? ' and your goal prediction' : '') + ' stay right. We\'ll suggest one on a fresh day.',
+    weights: null });
 
   return out.slice(0, 3);
 }

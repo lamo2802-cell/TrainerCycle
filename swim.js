@@ -5,7 +5,7 @@
 // steeply with speed). Without a distance (or a CSS) IF comes from how the swim felt instead.
 
 import { showSheet, notify } from './sheet.js?v=3';
-import { parseDuration } from './run.js?v=8';
+import { parseDuration } from './run.js?v=9';
 
 export const SWIM_CSS_KEY = 'swim_css';
 

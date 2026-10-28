@@ -471,7 +471,7 @@ import { countUp, newBests, pbLabel, weekStreak } from './motion.js?v=1';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
 import { loadHolidays, applyHolidays, holidayOn, holidayLabel } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow, planWeekNote, RUN_GOALS, predictTime, goalPace, paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, RUN_PLAN_ID } from './run-plans.js?v=4';
-import { addRuns, runSession, plannedRunTss, openRunLog, runAlternatives, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=8';
+import { addRuns, runSession, plannedRunTss, openRunLog, runAlternatives, fmtPace, fmtKm, syncStrava, linkRunsToPlan, setRunPace, RUN_PACE_KEY } from './run.js?v=9';
 import { openExportSheet } from './export.js?v=3';
 import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtSwimPace, fmtMetres } from './swim.js?v=2';
@@ -481,9 +481,9 @@ import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
-import { focusPoints, focusWeights } from './focus.js?v=1';
-import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=1';
-import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=7';
+import { focusPoints, focusWeights, benchmarkDue } from './focus.js?v=2';
+import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=2';
+import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=8';
 import { computeRunLevels, RUN_LEVEL_ZONES, runZoneInfo } from './run-levels.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -612,7 +612,8 @@ const supabase = createSupabaseClient();
     // Goals steer the suggested ride and run (goals.js), and with both set, which of the two to do.
     const guides = guidesFor({ goals, rides, byRide, byRun, today, runPace, rideZone });
     // What recent training is missing (focus.js): shown with the goals, and nudging the suggestions too.
-    const focus = focusPoints({ rides, byRide, levels, byRun, runLevels, guides, rideZone, ftpSetAt, today });
+    const focus = focusPoints({ rides, byRide, levels, byRun, runLevels, guides, rideZone, ftpSetAt, runPace, today });
+    const bench = benchmarkDue({ rides, runLevels, guides, runPace, ftpSetAt, today });
     const ridesByDate = new Map();
     rides.forEach(r=>{ const d = isoDate(new Date(r.started_at)); if (!ridesByDate.has(d)) ridesByDate.set(d, []); ridesByDate.get(d).push(r); });
     const sessions = plan ? planSessions(plan, follow.startedAt, follow.moves).map(s=>{
@@ -671,7 +672,7 @@ const supabase = createSupabaseClient();
         const IF = workoutIf(c.w.steps, ftpW), tss = plannedTss(c.w.steps, ftpW);
         return '<div class="hero-name">'+esc(c.w.name)+'</div>'
           + '<div class="hero-meta"><span><b>'+fmtMins(c.durationSec)+'</b></span>'+(tss ? '<span><b>'+tss+'</b>TSS</span>' : '')+(IF ? '<span><b>'+IF.toFixed(2)+'</b>IF</span>' : '')
-          + '<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+' · '+d.label+'</span></div>'
+          + '<span class="lvl-chip" style="--zc:'+z.color+'">'+(c.test ? 'FTP test' : z.short+' '+fmtLevel(c.level)+' · '+d.label)+'</span></div>'
           + (why ? '<div class="sg-why">'+esc(why)+'</div>' : '')
           + profileSvg(c.w.steps, ftpW)
           + '<div class="hero-actions"><a class="t-btn primary" href="'+href+'">Ride it</a>'+(sgMode === 'suggest' ? '<button class="t-btn" data-sg-next>Something else</button>' : '')+'</div>';
@@ -689,7 +690,7 @@ const supabase = createSupabaseClient();
           return;
         }
         if (sport === 'run') return drawRun();
-        const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride') });
+        const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride'), benchmark: bench.ride });
         if (!res){ box.remove(); return; }
         const c = res.picks[pick % res.picks.length];
         const why = pick % res.picks.length === 0 ? (res.rest ? '' : res.reason)
@@ -704,7 +705,7 @@ const supabase = createSupabaseClient();
       // The suggested run: name, length, level and the session written out, then log it once it's done.
       let runCur = null;
       function drawRun(){
-        const res = suggestRun({ rides, runLevels, byRun, today, maxMin: runMin, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run') });
+        const res = suggestRun({ rides, runLevels, byRun, today, maxMin: runMin, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run'), benchmark: bench.run });
         if (!res){ sport = 'ride'; return draw(); }
         const c = res.picks[pick % res.picks.length];
         runCur = c;
@@ -717,7 +718,7 @@ const supabase = createSupabaseClient();
           + (res.rest ? '<div class="sg-rest-note">'+esc(res.reason)+'</div>' : pickLine()) + segs(res.beginner)
           + '<div class="hero-name">'+esc(c.session.name)+'</div>'
           + '<div class="hero-meta"><span><b>Run</b></span><span><b>'+fmtMins(c.mins*60)+'</b></span>'+(c.session.tss ? '<span><b>'+c.session.tss+'</b>TSS</span>' : '')
-          + '<span class="lvl-chip" style="--zc:'+z.color+'">'+(c.step ? 'Step '+c.step+' of '+c.of : z.short+' '+fmtLevel(c.level)+(c.zone === 'easy' ? '' : ' · '+d.label))+'</span></div>'
+          + '<span class="lvl-chip" style="--zc:'+z.color+'">'+(c.test ? 'Benchmark' : c.step ? 'Step '+c.step+' of '+c.of : z.short+' '+fmtLevel(c.level)+(c.zone === 'easy' ? '' : ' · '+d.label))+'</span></div>'
           + (why ? '<div class="sg-why">'+esc(why)+'</div>' : '')
           + '<div class="run-desc">'+esc(c.session.text)+'</div>'
           + '<div class="hero-actions"><button class="t-btn primary" data-sg-log>Log run</button><button class="t-btn" data-sg-export>Download file</button>'
@@ -947,7 +948,7 @@ const supabase = createSupabaseClient();
     if (goals.run || goals.ride || (!plan && rides.length)){
       const statuses = { run: goals.run ? runGoalStatus(goals.run, runPace) : null, ride: goals.ride ? rideGoalStatus(goals.ride, { ftp, estFtp: est && est.ftp, rides }) : null };
       html += '<div class="t-panel goals-card"><div class="t-label"><span>Your goals</span>'+(goals.run || goals.ride ? '<span class="goal-hint">Tap one to change it</span>' : '')+'</div>'
-        + goalsCardHtml(goals, statuses, esc)
+        + goalsCardHtml(goals, statuses, esc, { onPlan: !!plan })
         + (focus.length ? '<div class="goal-focus"><span>Focus</span><div><b>'+esc(focus[0].title)+'.</b> '+esc(focus[0].text)
           + (focus.length > 1 ? ' <a href="rides.html?view=fitness">'+(focus.length - 1)+' more →</a>' : '')+'</div></div>' : '')+'</div>';
     }
@@ -1022,7 +1023,7 @@ const supabase = createSupabaseClient();
     const goalsCard = el.querySelector(".goals-card");
     if (goalsCard) ensureGoalsCss();
     if (goalsCard) goalsCard.addEventListener('click', async e => {
-      const t = e.target.closest('[data-goal-edit]'); if (!t) return;
+      const t = !e.target.closest('a') && e.target.closest('[data-goal-edit]'); if (!t) return;
       const next = await openGoalSheet(supabase, user.id, goals, t.dataset.goalEdit, { ftp, runPace });
       if (next) renderToday(user);
     });
