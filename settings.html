@@ -82,7 +82,7 @@
   .ftp-row{ display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
   .ftp-value{ font-family:var(--mono); font-size:32px; font-weight:600; color:var(--accent); }
   .ftp-unit{ color:var(--text-dim); font-size:13px; }
-  input[type=number], input[type=text]{
+  input[type=number], input[type=text], input[type=password]{
     background:var(--panel-2); border:1px solid var(--line); color:var(--text);
     border-radius:6px; padding:8px 10px; font-family:var(--mono); font-size:14px; width:140px;
   }
@@ -326,6 +326,21 @@
       <button id="stravaDisconnectBtn" style="display:none; margin-top:10px;">Disconnect Strava</button>
       <div class="msg" id="stravaMsg"></div>
       <div class="panel-desc" style="font-size:12px; margin:10px 0 0;">Connected to the wrong Strava account? Disconnect here, then log out of strava.com in your browser (or use a private window) before pressing Connect again — Strava connects whichever account you're signed in to.</div>
+    </div>
+
+    <div class="panel" id="tredict">
+      <div class="panel-title">Garmin history from Tredict</div>
+      <div class="panel-desc">Bring in your past Garmin rides, runs and swims through <a href="https://www.tredict.com" target="_blank" rel="noopener">Tredict</a>, with power curves, best run times, routes and splits, so they count in your records and training load. Anything already here, from Strava or recorded in TrainerCycle, isn't brought in twice.</div>
+      <div class="status-row"><span class="dot" id="tredictDot"></span><span id="tredictStatus">Checking…</span></div>
+      <div id="tredictAdd">
+        <div class="panel-desc" style="font-size:12.5px; margin:10px 0 0;">In Tredict, open Settings → Personal API, create a token with <b>activityRead</b>, and paste it here.</div>
+        <div class="ftp-row" style="margin-top:10px;"><input type="password" id="tredictToken" placeholder="Tredict personal token" autocomplete="off" style="flex:1; min-width:0;"><button id="tredictSave" class="primary">Import</button></div>
+      </div>
+      <div id="tredictOn" style="display:none; margin-top:10px;">
+        <div class="ftp-row"><button id="tredictImport" class="primary">Import again</button><button id="tredictForget">Remove token</button></div>
+      </div>
+      <div class="msg" id="tredictMsg"></div>
+      <div class="panel-desc" style="font-size:12px; margin:10px 0 0;">Tredict switches a token off when you haven't opened Tredict for about 10 days. New activities keep coming in from Strava.</div>
     </div>
 
     </div>
@@ -636,6 +651,71 @@ const supabase = createSupabaseClient();
     }
   });
   refreshTrainerDisplay();
+
+  // ---- Garmin history from Tredict ----
+  // The token is checked and kept by the tredict-import function; this page only needs to know there is one.
+  async function refreshTredictStatus(){
+    let on = false;
+    try { const { data } = await supabase.from('settings').select('key').eq('user_id', user.id).eq('key', 'tredict_token').maybeSingle(); on = !!data; } catch(_){}
+    document.getElementById('tredictDot').classList.toggle('on', on);
+    document.getElementById('tredictStatus').textContent = on ? 'Token saved' : 'Not set up';
+    document.getElementById('tredictAdd').style.display = on ? 'none' : '';
+    document.getElementById('tredictOn').style.display = on ? '' : 'none';
+  }
+  let tredictBusy = false;
+  async function runTredictImport(){
+    if (tredictBusy) return;
+    tredictBusy = true;
+    const msg = document.getElementById('tredictMsg');
+    const btns = ['tredictSave', 'tredictImport', 'tredictForget'].map(id => document.getElementById(id));
+    btns.forEach(b => b.disabled = true);
+    let imported = 0, skipped = 0;
+    try {
+      for (let round = 0; round < 200; round++){
+        const { data, error } = await supabase.functions.invoke('tredict-import', { body: {} });
+        if (error || !data || data.error) throw new Error((data && data.error) || 'failed');
+        if (data.needsToken){ msg.textContent = 'Tredict has switched your token off. Open Tredict once, or remove it and paste a new one.'; return; }
+        imported += data.imported || 0; skipped = data.skipped || 0;
+        if (!data.remaining){
+          msg.textContent = imported ? 'Done: ' + imported + ' activit' + (imported === 1 ? 'y' : 'ies') + ' imported' + (skipped ? ', ' + skipped + ' already here' : '') + '.'
+            : 'Nothing new to import' + (skipped ? ' (' + skipped + ' already here)' : '') + '.';
+          return;
+        }
+        msg.textContent = 'Importing… ' + imported + ' done, ' + data.remaining + ' to go. Keep this page open.';
+      }
+    } catch(e){
+      msg.textContent = (imported ? imported + ' imported so far. ' : '') + 'Couldn\'t reach Tredict just now. Press Import again to carry on.';
+    } finally {
+      tredictBusy = false;
+      btns.forEach(b => b.disabled = false);
+    }
+  }
+  document.getElementById('tredictSave').addEventListener('click', async ()=>{
+    const input = document.getElementById('tredictToken'), msg = document.getElementById('tredictMsg');
+    const token = input.value.trim();
+    if (!token){ msg.textContent = 'Paste your Tredict token first.'; return; }
+    msg.textContent = 'Checking the token…';
+    try {
+      const { data, error } = await supabase.functions.invoke('tredict-import', { body: { token } });
+      if (error || !data) throw new Error('failed');
+      if (data.error){ msg.textContent = data.error; return; }
+      input.value = '';
+      await refreshTredictStatus();
+      msg.textContent = 'Found ' + data.total + ' rides, runs and swims. Importing…';
+    } catch(_){ msg.textContent = 'Couldn\'t reach Tredict just now. Try again in a minute.'; return; }
+    runTredictImport();
+  });
+  document.getElementById('tredictImport').addEventListener('click', runTredictImport);
+  document.getElementById('tredictForget').addEventListener('click', async ()=>{
+    const msg = document.getElementById('tredictMsg');
+    try {
+      const { data, error } = await supabase.functions.invoke('tredict-import', { body: { forget: true } });
+      if (error || !data || !data.ok) throw new Error('failed');
+      msg.textContent = 'Token removed. Activities already imported stay in your history.';
+    } catch(_){ msg.textContent = 'Couldn\'t remove it just now. Try again.'; }
+    refreshTredictStatus();
+  });
+  refreshTredictStatus();
 
   // ---- Strava ----
   const STRAVA_CLIENT_ID = '280114';

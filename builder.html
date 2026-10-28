@@ -461,7 +461,7 @@ const supabase = createSupabaseClient();
       riderRides = data || [];
       runLv = computeRunLevels(riderRides);
       try { const { data: t } = await supabase.from('settings').select('value').eq('key', RUN_TRY_KEY).eq('user_id', user.id).maybeSingle(); runTryDismissed = !!t; } catch(_){}
-      ({ levels: riderLevels, byRide: riderByRide } = computeLevels(riderRides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp));
+      ({ levels: riderLevels, byRide: riderByRide } = computeLevels(riderRides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'garmin' && r.source !== 'manual'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp));
     } catch(e){ riderLevels = null; }
     renderFtp();
     renderLevels();

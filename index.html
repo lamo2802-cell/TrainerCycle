@@ -618,7 +618,7 @@ const supabase = createSupabaseClient();
     syncCalendarFeed(supabase, user.id, feedEvents(plan, follow, workouts, ftpW, singles.filter(s => !s.done)));
     const workoutsByName = {};
     Object.values(workouts).forEach(w=>{ if (w.steps && !workoutsByName[w.name]) workoutsByName[w.name] = w; });
-    const { levels, byRide } = computeLevels(rides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
+    const { levels, byRide } = computeLevels(rides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'garmin' && r.source !== 'manual'), r => (r.workout_id && workouts[r.workout_id] && workouts[r.workout_id].steps ? workouts[r.workout_id] : null) || workoutsByName[r.workout_name] || null, ftpW);
     const { levels: runLevels, byRun, runs: runList } = computeRunLevels(rides);
     // Goals steer the suggested ride and run (goals.js), and with both set, which of the two to do.
     const guides = guidesFor({ goals, rides, byRide, byRun, today, runPace, rideZone });
@@ -909,7 +909,7 @@ const supabase = createSupabaseClient();
       const metaOf = r => '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'
           + (r.sport === 'run' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span><span><b>'+fmtPace(r.duration_sec/(r.distance_m/1000))+'</b>/km</span>' : '')
           + (r.sport === 'swim' && r.distance_m ? '<span><b>'+fmtMetres(r.distance_m)+'</b></span><span><b>'+fmtSwimPace(r.duration_sec/(r.distance_m/100))+'</b>/100 m</span>' : '')
-          + ((r.sport || 'ride') === 'ride' && (r.source === 'strava' || r.source === 'manual') && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
+          + ((r.sport || 'ride') === 'ride' && (r.source === 'strava' || r.source === 'garmin' || r.source === 'manual') && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
           + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+((r.sport || 'ride') === 'ride' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>';
       const seeLabel = r => r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : r.sport === 'strength' ? 'See session' : 'See ride';
       const r = doneList[0];
@@ -1077,7 +1077,7 @@ const supabase = createSupabaseClient();
     el.innerHTML = html;
     if (sgMode) mountSuggest();
     // The last outdoor activity's route, on screens with room for it (loaded on its own: polylines are big).
-    if (last && last.source === 'strava' && window.matchMedia('(min-width:761px)').matches){
+    if (last && (last.source === 'strava' || last.source === 'garmin') && window.matchMedia('(min-width:761px)').matches){
       supabase.from('completed_rides').select('route_polyline').eq('id', last.id).maybeSingle().then(({ data }) => {
         const panel = el.querySelector('.last-panel');
         if (!panel || !hasRoute(data)) return;
