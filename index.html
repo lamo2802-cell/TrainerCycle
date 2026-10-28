@@ -236,6 +236,9 @@
   .hero-sub{ color:var(--text-dim); font-size:13px; margin-top:6px; }
   .hero-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
   .hero-profile{ display:block; width:100%; height:84px; margin-top:14px; border-radius:8px; background:var(--panel-2); }
+  .done-more{ display:block; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); color:var(--text); text-decoration:none; }
+  .done-more .nm{ display:block; font-weight:600; margin-bottom:4px; }
+  .done-more:hover .nm{ color:var(--accent); }
   .done-badge{ display:inline-flex; align-items:center; gap:6px; color:var(--accent); font-weight:700; font-size:13px; }
 
   .t-grid{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:16px; }
@@ -882,7 +885,11 @@ const supabase = createSupabaseClient();
     }
     const awayNow = holidayOn(today, holidays);
     const rideToday = todoToday && !todoToday.isStrength && !todoToday.isRun && !todoToday.isSwim && !todoToday.isRace && !todoToday.isBrick && todoToday.steps ? todoToday : null;
-    const sgMode = !rides.length || awayNow || ridTodayList.length || !library.length ? null : !todoToday ? 'suggest' : rideToday ? 'shorter' : null;
+    // A short easy spin (a few km with the kids) isn't a workout: keep the suggestion on offer after it,
+    // unless it was today's planned session.
+    const todayTss = ridTodayList.reduce((a, r) => a + (r.tss || 0), 0), todaySec = ridTodayList.reduce((a, r) => a + (r.duration_sec || 0), 0);
+    const lightToday = ridTodayList.length > 0 && todayTss < 25 && todaySec < 40*60 && !todays.some(s => s.done);
+    const sgMode = !rides.length || awayNow || (ridTodayList.length && !lightToday) || !library.length ? null : !todoToday ? 'suggest' : rideToday ? 'shorter' : null;
     const sgBox = '<div class="t-panel sg-card" id="suggestBox"></div>';
     // A session skipped today can be put back until the day is over.
     sessions.filter(s => s.date === today && s.skipped && !s.done && follow.skips && follow.skips[s.dayIndex]).forEach(s => {
@@ -897,16 +904,21 @@ const supabase = createSupabaseClient();
     } else if (todoToday){
       html += sessionHero(todoToday, awayNow ? 'Today · on holiday' : 'Today’s workout', sgMode === 'shorter' ? '<div class="sg-inline" id="suggestBox" hidden></div>' : '', sgMode === 'shorter');
     } else if (ridTodayList.length){
-      const r = ridTodayList[ridTodayList.length-1];
-      html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
-        + '<div class="done-badge">✓ Done for today</div><div class="hero-name">'+esc(r.workout_name)+'</div>'
-        + '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'
+      // Everything done today, biggest first; a light day still offers a workout underneath.
+      const doneList = ridTodayList.slice().sort((a, b) => (b.tss || 0) - (a.tss || 0));
+      const metaOf = r => '<div class="hero-meta"><span><b>'+fmtMins(r.duration_sec)+'</b></span>'
           + (r.sport === 'run' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span><span><b>'+fmtPace(r.duration_sec/(r.distance_m/1000))+'</b>/km</span>' : '')
           + (r.sport === 'swim' && r.distance_m ? '<span><b>'+fmtMetres(r.distance_m)+'</b></span><span><b>'+fmtSwimPace(r.duration_sec/(r.distance_m/100))+'</b>/100 m</span>' : '')
-          + (r.sport === 'ride' && r.source === 'strava' && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
-          + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+((r.sport || 'ride') === 'ride' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>'
-        + (nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
-        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+(r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : r.sport === 'strength' ? 'See session' : 'See ride')+'</a></div></div>';
+          + ((r.sport || 'ride') === 'ride' && (r.source === 'strava' || r.source === 'manual') && r.distance_m ? '<span><b>'+fmtKm(r.distance_m)+'</b>km</span>' : '')
+          + (r.tss!=null ? '<span><b>'+r.tss+'</b>TSS</span>' : '')+((r.sport || 'ride') === 'ride' && r.intensity_factor!=null ? '<span><b>'+Number(r.intensity_factor).toFixed(2)+'</b>IF</span>' : '')+'</div>';
+      const seeLabel = r => r.sport === 'run' ? 'See run' : r.sport === 'swim' ? 'See swim' : r.sport === 'strength' ? 'See session' : 'See ride';
+      const r = doneList[0];
+      html += '<div class="t-panel hero-card"><div class="t-label"><span>Today</span><a href="calendar.html">Calendar →</a></div>'
+        + '<div class="done-badge">'+(lightToday ? '✓ Logged today' : '✓ Done for today')+'</div><div class="hero-name">'+esc(r.workout_name)+'</div>'+metaOf(r)
+        + doneList.slice(1).map(o => '<a class="done-more" href="rides.html?ride='+encodeURIComponent(o.id)+'"><span class="nm">'+esc(o.workout_name)+'</span>'+metaOf(o)+'</a>').join('')
+        + (lightToday ? '<div class="hero-sub">A short one. If you want a proper workout today, there\'s one below.</div>' : nextS ? '<div class="hero-sub">Up next: <b style="color:var(--text)">'+esc(nextS.name)+'</b>, '+dayLabel(nextS.date)+'</div>' : '')
+        + '<div class="hero-actions"><a class="t-btn" href="rides.html?ride='+encodeURIComponent(r.id)+'">'+seeLabel(r)+'</a></div></div>';
+      if (sgMode) html += sgBox;
     } else if (nextS){
       html += sessionHero(nextS, 'Rest day · up next '+dayLabel(nextS.date));
       if (sgMode) html += sgBox;
@@ -942,7 +954,7 @@ const supabase = createSupabaseClient();
       const first = ss[0], label = first ? SPORT_SHORT(first) : rs.length ? doneShort(rs[0]) : '';
       const title = ss.map(s => s.name).concat(ss.length ? [] : rs.map(r => r.workout_name)).join(', ');
       cells += '<a class="wd'+(d===today ? ' today' : '')+'" href="calendar.html"'+(title ? ' title="'+esc(title)+'"' : '')+'><div class="l">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]+'</div><div class="n">'+parseIso(d).getDate()+'</div><div class="m">'+marks+'</div>'
-        + '<div class="sp">'+(label ? esc(label) + (ss.length > 1 ? ' +' + (ss.length - 1) : '') : '&nbsp;')+'</div></a>';
+        + '<div class="sp">'+(label ? esc(label) + (ss.length > 1 ? ' +' + (ss.length - 1) : !ss.length && rs.length > 1 ? ' +' + (rs.length - 1) : '') : '&nbsp;')+'</div></a>';
     }
     const pct = planned ? Math.min(100, Math.round(done/planned*100)) : (done ? 100 : 0);
     const { weeks: streak, since: streakStart } = weekStreak(rides);
