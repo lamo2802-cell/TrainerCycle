@@ -7,7 +7,7 @@
 // On its own the run plan is the followed plan (id RUN_PLAN_ID). Alongside a cycling plan its runs are
 // laid onto that plan's rest days by date, and the race always gets its day.
 import { addDays, parseIso, isoDate, mondayOnOrAfter, todayIso, planStart } from './plan-schedule.js?v=6';
-import { registerRunSession, addRuns, fmtPace } from './run.js?v=7';
+import { registerRunSession, addRuns, fmtPace } from './run.js?v=8';
 import { registerPlanSessions } from './plan-kit.js?v=4';
 import { mergeStrength, STRENGTH_PLAN_ID } from './strength-programmes.js?v=2';
 

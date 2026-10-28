@@ -4,7 +4,7 @@
 // link (settings key calendar_feed_token), and send-reminders uses them for session reminders
 // (reminders.js). Nothing is stored until the rider turns the feed or reminders on.
 import { planSessions, todayIso, addDays, plannedTss, isSkipped } from './plan-schedule.js?v=6';
-import { runSession } from './run.js?v=7';
+import { runSession } from './run.js?v=8';
 import { sessionInfo } from './plan-kit.js?v=4';
 
 export const FEED_TOKEN_KEY = 'calendar_feed_token';

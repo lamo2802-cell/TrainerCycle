@@ -12,7 +12,7 @@
 // said no to are kept in plan_adapt_dismissed so they don't come back.
 import { addDays, parseIso, moveEntry } from './plan-schedule.js?v=6';
 import { workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { runSession } from './run.js?v=7';
+import { runSession } from './run.js?v=8';
 
 export const SWAPS_KEY = 'active_plan_swaps';
 export const DISMISSED_KEY = 'plan_adapt_dismissed';

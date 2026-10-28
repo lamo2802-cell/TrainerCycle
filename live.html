@@ -592,12 +592,13 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, loadFeel, loadLength } from './suggest.js?v=5';
+import { suggestRide, rideZone, loadFeel, loadLength } from './suggest.js?v=6';
+import { loadGoals, guidesFor } from './goals.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays, isoDate } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns } from './run.js?v=7';
+import { addRuns } from './run.js?v=8';
 import { isBikeDay } from './plan-kit.js?v=4';
 const supabase = createSupabaseClient();
 
@@ -827,10 +828,11 @@ const supabase = createSupabaseClient();
       meta.innerHTML += ' <span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(wl.level)+(d ? ' · '+d.label : '')+'</span>';
     }
   }
-  let riderLevels = null, riderByRide = {}, riderRides = [];
+  let riderLevels = null, riderByRide = {}, riderRides = [], riderGoals = null;
   async function loadRiderLevels(){
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,duration_sec,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss').eq('user_id', user.id);
+      const [{ data }, goals] = await Promise.all([supabase.from('completed_rides').select('id,started_at,duration_sec,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss,distance_m').eq('user_id', user.id), loadGoals(supabase, user.id)]);
+      riderGoals = goals;
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
       riderRides = data || [];
       ({ levels: riderLevels, byRide: riderByRide } = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp));
@@ -2194,7 +2196,8 @@ const supabase = createSupabaseClient();
   async function preselectSuggestion(){
     const today = todayIso();
     if (!riderLevels || !riderRides.length || riderRides.some(r => isoDate(new Date(r.started_at)) === today)) return;
-    const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin: loadLength(today) || 'auto', feel: loadFeel(today), restDay: !!activePlan });
+    const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin: loadLength(today) || 'auto', feel: loadFeel(today), restDay: !!activePlan,
+      goal: guidesFor({ goals: riderGoals, rides: riderRides, byRide: riderByRide, today, rideZone }).ride });
     const id = res && res.picks[0].w.id;
     if (!id || document.getElementById('workoutSelect').value !== '') return;
     preselectedSuggestion = id; preselectedRest = !!res.rest;

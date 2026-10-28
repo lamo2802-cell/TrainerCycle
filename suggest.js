@@ -10,7 +10,8 @@ import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
-import { BEGINNER_RUNS, runSession } from './run.js?v=7';
+import { BEGINNER_RUNS, runSession } from './run.js?v=8';
+import { goalPull, goalReason } from './goals.js?v=1';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
@@ -19,8 +20,8 @@ const HARD = new Set(['sweet_spot', 'threshold', 'vo2max', 'anaerobic']);
 const OFFSET = [-10, 0.25, 1, 2];           // target level above the rider's, by band (very tired: as easy as it gets)
 const RECENT_DAYS = 10;                       // don't suggest a workout ridden this recently
 const GAP_CAP = 21;
-const CLOSE_SEC = 5 * 60;
-const REST_FORM = -18;                      // Form at or below this, with nothing else saying go, means rest                   // within 5 minutes of the time picked counts as a match
+const CLOSE_SEC = 5 * 60;                    // within 5 minutes of the time picked counts as a match
+const REST_FORM = -18;                       // Form at or below this, with nothing else saying go, means rest
 
 export function durationOf(w){
   if (w.duration_sec) return w.duration_sec;
@@ -31,7 +32,8 @@ export function durationOf(w){
 
 // Rides without a structured workout (outdoor, logged) only tell us their overall intensity.
 function zoneFromIf(f){ return f < 0.76 ? 'endurance' : f < 0.88 ? 'tempo' : f < 0.95 ? 'sweet_spot' : f < 1.02 ? 'threshold' : 'vo2max'; }
-function rideZone(r, byRide){
+// The zone a ride counted in: its workout's, or one from its IF. Exported for goals.js (key sessions).
+export function rideZone(r, byRide){
   if (byRide[r.id]) return byRide[r.id].zone;
   if ((r.sport || 'ride') !== 'ride' || r.intensity_factor == null) return null;
   return zoneFromIf(Number(r.intensity_factor));
@@ -124,7 +126,9 @@ export function saveLength(today, v){
 // Returns null when there's no history to go on or nothing in the library, else
 // { picks:[{ w, zone, level, durationSec, over }], band, form, reason, rest, maxMin, auto }; picks[0] is the suggestion.
 // rest: rest is advised and the picks are easy spins for riding anyway.
-export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false }){
+// goal: the riding goal's guidance from goalGuide() (goals.js), or null. It pulls towards the goal's zones
+// while key sessions are owed this week, and on the long day (length on Auto, fresh enough) it's the long ride.
+export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null }){
   if (!library || !library.length) return null;
 
   // 1. How hard today can be, and how long.
@@ -132,17 +136,19 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   const { form, band, rest, why, lastIn, gap, hardCount } = rd;
   const tooManyHard = hardCount >= 3;
   const auto = !maxMin || maxMin === 'auto';
-  if (auto) maxMin = recommendedLength(rides, band, today);
+  const long = !!(goal && goal.long && goal.long.today && auto && band >= 2 && !rest && !restDay);
+  if (auto) maxMin = long ? goal.long.mins : recommendedLength(rides, band, today);
   const maxSec = maxMin * 60;
 
   // 2. Which zone.
-  let zones = band === 0 ? ['endurance'] : band === 1 || tooManyHard ? ['endurance', 'tempo'] : LEVEL_ZONES.map(z => z.key);
+  let zones = band === 0 || long ? ['endurance'] : band === 1 || tooManyHard ? ['endurance', 'tempo'] : LEVEL_ZONES.map(z => z.key);
   const lv = LEVEL_ZONES.map(z => levels[z.key] || 1), hi = Math.max(...lv), lo = Math.min(...lv);
   const zoneScore = z => gap(z) / GAP_CAP
     + 0.5 * (hi - (levels[z] || 1)) / ((hi - lo) || 1)
     + (band === 3 && HARD.has(z) ? 0.5 : 0)
     + (z === 'endurance' && band >= 2 && maxMin <= 45 ? -0.3 : 0)   // half an hour is better spent on intervals
-    + (z === 'anaerobic' ? -0.2 : 0);                                // a sharpener, not a staple
+    + (z === 'anaerobic' ? -0.2 : 0)                                 // a sharpener, not a staple
+    + goalPull(goal, z, HARD);
   zones = zones.slice().sort((a, b) => zoneScore(b) - zoneScore(a));
 
   // 3 + 4. Target level and the workout.
@@ -159,7 +165,8 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
     const off = Math.abs(d - maxSec);
     cands.push({ w, zone: wl.zone, level: wl.level, durationSec: d, off, over: off > CLOSE_SEC, recent: recent.has(w.id),
       // a fresh day is for intervals: steady zones stay on offer, behind them; a rest day is for a recovery spin
-      score: Math.abs(wl.level - target) + off / 600 + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0)
+      // a long ride is about the time in the saddle, so its level counts for less
+      score: Math.abs(wl.level - target) * (long ? 0.3 : 1) + off / 600 + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0)
         + (rest && w.category !== 'recovery' ? 3 : 0) });
   }
   if (!cands.length) return null;
@@ -183,12 +190,18 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length-1] : parts[0];
   // Name the ride by how hard it really is for the rider: the library may not have the exact level.
   const feelWord = difficultyLabel(top.level, levels[top.zone] || 1).label.toLowerCase().replace('recovery-ish', 'easy').replace('not recommended', 'big step up');
-  let reason = list + ', so ' + (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + (top.w.category === 'recovery' ? 'recovery' : zoneName(top.zone)) + ' ride.';
+  let reason = list + ', so ' + (long ? 'a long endurance ride.' : (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + (top.w.category === 'recovery' ? 'recovery' : zoneName(top.zone)) + ' ride.');
   // Rest first: the ride is only for riders who want to ride anyway.
   if (rest) reason = 'Based on your recent fitness and form (' + list + '), we recommend a rest day. If you\'d still like to ride, keep it light: an easy spin that won\'t add to your fatigue.';
-  else if (auto) reason += band === 0 ? ' Kept to ' + maxMin + ' min so you recover.' : ' ' + maxMin + ' min suits your recent riding' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
+  else if (long) reason += ' ' + goalReason(goal, top.zone, { long:true });
+  else {
+    // The goal's sentence, when there is one, says more than the length does.
+    const g = goal && band >= 1 ? goalReason(goal, top.zone) : '';
+    if (g) reason += ' ' + g;
+    else if (auto) reason += band === 0 ? ' Kept to ' + maxMin + ' min so you recover.' : ' ' + maxMin + ' min suits your recent riding' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
+  }
   if (top.over) reason += ' ' + nearestNote(maxMin, top.durationSec);
-  return { picks: picks.slice(0, 6), band, form, reason, rest, maxMin, auto };
+  return { picks: picks.slice(0, 6), band, form, reason: reason.trim(), rest, maxMin, auto, long };
 }
 
 // The line added when no ride is within 5 minutes of the time picked.
@@ -269,7 +282,8 @@ export async function saveMaxMin(supabase, userId, mins){
 // (or whose Easy level is still under the first 25-minute run) gets the next step of walk/run instead.
 export const RUN_CHOICES = [20, 30, 45, 60, 75, 90];
 const RUN_OFFSET = [-10, 0, 0.5, 1];       // target level above the runner's, by band
-const BEGINNER_BELOW = 3.8;                 // the level of "First 25 minute run"
+const BEGINNER_BELOW = 3.8;
+const QUALITY_ZONES = new Set(['steady', 'threshold', 'interval', 'fast']);                 // the level of "First 25 minute run"
 export const RUN_TRY_KEY = 'run_try_dismissed';
 
 export const isNewRunner = runLevels => !runLevels || runLevels.easy < BEGINNER_BELOW;
@@ -287,7 +301,8 @@ export function recommendedRunLength(rides, band, today){
 
 // rides: completed_rides (all sports). runLevels/byRun: from computeRunLevels(). maxMin: minutes or 'auto'.
 // Returns { picks:[{ id, session, zone, level, mins, over }], band, form, reason, rest, maxMin, auto, beginner }.
-export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false }){
+// goal: the running goal's guidance from goalGuide() (goals.js), or null, used as in suggestRide().
+export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null }){
   const rd = readiness({ rides, today, feel, restDay });
   const { form, band, rest, why } = rd;
   const levels = Object.assign({}, runLevels || Object.fromEntries(RUN_LEVEL_ZONES.map(z => [z.key, 1])));
@@ -311,17 +326,19 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
     return { picks, band, form, reason, rest, maxMin: picks[0].mins, auto, beginner: true, levels };
   }
 
-  if (auto) maxMin = recommendedRunLength(rides, band, today);
+  const long = !!(goal && goal.long && goal.long.today && auto && band >= 2 && !rest && !restDay);
+  if (auto) maxMin = long ? goal.long.mins : recommendedRunLength(rides, band, today);
   const maxSec = maxMin * 60;
   const lastIn = {};
   rides.forEach(r => { const b = byRun[r.id]; if (b && (!lastIn[b.zone] || dayOf(r) > lastIn[b.zone])) lastIn[b.zone] = dayOf(r); });
   const gap = z => lastIn[z] ? Math.min(GAP_CAP, daysBetween(lastIn[z], today)) : GAP_CAP;
   const lastQuality = Object.entries(lastIn).filter(([z]) => z !== 'easy').map(([, d]) => d).sort().pop();
   const qualitySoon = lastQuality && daysBetween(lastQuality, today) < 3;
-  let zones = band === 0 || rest || qualitySoon ? ['easy'] : band === 1 || rd.hardCount >= 3 ? ['easy', 'steady'] : RUN_LEVEL_ZONES.map(z => z.key);
+  let zones = band === 0 || rest || qualitySoon || long ? ['easy'] : band === 1 || rd.hardCount >= 3 ? ['easy', 'steady'] : RUN_LEVEL_ZONES.map(z => z.key);
   const lv = RUN_LEVEL_ZONES.map(z => levels[z.key] || 1), hi = Math.max(...lv), lo = Math.min(...lv);
   const zoneScore = z => gap(z) / GAP_CAP + 0.5 * (hi - (levels[z] || 1)) / ((hi - lo) || 1)
-    + (z === 'easy' ? 0.3 : 0) + (band === 3 && z !== 'easy' && z !== 'steady' ? 0.5 : 0) + (z === 'fast' ? -0.2 : 0);
+    + (z === 'easy' ? 0.3 : 0) + (band === 3 && z !== 'easy' && z !== 'steady' ? 0.5 : 0) + (z === 'fast' ? -0.2 : 0)
+    + goalPull(goal, z, QUALITY_ZONES);
   const recent = new Set(rides.filter(r => r.sport === 'run' && r.workout_id && dayOf(r) > addDays(today, -RECENT_DAYS)).map(r => r.workout_id));
   const cands = runLibrary().filter(c => zones.includes(c.zone)).map(c => {
     const target = Math.max(1, (levels[c.zone] || 1) + RUN_OFFSET[band]);
@@ -329,7 +346,7 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
     return Object.assign({}, c, { off, over: off > CLOSE_SEC,
       // an easy run's level is mostly its length, so the time picked decides it, not the level
       score: Math.abs(c.level - target) * (c.zone === 'easy' ? 0.3 : 1) + off / 600 + (recent.has(c.id) ? 2 : 0) - zoneScore(c.zone)
-        + (rest && c.session.kind !== 'easy' ? 3 : 0) });
+        + (rest && c.session.kind !== 'easy' ? 3 : 0) + (long && c.session.kind !== 'long' ? 1 : 0) });
   });
   if (!cands.length) return null;
   const bucket = c => c.over ? Math.round(c.off / CLOSE_SEC) : 0;
@@ -350,7 +367,12 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
   // An easy run's level is its length, so it's just an easy run (the length is said below).
   let reason = list + ', so ' + (top.zone === 'easy' ? (top.session.kind === 'long' ? 'a long easy run.' : 'an easy run.') : (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + zn(top.zone) + ' run.');
   if (rest) reason = 'Based on your recent fitness and form (' + list + '), we recommend a rest day. If you\'d still like to run, keep it short and easy.';
-  else if (auto) reason += ' ' + maxMin + ' min suits your recent running' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
+  else if (long) reason += ' ' + goalReason(goal, top.zone, { long:true });
+  else {
+    const g = goal && band >= 1 ? goalReason(goal, top.zone) : '';
+    if (g) reason += ' ' + g;
+    else if (auto) reason += ' ' + maxMin + ' min suits your recent running' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
+  }
   if (top.over) reason += ' The nearest run to ' + maxMin + ' min is ' + top.mins + ' min.';
-  return { picks: picks.slice(0, 6), band, form, reason, rest, maxMin, auto, beginner: false, levels };
+  return { picks: picks.slice(0, 6), band, form, reason: reason.trim(), rest, maxMin, auto, beginner: false, levels, long };
 }

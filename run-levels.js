@@ -6,7 +6,7 @@
 // session (Strava, or logged freehand) only says how long and how hard overall, so it counts as a
 // non-stop run in Easy, and in Steady too when it was run at a steady pace or faster: one hard run's
 // average can't say what intervals were in it.
-import { PACE_ZONES, RUN_SESSIONS, runSession } from './run.js?v=7';
+import { PACE_ZONES, RUN_SESSIONS, runSession } from './run.js?v=8';
 
 // ref: how much running in the zone (and how long one unbroken stretch) makes a level 10. minSec: how
 // much of a session must be in the zone (or faster) for it to be that zone's session. Easy uses a

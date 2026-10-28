@@ -181,6 +181,9 @@
   .pace-row input{ width:120px; }
   .suggest{ border:1px solid var(--accent); background:rgba(69,214,196,.07); border-radius:9px; padding:10px 12px; font-size:13px; margin:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .suggest span{ flex:1; min-width:200px; }
+  .goal-line{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+  .goal-line > div{ min-width:0; flex:1 1 220px; } .goal-line b{ display:block; font-size:14px; } .goal-line span{ display:block; font-size:13px; color:var(--text-dim); line-height:1.45; margin-top:2px; }
+  .goal-line button{ width:auto; margin:0; }
   .preds{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
   .pred{ background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
   .pred .k{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
@@ -243,12 +246,13 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=3';
 import { isoDate, todayIso, addDays, parseIso, daysBetween, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=6';
-import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=7';
+import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=8';
 import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
   paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=4';
 import { applySwaps } from './adapt.js?v=5';
 import { computeRunLevels, RUN_LEVEL_ZONES } from './run-levels.js?v=1';
 import { fmtLevel } from './levels.js?v=1';
+import { loadGoals, runGoalStatus, goalLabel, openGoalSheet } from './goals.js?v=1';
 import { openExportSheet } from './export.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 const supabase = createSupabaseClient();
@@ -266,16 +270,19 @@ const supabase = createSupabaseClient();
 
   let follow, cyclingRow = null, pace = null, paceDismissed = null, runs = [], holidays = [], doneDays = new Map();
   let editing = null; // the builder form while it's open
+  let goals = { run:null, ride:null };
 
   async function load(){
-    const [st, setRes, rRes, hol] = await Promise.all([
+    const [st, setRes, rRes, hol, gl] = await Promise.all([
       loadFollowState(supabase, user.id),
       supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY]),
       supabase.from('completed_rides').select('id,workout_name,started_at,duration_sec,distance_m,tss,run_bests,plan_id,plan_day_index,source,sport,workout_id,intensity_factor,feel,completed')
         .eq('user_id', user.id).eq('sport', 'run').gte('started_at', new Date(Date.now() - 400*86400000).toISOString()).order('started_at', { ascending:false }),
       loadHolidays(supabase, user.id),
+      loadGoals(supabase, user.id),
     ]);
     follow = st;
+    goals = gl;
     (setRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) pace = Number(r.value && r.value.v) || null; else paceDismissed = Number(r.value && r.value.v) || null; });
     setRunPace(pace);
     runs = rRes.data || [];
@@ -482,9 +489,14 @@ const supabase = createSupabaseClient();
   }
   function renderPred(){
     const el = document.getElementById('predPanel');
-    const goal = follow.runPlan && follow.runPlan.goal;
+    const goal = (follow.runPlan && follow.runPlan.goal) || (goals.run && goals.run.goal);
+    // The running goal (goals.js): suggested runs on Today work towards it when there's no run plan.
+    const gst = goals.run ? runGoalStatus(goals.run, pace) : null;
+    const goalHtml = '<div class="goal-line">'+(goals.run ? '<div><b>Your goal: '+esc(goalLabel('run', goals.run))+'</b><span>'+esc(gst.text)+'</span></div><button id="goalBtn">Change</button>'
+      : '<div><b>Got a time in mind?</b><span>Set a target and your suggested runs on Today work towards it.</span></div><button id="goalBtn">Set a target time</button>')+'</div>';
     el.innerHTML = '<div class="panel-title">Predicted race times</div><div class="panel-desc">'+(pace ? 'From your threshold pace of '+fmtPace(pace)+' /km, if you\'re trained for the distance.' : 'Set your threshold pace to see these.')+'</div>'
-      + '<div class="preds">'+Object.entries(RUN_GOALS).map(([k, g]) => '<div class="pred'+(k === goal ? ' goal' : '')+'"><div class="k">'+g.label+'</div><div class="v">'+(pace ? fmtDuration(predictTime(k, pace)) : '—')+'</div><div class="s">'+(pace ? fmtPace(goalPace(k, pace))+' /km' : '')+'</div></div>').join('')+'</div>';
+      + '<div class="preds">'+Object.entries(RUN_GOALS).map(([k, g]) => '<div class="pred'+(k === goal ? ' goal' : '')+'"><div class="k">'+g.label+'</div><div class="v">'+(pace ? fmtDuration(predictTime(k, pace)) : '—')+'</div><div class="s">'+(pace ? fmtPace(goalPace(k, pace))+' /km' : '')+'</div></div>').join('')+'</div>' + goalHtml;
+    el.querySelector('#goalBtn').onclick = async () => { const next = await openGoalSheet(supabase, user.id, goals, 'run', { runPace: pace }); if (next){ goals = next; renderPred(); } };
   }
   function renderRuns(){
     const el = document.getElementById('runsPanel');
