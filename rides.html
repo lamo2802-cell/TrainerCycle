@@ -391,7 +391,7 @@ import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
-import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=10';
+import { readiness, trainingStatus, statusNow, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=11';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
@@ -876,8 +876,7 @@ const supabase = createSupabaseClient();
     const feel = rodeToday ? null : loadFeel(now);
     const planned = (h.planned || []).filter(p => p.date === day && !p.skipped && p.sport !== 'race');
     const restDay = !planned.length && (h.planned || []).some(p => p.date > day && !p.skipped);
-    const rd = readiness({ rides: h.acts, today: day, now, feel, restDay });
-    const st = trainingStatus(rd);
+    const { rd, st } = statusNow({ rides: h.acts, now, feel, restDay });   // the same read as Today's chip
     const ftpW = h.ftp || 200;
     const bike = h.acts.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'garmin' && r.source !== 'manual');
     const byId = {}, byName = {};
