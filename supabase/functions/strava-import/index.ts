@@ -9,6 +9,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Needs the activity:read_all scope; connections made before imports were supported only have
 // activity:write and get { needsReconnect: true }.
 // POST {} -> { imported: [rows], needsReconnect?: true }
+// POST { detail: id } -> { detail } for one imported run: its 1 km splits, laps and a 5-second pace,
+// heart rate and gradient trace, saved to completed_rides.run_detail so it's only fetched once.
 
 const CLIENT_ID = Deno.env.get("STRAVA_CLIENT_ID") ?? "";
 const CLIENT_SECRET = Deno.env.get("STRAVA_CLIENT_SECRET") ?? "";
@@ -70,6 +72,52 @@ function powerBests(time: number[], watts: number[]) {
   return Object.keys(out).length ? out : null;
 }
 
+// A run's splits, laps and trace from Strava's activity and its streams (see 2026-10-28-run-detail.sql).
+const TRACE_DT = 5;                // seconds per trace point
+const TRACE_MAX = 6 * 3600;        // longer than this and the trace is left out
+// deno-lint-ignore no-explicit-any
+function runDetail(d: any, st: any) {
+  const r1 = (x: unknown) => (x == null || !isFinite(Number(x)) ? null : Math.round(Number(x)));
+  // deno-lint-ignore no-explicit-any
+  const splits = (d.splits_metric ?? []).filter((x: any) => x.distance > 0).map((x: any) => ({
+    d: Math.round(x.distance), t: Math.round(x.moving_time || x.elapsed_time || 0), hr: r1(x.average_heartrate), el: r1(x.elevation_difference),
+  }));
+  // deno-lint-ignore no-explicit-any
+  const laps = (d.laps ?? []).map((x: any) => ({
+    d: Math.round(x.distance || 0), t: Math.round(x.moving_time || x.elapsed_time || 0), e: Math.round(x.elapsed_time || x.moving_time || 0),
+    hr: r1(x.average_heartrate), mx: r1(x.max_heartrate),
+  }));
+  let s = null;
+  const time: number[] = st?.time?.data ?? [], dist: number[] = st?.distance?.data ?? [];
+  const end = Math.floor(time[time.length - 1] ?? 0);
+  if (time.length > 10 && dist.length === time.length && end > 60 && end <= TRACE_MAX) {
+    // Distance at every second (straight line between samples, so a paused watch reads as standing still).
+    const at = new Float64Array(end + 1);
+    for (let i = 1; i < time.length; i++) {
+      const t0 = Math.floor(time[i - 1]), t1 = Math.floor(time[i]), d0 = dist[i - 1], d1 = dist[i];
+      for (let t = t0; t <= t1 && t <= end; t++) at[t] = t1 > t0 ? d0 + (d1 - d0) * (t - t0) / (t1 - t0) : d1;
+    }
+    const n = Math.floor(end / TRACE_DT);
+    const v: number[] = [], h: (number | null)[] = [], g: (number | null)[] = [];
+    // One pass to find each bucket's samples instead of scanning the whole stream per bucket.
+    let j = 0;
+    for (let b = 0; b < n; b++) {
+      v.push(Math.max(0, Math.round((at[(b + 1) * TRACE_DT] - at[b * TRACE_DT]) / TRACE_DT * 100)));
+      let hs = 0, hk = 0, gs = 0, gk = 0;
+      while (j < time.length && time[j] < (b + 1) * TRACE_DT) {
+        const hv = st?.heartrate?.data?.[j], gv = st?.grade_smooth?.data?.[j];
+        if (hv != null) { hs += hv; hk++; }
+        if (gv != null) { gs += gv; gk++; }
+        j++;
+      }
+      h.push(hk ? Math.round(hs / hk) : null);
+      g.push(gk ? Math.round(gs / gk * 10) / 10 : null);
+    }
+    s = { dt: TRACE_DT, v, h: h.some((x) => x != null) ? h : null, g: g.some((x) => x != null) ? g : null };
+  }
+  return { v: 1, splits, laps, s };
+}
+
 // Threshold heart rate from rides with both power and heart rate (power first): heart rate rises
 // roughly in line with intensity, so a ride at IF x with average heart rate h puts threshold near
 // rest + (h - rest) / x. Uses steady-to-hard rides of 20 minutes or more and takes the median.
@@ -103,6 +151,27 @@ Deno.serve(async (req) => {
     if (!scope.split(",").some((s) => s === "activity:read_all" || s === "activity:read")) return json({ imported: [], needsReconnect: true });
 
     const fresh = await refreshTokenIfNeeded(admin, user.id, conn);
+
+    const body = await req.json().catch(() => ({}));
+    if (body && typeof body.detail === "string") {
+      const { data: row } = await admin.from("completed_rides").select("id,external_id,sport,run_detail")
+        .eq("user_id", user.id).eq("id", body.detail).eq("source", "strava").maybeSingle();
+      if (!row || row.sport !== "run") return json({ error: "Not an imported run" }, 404);
+      if (row.run_detail) return json({ detail: row.run_detail });
+      const sid = String(row.external_id).replace("strava:", "");
+      const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
+      const [dResp, sResp] = await Promise.all([
+        fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth),
+        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth&key_by_type=true`, auth),
+      ]);
+      if (dResp.status === 401 || dResp.status === 403) return json({ detail: null, needsReconnect: true });
+      // Gone from Strava: remember there's nothing to show rather than asking again every time.
+      const detail = dResp.status === 404 ? { v: 1, splits: [], laps: [], s: null }
+        : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null) : null;
+      if (!detail) return json({ detail: null }, 502);
+      await admin.from("completed_rides").update({ run_detail: detail }).eq("id", row.id);
+      return json({ detail });
+    }
 
     // Extra lookups for the power curve of a ride or the best times within a run.
     // An empty {} means "looked, nothing there", so older imports aren't fetched again.
