@@ -1,4 +1,4 @@
-// Shared by strava-import and tredict-import: power curve, run splits/trace and threshold heart rate,
+// Shared by strava-import: power curve, run splits/trace and threshold heart rate,
 // so activities from either source get the same records and analysis.
 
 export const BEST_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600]; // same as ftp-estimate.js
