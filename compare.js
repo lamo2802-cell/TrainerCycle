@@ -72,6 +72,24 @@ const hrBit = (now, then) => {
   return Math.abs(d) < 2 ? ' at the same heart rate' : ' with your heart rate ' + Math.abs(d) + ' bpm ' + (d < 0 ? 'lower' : 'higher');
 };
 
+// One line for the session summary when this beat last time, else null.
+export function compareNote(kind, r, others){
+  const prev = others.filter(x => x.started_at < r.started_at).sort((a, b) => a.started_at < b.started_at ? 1 : -1)[0];
+  if (!prev) return null;
+  if (kind === 'workout'){
+    if (r.avg_power && prev.avg_power && Math.abs(r.avg_power - prev.avg_power) / prev.avg_power <= 0.03 && r.avg_hr && prev.avg_hr && prev.avg_hr - r.avg_hr >= 3)
+      return 'Same power as last time with your heart rate ' + (prev.avg_hr - r.avg_hr) + ' bpm lower: the same work is costing you less.';
+    if (r.avg_power && prev.avg_power && r.avg_power - prev.avg_power >= 5 && r.avg_hr && prev.avg_hr && r.avg_hr - prev.avg_hr <= 1)
+      return (r.avg_power - prev.avg_power) + ' W more than last time at no extra heart rate.';
+    return null;
+  }
+  const before = others.filter(x => x.started_at < r.started_at);
+  if (before.every(x => r.duration_sec < x.duration_sec - 5)) return 'Your quickest time on this route, out of ' + (before.length + 1) + '.';
+  if (r.duration_sec < prev.duration_sec - 5 && r.avg_hr && prev.avg_hr && r.avg_hr - prev.avg_hr <= 1)
+    return fmtTime(prev.duration_sec - r.duration_sec) + ' quicker than last time on this route, at no extra heart rate.';
+  return null;
+}
+
 // The headline and table. kind: 'workout' | 'route'. others: from sameWorkout / loadSameRoute.
 export function compareHtml(kind, r, others){
   if (!others.length) return '';

@@ -368,7 +368,8 @@ import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=3';
-import { loadSameRoute, sameWorkout, compareHtml, COMPARE_CSS } from './compare.js?v=1';
+import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } from './compare.js?v=2';
+import { summaryHtml, SUMMARY_CSS } from './summary.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
@@ -381,7 +382,7 @@ import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunn
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + COMPARE_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + COMPARE_CSS + SUMMARY_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -524,6 +525,7 @@ const supabase = createSupabaseClient();
       + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + (r.source === 'strava' ? '<div id="runSummary"></div>' : '')
       + '<div id="runWorkout"></div>'
       + (r.source === 'strava' ? '<div id="runChart"></div>' : '')
       + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
@@ -580,8 +582,17 @@ const supabase = createSupabaseClient();
     let others = [];
     try { others = await loadSameRoute(supabase, user.id, r); } catch(_){}
     if (box.isConnected) box.innerHTML = compareHtml('route', r, others);
+    return others;
   }
-  async function mountRunSplits(el, r){
+  // New bests within a run, as labels ("5K 22:41"), against the runs before it.
+  function newRunBests(r){
+    if (!r.run_bests) return [];
+    const before = rides.filter(x => isRun(x) && x.id !== r.id && x.run_bests && x.started_at < r.started_at);
+    if (!before.length) return [];
+    return RUN_RECS.filter(([m]) => r.run_bests[m] && r.run_bests[m] < Math.min(Infinity, ...before.map(x => Number(x.run_bests[m]) || Infinity)))
+      .map(([m, label]) => label + ' ' + fmtDur(r.run_bests[m]));
+  }
+  async function mountRunSplits(el, r, routeP){
     const box = el.querySelector('#runSplits'); if (!box) return;
     let detail = r.run_detail;
     if (detail === undefined) return;   // column not there yet
@@ -612,8 +623,16 @@ const supabase = createSupabaseClient();
     const paceNote = cfg.pace ? '' : 'Add your threshold pace in <a href="settings.html">Settings</a> to see time in each pace zone.';
     const hrNote = cfg.lthrHow ? 'Zones from ' + cfg.lthrHow + '. Set your own in <a href="settings.html">Settings</a>.' : '';
     zb.innerHTML = detail.s ? zonesPanelHtml(zones, { verdict, paceNote, hrNote }) : '';
+    const eff = runEfficiency(detail.s, { intensity: r.intensity_factor, workout: a.workout, gradeFactor });
+    const usual = usualEf(rides, 'run', r.id), own = sessionEf(r);
     const eb = el.querySelector('#runEff');
-    if (eb) eb.innerHTML = efficiencyPanelHtml(runEfficiency(detail.s, { intensity: r.intensity_factor, workout: a.workout, gradeFactor }), usualEf(rides, 'run', r.id), sessionEf(r));
+    if (eb) eb.innerHTML = efficiencyPanelHtml(eff, usual, own);
+    const sb = el.querySelector('#runSummary'); if (!sb) return;
+    const others = routeP ? await routeP : [];
+    if (!sb.isConnected) return;
+    sb.innerHTML = summaryHtml({ kind: 'run', startedAt: r.started_at, durationSec: r.duration_sec, tss: r.tss, intensity: r.intensity_factor,
+      pace: zones && zones.pace, workout: a.workout, eff: eff && eff.steady ? eff : null, usualDiff: usual && own && eff && eff.steady ? (own - usual) / usual : null,
+      bests: newRunBests(r), compare: others && others.length ? compareNote('route', r, others) : null }, { nextHref: '?view=fitness' });
   }
   // Threshold pace and threshold heart rate for run zones, loaded once. Without a threshold heart rate
   // set, it's estimated from the highest heart rate seen on a run (running sits higher than riding).
@@ -1093,7 +1112,7 @@ const supabase = createSupabaseClient();
       if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
-    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride); mountRouteCompare(el, ride); return; }
+    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride, mountRouteCompare(el, ride)); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
     if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
     if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); mountRouteCompare(el, ride); return; }
@@ -1129,6 +1148,15 @@ const supabase = createSupabaseClient();
       + stat(ride.np,'NP (W)') + stat(ride.avg_power,'Avg power') + stat(kj,'Work (kJ)')
       + stat(ride.avg_hr,'Avg HR') + stat(ride.max_hr,'Max HR') + stat(ride.avg_cadence,'Cadence')
       + '</div>';
+    // Seconds in each power zone, for the summary and the Time in zone panel.
+    const zoneSec = ftp && sec.length ? ZONES.map(() => 0) : null;
+    if (zoneSec) sec.forEach(x=>{ if (x.power > 0) zoneSec[zoneIdx(x.power/ftp*100)]++; });
+    const eff = rideEfficiency(sec, { intensity: ride.intensity_factor, category: ride.category });
+    const usual = usualEf(rides, 'ride', ride.id), own = sessionEf(ride);
+    const sameW = sameWorkout(ride, rides);
+    html += summaryHtml({ kind: 'ride', startedAt: ride.started_at, durationSec: ride.duration_sec, tss: ride.tss, intensity: ride.intensity_factor, completed: ride.completed,
+      zoneSec, eff: eff && eff.steady ? eff : null, usualDiff: usual && own && eff && eff.steady ? (own - usual) / usual : null,
+      bests: pbs.map(b => pbLabel(b.d) + ' ' + b.w + ' W'), compare: compareNote('workout', ride, sameW) }, { nextHref: '?view=fitness' });
     html += '<div id="feelCard">'+feelCardHtml(ride, opts.justSaved)+'</div>';
 
     if (!sec.length){
@@ -1143,8 +1171,7 @@ const supabase = createSupabaseClient();
     const key = [5,60,300,1200].map(d=> bests.find(b=>b.d===d)).filter(Boolean);
     let zoneHtml = '<div class="empty-note">Needs NP and IF to work out your zones.</div>';
     if (ftp){
-      const tz = new Array(ZONES.length).fill(0);
-      sec.forEach(x=>{ if (x.power > 0) tz[zoneIdx(x.power/ftp*100)]++; });
+      const tz = zoneSec;
       const tot = tz.reduce((a,c)=>a+c,0) || 1, mx = Math.max(...tz) || 1;
       zoneHtml = ZONES.map((z,i)=>'<div class="zone-row"><span class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</span>'
         + '<span class="track"><i style="width:'+(tz[i]/mx*100).toFixed(1)+'%; background:'+z.color+'"></i></span>'
@@ -1155,8 +1182,8 @@ const supabase = createSupabaseClient();
       + '<div class="chart-wrap"><canvas id="curveChart"></canvas><div class="tip" id="curveTip"></div></div>'
       + '<div class="bests">'+key.map(b=>'<div class="best"><b>'+b.w+'</b><span>'+durLabel(b.d)+'</span></div>').join('')+'</div></div>'
       + '<div class="panel"><div class="panel-title"><span>Time in zone</span></div>'+zoneHtml+'</div></div>';
-    html += compareHtml('workout', ride, sameWorkout(ride, rides));
-    html += efficiencyPanelHtml(rideEfficiency(sec, { intensity: ride.intensity_factor, category: ride.category }), usualEf(rides, 'ride', ride.id), sessionEf(ride));
+    html += compareHtml('workout', ride, sameW);
+    html += efficiencyPanelHtml(eff, usual, own);
 
     // intervals: one row per workout step that lasted 10 s or more
     const laps = [];
