@@ -367,6 +367,7 @@ import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCa
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
+import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS } from './run-analysis.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
@@ -378,7 +379,7 @@ import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunn
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -521,7 +522,9 @@ const supabase = createSupabaseClient();
       + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + '<div id="runWorkout"></div>'
       + (hasRoute(r) ? routePanelHtml() : '')
+      + (r.source === 'strava' ? '<div id="runSplits"></div>' : '')
       + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
@@ -565,6 +568,26 @@ const supabase = createSupabaseClient();
         + groups.map(g => '<tr><td>'+escapeHtml(VARIANTS[g.v] ? VARIANTS[g.v].name : g.v)+'</td><td class="t">'+setsText(g.v, g.sets)+'</td><td class="p opt">'+g.sets.map(x => x.rir == null ? '–' : (x.rir >= 4 ? '4+' : x.rir)).join(', ')+'</td></tr>').join('')
         + '</tbody></table>';
     } catch(_){ box.innerHTML = '<div class="empty-note">Sets couldn\'t be loaded.</div>'; }
+  }
+  // Splits, laps and (when it was an interval session) the workout, for runs from Strava. Fetched
+  // from Strava the first time the run is opened, then kept with the run.
+  async function mountRunSplits(el, r){
+    const box = el.querySelector('#runSplits'); if (!box) return;
+    let detail = r.run_detail;
+    if (detail === undefined) return;   // column not there yet
+    if (!detail){
+      box.innerHTML = '<div class="panel empty-note">Loading splits from Strava…</div>';
+      try {
+        const { data } = await supabase.functions.invoke('strava-import', { body: { detail: r.id } });
+        detail = data && data.detail;
+      } catch(_){ detail = null; }
+      if (!box.isConnected) return;
+      if (!detail){ box.innerHTML = '<div class="panel empty-note">Splits couldn\'t be loaded from Strava right now. Try again later.</div>'; return; }
+      r.run_detail = detail;
+    }
+    const a = analyseRun(detail);
+    box.innerHTML = splitsPanelHtml(a);
+    const wk = el.querySelector('#runWorkout'); if (wk) wk.innerHTML = workoutPanelHtml(a, detail);
   }
   const STRENGTH_ICON = '<svg viewBox="0 0 24 24"><path d="M6 7v10M18 7v10M3 9.5v5M21 9.5v5M6 12h12"/></svg>';
   function strengthRowHtml(r){
@@ -680,6 +703,7 @@ const supabase = createSupabaseClient();
     const saved = await openRideLog(supabase, user.id);
     if (saved){ rides.unshift(saved); rides.sort((a,b)=> a.started_at < b.started_at ? 1 : -1); renderList(); }
   });
+  wireRunAnalysis(document.getElementById('detailView'));
   document.getElementById('detailView').addEventListener('click', async e=>{
     const b = e.target.closest('[data-del-run]'); if (!b) return;
     const what = b.dataset.what || 'run';
@@ -1024,7 +1048,7 @@ const supabase = createSupabaseClient();
       if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
-    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
+    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
     if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
     if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
