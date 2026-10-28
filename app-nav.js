@@ -68,7 +68,8 @@ function startItems(){
   return items;
 }
 
-export function isRideScreen(){ return /\/(live|trainerstrength)(\.html)?$/.test(location.pathname); }
+// TrainerStrength's front page (html.ts-home) gets the full nav; its player is a ride screen
+export function isRideScreen(){ return /\/live(\.html)?$/.test(location.pathname) || (/\/trainerstrength(\.html)?$/.test(location.pathname) && !document.documentElement.classList.contains('ts-home')); }
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const phone = () => window.matchMedia('(max-width:759px)').matches;
