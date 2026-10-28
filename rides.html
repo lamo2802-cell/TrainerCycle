@@ -10,7 +10,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=5">
+<link rel="stylesheet" href="app-nav.css?v=6">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -93,7 +93,17 @@
   .p-tabs a{ padding:7px 13px; border-radius:7px; color:var(--text-dim); text-decoration:none; font-size:13.5px; font-weight:600; white-space:nowrap; }
   .p-tabs a:hover{ color:var(--text); }
   .p-tabs a.on{ background:var(--panel-2); color:var(--text); box-shadow:inset 0 -2px 0 var(--accent); }
-  @media (max-width:600px){ .p-tabs{ width:100%; } .p-tabs a{ flex:1 0 auto; text-align:center; padding:7px 8px; font-size:13px; } .tab-long{ display:none; } }
+  /* Phones: the tabs and filters scroll sideways inside their own strip (with a fade where more is hidden),
+     never the page. */
+  @media (max-width:600px){
+    .p-tabs{ width:100%; } .p-tabs a{ flex:1 0 auto; text-align:center; padding:7px 8px; font-size:13px; } .tab-long{ display:none; }
+    .p-tabs.more-right{ -webkit-mask-image:linear-gradient(90deg, #000 85%, transparent); mask-image:linear-gradient(90deg, #000 85%, transparent); }
+    .p-tabs.more-left{ -webkit-mask-image:linear-gradient(90deg, transparent, #000 15%); mask-image:linear-gradient(90deg, transparent, #000 15%); }
+    .p-tabs.more-left.more-right{ -webkit-mask-image:linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); mask-image:linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); }
+    #filterSeg{ display:flex; max-width:100%; overflow-x:auto; scrollbar-width:none; } #filterSeg::-webkit-scrollbar{ display:none; }
+    #filterSeg button{ flex:0 0 auto; padding:8px 12px; }
+    .head-actions{ width:100%; } .head-actions .ghost-btn{ flex:1 1 auto; }
+  }
   #hubView .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   #hubView .seg button{ border:none; border-radius:0; background:var(--panel-2); color:var(--text); cursor:pointer; font-family:inherit; }
   #hubView .seg button.on{ background:var(--accent); color:#08211E; font-weight:600; }
@@ -202,6 +212,8 @@
   .rd-meta{ display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px; color:var(--text-dim); margin-top:4px; }
   .rd-meta b{ font-family:var(--mono); color:var(--text); }
   .rd-goals{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+  .rd-goals-card{ margin-top:14px; --rd:var(--line); scroll-margin-top:calc(var(--topbar-h, 80px) + 12px); } .rd-goals-card > .rd-kicker{ margin-bottom:8px; }
+  .rd-plan a{ color:var(--accent); }
   .rd-goals .rd-kicker{ margin-bottom:8px; }
   .rd-pick{ font-size:14px; font-weight:600; color:var(--accent); margin-bottom:10px; }
   .rd-run{ margin-top:16px; padding-top:14px; border-top:1px dashed var(--line); }
@@ -357,13 +369,13 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=19';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscribeNudge } from './auth.js?v=20';
 import { notify, ask } from './sheet.js?v=3';
 import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS, loadBodyLog, logBodyWeight } from './strength-kit.js?v=6';
 import { openRunLog, fmtPace, fmtKm, syncStrava, RUN_PACE_KEY, runSession } from './run.js?v=9';
 import { goalProgress, progressBarHtml, progressChartHtml, ensureProgressCss } from './goal-progress.js?v=1';
 import { focusPoints, focusWeights, focusListHtml, ensureFocusCss, benchmarkDue } from './focus.js?v=2';
-import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=4';
+import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=5';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
@@ -378,7 +390,7 @@ import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
-import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=9';
+import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=10';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
@@ -714,7 +726,7 @@ const supabase = createSupabaseClient();
       + '<div class="sum-tile"><div class="lbl">Time · 4 wks</div><div class="val">'+fmtHm(recent.reduce((a,r)=>a+(r.duration_sec||0),0))+'</div></div>'
       + '<div class="sum-tile"><div class="lbl">TSS · 4 wks</div><div class="val">'+recent.reduce((a,r)=>a+(r.tss||0),0)+'</div></div>';
 
-    if (!rides.length){ el.innerHTML = '<div class="empty-note">No rides yet. Finish a session on Live Ride and it\'ll show up here.</div>'; return; }
+    if (!rides.length){ el.innerHTML = '<div class="empty-note">Nothing yet. Finish a ride, or log a ride, run or swim, and it\'ll show up here.</div>'; return; }
     let items = rides;
     if (filter==='rides') items = items.filter(isBike);
     if (filter==='runs') items = items.filter(isRun);
@@ -844,12 +856,13 @@ const supabase = createSupabaseClient();
     try { h = await loadHistory(); }
     catch(e){ hub.innerHTML = '<div class="empty-note">Couldn\'t load your training. Check your connection and refresh.</div>'; return; }
     if (new URLSearchParams(location.search).get('view') !== view) return; // moved on while loading
-    if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div><div id="engineRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h);
+    if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div><div id="goalsRoot"></div><div id="engineRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h, document.getElementById('goalsRoot'));
       document.getElementById('engineRoot').innerHTML = engineCardHtml(['ride', 'run'].map(sp => efficiencyTrend(h.acts, sp))); }
     else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); }
   }
   // ---- Fitness & form: where you are in plain words, and the ride we'd do next ----
-  function renderReady(el, h){
+  // The status and what to do next sit above the chart; goals (with their charts) and focus below it.
+  function renderReady(el, h, goalsEl){
     const now = todayIso();
     const rodeToday = h.acts.some(r => isoDate(new Date(r.started_at)) === now && r.sport !== 'strength');
     const day = rodeToday ? addDays(now, 1) : now;   // already trained today: what's next is tomorrow
@@ -889,10 +902,9 @@ const supabase = createSupabaseClient();
     }
     function draw(){
       let rec = '';
+      // On a plan day Today already has the session, so nothing to recommend here.
       if (planned.some(p => !p.done)){
-        rec = '<div class="rd-kicker">'+(rodeToday ? 'Tomorrow' : 'Today')+'</div><div class="rd-plan">Your plan has a session '+(rodeToday ? 'tomorrow' : 'today')+'.'
-          + (rd.rest ? ' Your form says rest: skip it or choose an easier workout.' : rd.band <= 1 ? ' You\'re a bit tired, so it\'s fine to choose an easier workout.' : '')+'</div>'
-          + '<div class="rd-actions"><a class="btn-link primary" href="index.html">'+(rodeToday ? 'See Today' : 'Go to today\'s session')+'</a></div>';
+        rec = rd.rest ? '<div class="rd-plan">Your form says rest: skip '+(rodeToday ? 'tomorrow\'s' : 'today\'s')+' session or choose an easier workout on <a href="index.html">Today</a>.</div>' : '';
       } else if (bike.length || h.acts.length){
         const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, now, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride'), benchmark: bench.ride });
         if (res){
@@ -916,19 +928,22 @@ const supabase = createSupabaseClient();
       }));
       const statuses = { run: h.goals.run ? runGoalStatus(h.goals.run, h.runPace) : null,
         ride: h.goals.ride ? rideGoalStatus(h.goals.ride, { ftp: h.ftp, estFtp: (estimateFtp(h.acts) || {}).ftp, rides: h.acts }) : null };
+      const onPlan = (h.planned || []).some(p => p.date >= now);
       el.innerHTML = '<div class="panel rd-card rd-'+st.key+'"><div class="rd-status"><span class="rd-dot" aria-hidden="true"></span><div><div class="rd-title">'+escapeHtml(st.title)+'</div><div class="rd-text">'+escapeHtml(st.text)+'</div></div></div>'
-        + '<div class="rd-goals"><div class="rd-kicker">Your goals</div>'+goalsCardHtml(h.goals, statuses, escapeHtml, { onPlan: (h.planned || []).some(p => p.date >= now), progress: progressFor() })+'</div>'
-        + (focus.length ? '<div class="rd-goals"><div class="rd-kicker">Your focus</div>'+focusListHtml(focus, escapeHtml)+'</div>' : '')
         + (rec ? '<div class="rd-rec">'+rec+'</div>' : '') + '</div>';
+      // A plan already sets the mix of sessions, so the focus tips only show for riders training without one.
+      goalsEl.innerHTML = '<div class="panel rd-card rd-goals-card" id="goals"><div class="rd-kicker">Your goals</div>'+goalsCardHtml(h.goals, statuses, escapeHtml, { onPlan, progress: progressFor() })
+        + (focus.length && !onPlan ? '<div class="rd-goals"><div class="rd-kicker">Your focus</div>'+focusListHtml(focus, escapeHtml)+'</div>' : '') + '</div>';
+      if (location.hash === '#goals') goalsEl.scrollIntoView({ block:'start' });
     }
     ensureGoalsCss(); ensureFocusCss(); ensureProgressCss();
-    el.addEventListener('click', async e => {
+    goalsEl.addEventListener('click', async e => {
       const ge = !e.target.closest('a, .gp-chart') && e.target.closest('[data-goal-edit]');
-      if (ge){
-        const next = await openGoalSheet(supabase, user.id, h.goals, ge.dataset.goalEdit, { ftp: h.ftp, runPace: h.runPace, rides: h.acts, estFtp: (estimateFtp(h.acts) || {}).ftp });
-        if (next){ h.goals = next; showHub('fitness'); }
-        return;
-      }
+      if (!ge) return;
+      const next = await openGoalSheet(supabase, user.id, h.goals, ge.dataset.goalEdit, { ftp: h.ftp, runPace: h.runPace, rides: h.acts, estFtp: (estimateFtp(h.acts) || {}).ftp });
+      if (next){ h.goals = next; showHub('fitness'); }
+    });
+    el.addEventListener('click', async e => {
       if (e.target.closest('[data-rd-next]')){ pick++; draw(); }
       else if (e.target.closest('[data-rd-run-next]')){ runPick++; draw(); }
       else if (e.target.closest('[data-rd-try-no]')){
@@ -943,6 +958,14 @@ const supabase = createSupabaseClient();
     });
     draw();
   }
+  // Keep the open tab in view and fade whichever edge has more tabs past it.
+  const pTabs = document.getElementById('pTabs');
+  function tabEdges(){ pTabs.classList.toggle('more-left', pTabs.scrollLeft > 2); pTabs.classList.toggle('more-right', pTabs.scrollLeft + pTabs.clientWidth < pTabs.scrollWidth - 2); }
+  pTabs.addEventListener('scroll', tabEdges, { passive:true });
+  window.addEventListener('resize', tabEdges);
+  new MutationObserver(() => { const on = pTabs.querySelector('a.on'); if (on && pTabs.scrollWidth > pTabs.clientWidth) pTabs.scrollLeft = Math.max(0, on.offsetLeft - (pTabs.clientWidth - on.offsetWidth) / 2); tabEdges(); })
+    .observe(pTabs, { subtree:true, attributes:true, attributeFilter:['class'] });
+  tabEdges();
   document.getElementById('pTabs').addEventListener('click', e=>{
     const a = e.target.closest('a[data-view]'); if (!a) return;
     e.preventDefault();
