@@ -128,7 +128,8 @@ export function saveLength(today, v){
 // rest: rest is advised and the picks are easy spins for riding anyway.
 // goal: the riding goal's guidance from goalGuide() (goals.js), or null. It pulls towards the goal's zones
 // while key sessions are owed this week, and on the long day (length on Auto, fresh enough) it's the long ride.
-export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null }){
+// focus: { zone: weight } from focusWeights() (focus.js): what recent training is missing, added to the zone score.
+export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null }){
   if (!library || !library.length) return null;
 
   // 1. How hard today can be, and how long.
@@ -148,7 +149,7 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
     + (band === 3 && HARD.has(z) ? 0.5 : 0)
     + (z === 'endurance' && band >= 2 && maxMin <= 45 ? -0.3 : 0)   // half an hour is better spent on intervals
     + (z === 'anaerobic' ? -0.2 : 0)                                 // a sharpener, not a staple
-    + goalPull(goal, z, HARD);
+    + goalPull(goal, z, HARD) + ((focus && focus[z]) || 0);
   zones = zones.slice().sort((a, b) => zoneScore(b) - zoneScore(a));
 
   // 3 + 4. Target level and the workout.
@@ -301,8 +302,8 @@ export function recommendedRunLength(rides, band, today){
 
 // rides: completed_rides (all sports). runLevels/byRun: from computeRunLevels(). maxMin: minutes or 'auto'.
 // Returns { picks:[{ id, session, zone, level, mins, over }], band, form, reason, rest, maxMin, auto, beginner }.
-// goal: the running goal's guidance from goalGuide() (goals.js), or null, used as in suggestRide().
-export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null }){
+// goal: the running goal's guidance from goalGuide() (goals.js), or null, used as in suggestRide(). focus: as in suggestRide().
+export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null }){
   const rd = readiness({ rides, today, feel, restDay });
   const { form, band, rest, why } = rd;
   const levels = Object.assign({}, runLevels || Object.fromEntries(RUN_LEVEL_ZONES.map(z => [z.key, 1])));
@@ -338,7 +339,7 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
   const lv = RUN_LEVEL_ZONES.map(z => levels[z.key] || 1), hi = Math.max(...lv), lo = Math.min(...lv);
   const zoneScore = z => gap(z) / GAP_CAP + 0.5 * (hi - (levels[z] || 1)) / ((hi - lo) || 1)
     + (z === 'easy' ? 0.3 : 0) + (band === 3 && z !== 'easy' && z !== 'steady' ? 0.5 : 0) + (z === 'fast' ? -0.2 : 0)
-    + goalPull(goal, z, QUALITY_ZONES);
+    + goalPull(goal, z, QUALITY_ZONES) + ((focus && focus[z]) || 0);
   const recent = new Set(rides.filter(r => r.sport === 'run' && r.workout_id && dayOf(r) > addDays(today, -RECENT_DAYS)).map(r => r.workout_id));
   const cands = runLibrary().filter(c => zones.includes(c.zone)).map(c => {
     const target = Math.max(1, (levels[c.zone] || 1) + RUN_OFFSET[band]);
