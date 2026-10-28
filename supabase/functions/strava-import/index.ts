@@ -72,7 +72,8 @@ function powerBests(time: number[], watts: number[]) {
   return Object.keys(out).length ? out : null;
 }
 
-// A run's splits, laps and trace from Strava's activity and its streams (see 2026-10-28-run-detail.sql).
+// A run's splits, laps and trace from Strava's activity and its streams (see 2026-10-28-run-detail.sql;
+// v2 adds grade-adjusted pace per split, cadence and altitude).
 const TRACE_DT = 5;                // seconds per trace point
 const TRACE_MAX = 6 * 3600;        // longer than this and the trace is left out
 // deno-lint-ignore no-explicit-any
@@ -81,6 +82,8 @@ function runDetail(d: any, st: any) {
   // deno-lint-ignore no-explicit-any
   const splits = (d.splits_metric ?? []).filter((x: any) => x.distance > 0).map((x: any) => ({
     d: Math.round(x.distance), t: Math.round(x.moving_time || x.elapsed_time || 0), hr: r1(x.average_heartrate), el: r1(x.elevation_difference),
+    // Strava's grade-adjusted speed for the split, in cm/s.
+    gap: x.average_grade_adjusted_speed ? Math.round(x.average_grade_adjusted_speed * 100) : null,
   }));
   // deno-lint-ignore no-explicit-any
   const laps = (d.laps ?? []).map((x: any) => ({
@@ -98,24 +101,29 @@ function runDetail(d: any, st: any) {
       for (let t = t0; t <= t1 && t <= end; t++) at[t] = t1 > t0 ? d0 + (d1 - d0) * (t - t0) / (t1 - t0) : d1;
     }
     const n = Math.floor(end / TRACE_DT);
-    const v: number[] = [], h: (number | null)[] = [], g: (number | null)[] = [];
+    const v: number[] = [], h: (number | null)[] = [], g: (number | null)[] = [], c: (number | null)[] = [], a: (number | null)[] = [];
     // One pass to find each bucket's samples instead of scanning the whole stream per bucket.
     let j = 0;
     for (let b = 0; b < n; b++) {
       v.push(Math.max(0, Math.round((at[(b + 1) * TRACE_DT] - at[b * TRACE_DT]) / TRACE_DT * 100)));
-      let hs = 0, hk = 0, gs = 0, gk = 0;
+      let hs = 0, hk = 0, gs = 0, gk = 0, cs = 0, ck = 0, als = 0, alk = 0;
       while (j < time.length && time[j] < (b + 1) * TRACE_DT) {
-        const hv = st?.heartrate?.data?.[j], gv = st?.grade_smooth?.data?.[j];
+        const hv = st?.heartrate?.data?.[j], gv = st?.grade_smooth?.data?.[j], cv = st?.cadence?.data?.[j], av = st?.altitude?.data?.[j];
         if (hv != null) { hs += hv; hk++; }
         if (gv != null) { gs += gv; gk++; }
+        if (cv) { cs += cv; ck++; }   // 0 while stopped, which would drag the average down
+        if (av != null) { als += av; alk++; }
         j++;
       }
       h.push(hk ? Math.round(hs / hk) : null);
       g.push(gk ? Math.round(gs / gk * 10) / 10 : null);
+      c.push(ck ? Math.round(cs / ck * 2) : null);   // Strava counts one foot, so x2 for steps per minute
+      a.push(alk ? Math.round(als / alk * 10) / 10 : null);
     }
-    s = { dt: TRACE_DT, v, h: h.some((x) => x != null) ? h : null, g: g.some((x) => x != null) ? g : null };
+    const some = (x: (number | null)[]) => x.some((y) => y != null) ? x : null;
+    s = { dt: TRACE_DT, v, h: some(h), g: some(g), c: some(c), a: some(a) };
   }
-  return { v: 1, splits, laps, s };
+  return { v: 2, splits, laps, s, cad: d.average_cadence ? Math.round(d.average_cadence * 2) : null };
 }
 
 // Threshold heart rate from rides with both power and heart rate (power first): heart rate rises
@@ -157,16 +165,17 @@ Deno.serve(async (req) => {
       const { data: row } = await admin.from("completed_rides").select("id,external_id,sport,run_detail")
         .eq("user_id", user.id).eq("id", body.detail).eq("source", "strava").maybeSingle();
       if (!row || row.sport !== "run") return json({ error: "Not an imported run" }, 404);
-      if (row.run_detail) return json({ detail: row.run_detail });
+      // v1 (before cadence, altitude and grade-adjusted pace) is fetched once more.
+      if (row.run_detail && row.run_detail.v >= 2) return json({ detail: row.run_detail });
       const sid = String(row.external_id).replace("strava:", "");
       const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
       const [dResp, sResp] = await Promise.all([
         fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth),
-        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth&key_by_type=true`, auth),
+        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth,cadence,altitude&key_by_type=true`, auth),
       ]);
       if (dResp.status === 401 || dResp.status === 403) return json({ detail: null, needsReconnect: true });
       // Gone from Strava: remember there's nothing to show rather than asking again every time.
-      const detail = dResp.status === 404 ? { v: 1, splits: [], laps: [], s: null }
+      const detail = dResp.status === 404 ? { v: 2, splits: [], laps: [], s: null }
         : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null) : null;
       if (!detail) return json({ detail: null }, 502);
       await admin.from("completed_rides").update({ run_detail: detail }).eq("id", row.id);
