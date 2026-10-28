@@ -1,7 +1,7 @@
 // Progress → Performance: how training is trending. Built from completed_rides rows (no samples) and
 // the planned sessions from fitness.js loadPlanned(). Charts are inline SVG with one hover tooltip.
 import { todayIso, addDays, isoDate, parseIso } from './plan-schedule.js?v=6';
-import { fmtPace } from './run.js?v=7';
+import { fmtPace } from './run.js?v=8';
 import { fmtSwimPace } from './swim.js?v=2';
 
 // Sport colours for charts: validated for colour-blind separation on the panel colour (#171D25).

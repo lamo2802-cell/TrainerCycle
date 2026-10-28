@@ -363,12 +363,13 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, suggestRun, RUN_TRY_KEY, loadFeel } from './suggest.js?v=5';
+import { suggestRide, suggestRun, rideZone, RUN_TRY_KEY, loadFeel } from './suggest.js?v=6';
+import { loadGoals, guidesFor } from './goals.js?v=1';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns, openRunLog } from './run.js?v=7';
+import { addRuns, openRunLog } from './run.js?v=8';
 import { openExportSheet } from './export.js?v=3';
 const supabase = createSupabaseClient();
 (async function(){
@@ -432,7 +433,11 @@ const supabase = createSupabaseClient();
     }
     // Rider's progression levels, from ride history (used to label each workout Achievable, Productive…)
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,duration_sec,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,duration_sec,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss,distance_m').eq('user_id', user.id);
+      try {
+        const [g, p] = await Promise.all([loadGoals(supabase, user.id), supabase.from('settings').select('value').eq('key', 'run_threshold_pace').eq('user_id', user.id).maybeSingle()]);
+        riderGoals = g; riderPace = (p.data && p.data.value && Number(p.data.value.v)) || null;
+      } catch(_){}
       const byId = {}, byName = {};
       library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
       riderRides = data || [];
@@ -446,7 +451,8 @@ const supabase = createSupabaseClient();
     renderLibrary();
     renderPlanNudge();
   }
-  let riderLevels = null, riderByRide = {}, riderRides = [], runLv = null, runTryDismissed = false, runPick = 0;
+  let riderLevels = null, riderByRide = {}, riderRides = [], runLv = null, runTryDismissed = false, runPick = 0, riderGoals = null, riderPace = null;
+  const riderGuides = today => guidesFor({ goals: riderGoals, rides: riderRides, byRide: riderByRide, byRun: runLv ? runLv.byRun : {}, today, runPace: riderPace, rideZone });
   function levelChip(w){
     const wl = workoutLevel(w, ftp);
     if (!wl) return '';
@@ -641,7 +647,7 @@ const supabase = createSupabaseClient();
     const box = document.getElementById('suggestCard');
     if (!riderLevels || !riderRides.length){ box.innerHTML = ''; return; }
     const today = todayIso();
-    const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin: prefs.dur || 120, feel: loadFeel(today) });
+    const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin: prefs.dur || 120, feel: loadFeel(today), goal: riderGuides(today).ride });
     if (!res){ box.innerHTML = ''; return; }
     const c = res.picks[0], stats = computeStats(c.w.steps), d = fmtLong(stats.totalDur);
     box.innerHTML = '<div class="sg-card fit-card" data-preview="'+c.w.id+'">'
@@ -658,7 +664,7 @@ const supabase = createSupabaseClient();
   // A run for today as well, for runners (or a first walk/run for anyone who hasn't run yet).
   function runCard(today){
     if (!runLv || (!runLv.runs.length && runTryDismissed)) return '';
-    const res = suggestRun({ rides: riderRides, runLevels: runLv.levels, byRun: runLv.byRun, today, feel: loadFeel(today) });
+    const res = suggestRun({ rides: riderRides, runLevels: runLv.levels, byRun: runLv.byRun, today, feel: loadFeel(today), goal: riderGuides(today).run });
     if (!res || res.rest) return '';
     const c = res.picks[runPick % res.picks.length], z = runZoneInfo(c.zone);
     return '<div class="fit-card run-sg"><div class="fit-body"><div class="sg-kicker">'+(runLv.runs.length ? 'Or a run for today' : 'Would you like to try running?')+'</div>'

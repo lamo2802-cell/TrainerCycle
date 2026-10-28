@@ -7,7 +7,7 @@ import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
 import { sessionInfo } from './plan-kit.js?v=4';
 import { loadDiary, diarySessions } from './diary.js?v=1';
-import { setRunPace, RUN_PACE_KEY } from './run.js?v=7';
+import { setRunPace, RUN_PACE_KEY } from './run.js?v=8';
 import { setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
 
 // Every planned session (followed plan and single calendar workouts) as
