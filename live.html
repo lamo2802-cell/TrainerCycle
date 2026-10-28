@@ -170,6 +170,7 @@
     .controls button{ padding:9px 10px; font-size:13px; }
   }
 
+  button.link-btn{ background:none; border:none; color:var(--text-dim); padding:2px 0 6px; font-size:12px; text-decoration:underline; text-underline-offset:2px; width:auto; }
   button{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:8px 13px; font-size:13px; cursor:pointer; width:100%; margin-bottom:8px; }
   button:hover{ border-color:var(--accent); }
   button.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
@@ -440,6 +441,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <div class="block-title">Trainer <span class="need">needed</span></div>
           <div class="status-row"><span class="dot" id="trainerDot"></span><span id="trainerStatus">Not connected</span></div>
           <button id="connectTrainerBtn">Connect trainer</button>
+          <button id="otherTrainerBtn" class="link-btn" style="display:none;">Use a different trainer</button>
           <button id="calibrateBtn" disabled style="margin-top:0;">Calibrate trainer</button>
         </div>
 
@@ -447,6 +449,7 @@ html select option{ background:#1D242D; color:#E7ECF2; }
           <div class="block-title">Heart rate <span class="need">optional</span></div>
           <div class="status-row"><span class="dot" id="hrDot"></span><span id="hrStatus">Not connected</span></div>
           <button id="connectHrBtn">Connect HR strap</button>
+          <button id="otherHrBtn" class="link-btn" style="display:none;">Use a different HR strap</button>
         </div>
       </div>
 
@@ -1085,10 +1088,23 @@ const supabase = createSupabaseClient();
       setTimeout(()=>{ char.removeEventListener('characteristicvaluechanged', handler); resolve({timedOut:true}); }, timeoutMs);
     });
   }
-  async function writeControl(bytes, opcode){
-    const p = waitForControlResponse(trainerControl, opcode);
-    await trainerControl.writeValueWithResponse(new Uint8Array(bytes));
-    return p;
+  // Every control point write goes through one queue. Chrome rejects a GATT write that starts
+  // while another is still in flight ("GATT operation already in progress"), which used to
+  // happen when a target change landed during the control handshake or a calibration request.
+  let controlQueue = Promise.resolve();
+  let targetWritePending = false;
+  function queueControl(fn){
+    const run = controlQueue.then(fn, fn);
+    controlQueue = run.catch(()=>{});
+    return run;
+  }
+  function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  function writeControl(bytes, opcode){
+    return queueControl(async ()=>{
+      const p = waitForControlResponse(trainerControl, opcode);
+      await trainerControl.writeValueWithResponse(new Uint8Array(bytes));
+      return p;
+    });
   }
 
   // ---- trainer calibration (FTMS Spin Down Control, op code 0x13) ----
@@ -1165,14 +1181,22 @@ const supabase = createSupabaseClient();
     if (watts==null) return;
     lastTargetWatts = watts;
     if (!trainerControlReady || !trainerControl) return;
-    const w = Math.round(watts);
-    const buf = new Uint8Array(3);
-    buf[0]=0x05; buf[1]=w & 0xFF; buf[2]=(w>>8) & 0xFF;
-    for (let attempt=0; attempt<2; attempt++){
-      try { await trainerControl.writeValueWithResponse(buf); return; }
-      catch(e){ if (attempt===0) await new Promise(r=>setTimeout(r,400)); }
-    }
-    document.getElementById('trainerStatus').textContent = (trainerDevice&&trainerDevice.name || 'Trainer') + ' — target sync failed, will retry on reconnect';
+    // A write already waiting in the queue reads lastTargetWatts when it runs, so it will send
+    // this newest target — no need to queue another behind it.
+    if (targetWritePending) return;
+    targetWritePending = true;
+    await queueControl(async ()=>{
+      targetWritePending = false;
+      if (!trainerControlReady || !trainerControl || lastTargetWatts==null) return;
+      const w = Math.round(lastTargetWatts);
+      const buf = new Uint8Array(3);
+      buf[0]=0x05; buf[1]=w & 0xFF; buf[2]=(w>>8) & 0xFF;
+      for (let attempt=0; attempt<2; attempt++){
+        try { await trainerControl.writeValueWithResponse(buf); return; }
+        catch(e){ if (attempt===0) await sleep(400); }
+      }
+      document.getElementById('trainerStatus').textContent = (trainerDevice&&trainerDevice.name || 'Trainer') + ' — target sync failed, will retry on reconnect';
+    });
   }
 
   async function acquireControlWithRetry(){
@@ -1190,10 +1214,15 @@ const supabase = createSupabaseClient();
       } else if (attempt===3){
         return { ok:false, reason: reqResp.timedOut ? 'request-control timed out' : ('request-control rejected (code '+reqResp.resultCode+') — another app may still be connected to it') };
       }
-      await new Promise(r=>setTimeout(r, 600*attempt)); // back off before retrying
+      await sleep(600*attempt); // back off before retrying
     }
     return { ok:false, reason:'unknown' };
   }
+
+  // Named handlers, so that re-subscribing after a reconnect can't stack a second copy on the
+  // same characteristic (addEventListener ignores a handler that's already attached).
+  function onBikeData(e){ handleBikeSample(parseIndoorBikeData(e.target.value)); }
+  function onMachineStatus(e){ handleFitnessMachineStatus(e.target.value); }
 
   async function setupTrainer(device){
     const server = await device.gatt.connect();
@@ -1218,24 +1247,16 @@ const supabase = createSupabaseClient();
 
     const bikeData = await service.getCharacteristic('indoor_bike_data');
     await bikeData.startNotifications();
-    bikeData.addEventListener('characteristicvaluechanged', (e)=>{
-      const parsed = parseIndoorBikeData(e.target.value);
-      handleBikeSample(parsed);
-    });
+    bikeData.addEventListener('characteristicvaluechanged', onBikeData);
 
     try {
       const statusChar = await service.getCharacteristic('fitness_machine_status');
       await statusChar.startNotifications();
-      statusChar.addEventListener('characteristicvaluechanged', (e)=>{
-        handleFitnessMachineStatus(e.target.value);
-      });
+      statusChar.addEventListener('characteristicvaluechanged', onMachineStatus);
     } catch(statusErr){ /* not all trainers expose this — calibration falls back gracefully */ }
 
-    document.getElementById('trainerDot').classList.remove('err');
-    document.getElementById('trainerDot').classList.add('on');
-    document.getElementById('trainerStatus').textContent = (device.name || 'Connected') +
-      (trainerControlReady ? '' : (' — ERG unavailable (' + (controlFailReason||'unknown') + ')'));
-    document.getElementById('connectTrainerBtn').textContent = 'Reconnect trainer';
+    setLinkStatus(links.trainer, (device.name || 'Connected') +
+      (trainerControlReady ? '' : (' — ERG unavailable (' + (controlFailReason||'unknown') + ')')), 'on');
     document.getElementById('calibrateBtn').disabled = !trainerControlReady;
     updateStartAvailability();
 
@@ -1243,22 +1264,120 @@ const supabase = createSupabaseClient();
     if (trainerControlReady && lastTargetWatts!=null) setTargetPower(lastTargetWatts);
   }
 
-  function scheduleTrainerReconnect(device){
-    let attempt = 0;
-    const maxAttempts = 5;
-    (async function tryOnce(){
-      attempt++;
-      document.getElementById('trainerStatus').textContent = 'Reconnecting… (' + attempt + '/' + maxAttempts + ')';
-      try { await setupTrainer(device); }
-      catch(e){
-        if (attempt < maxAttempts) setTimeout(tryOnce, 1000*attempt);
-        else {
-          document.getElementById('trainerDot').classList.remove('on');
-          document.getElementById('trainerDot').classList.add('err');
-          document.getElementById('trainerStatus').textContent = 'Disconnected — reconnect failed';
-        }
-      }
-    })();
+  // ---- Bluetooth: heart rate strap ----
+  function onHrData(e){
+    const v = e.target.value;
+    const flags = v.getUint8(0);
+    const hr = (flags & 0x1) ? v.getUint16(1,true) : v.getUint8(1);
+    document.getElementById('mHr').textContent = hr;
+  }
+  async function setupHr(device){
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService('heart_rate');
+    const char = await service.getCharacteristic('heart_rate_measurement');
+    await char.startNotifications();
+    char.addEventListener('characteristicvaluechanged', onHrData);
+    setLinkStatus(links.hr, device.name || 'Connected', 'on');
+  }
+
+  // ---- Bluetooth: connecting, recovering and reconnecting (trainer + HR strap) ----
+  // Each kind of device has one "link" that owns its device and makes sure only one connect
+  // attempt runs at a time. Two things here are what used to need "close and reopen the app":
+  //  1. A setup that failed part-way (common on Android: "GATT operation failed for unknown
+  //     reason" during service discovery) left Chrome holding a half-open connection. The
+  //     trainer stops advertising while it's connected, so it vanished from the chooser, and
+  //     every retry reused the broken link until closing the app released it. Now any failed
+  //     attempt is torn down with gatt.disconnect() before the next one.
+  //  2. Each tap of Connect added another 'disconnected' listener to the same device, so one
+  //     dropout started several reconnect loops racing each other ("GATT operation already in
+  //     progress"). Now each device gets one listener and a newer attempt cancels older ones.
+  const links = {
+    trainer: { kind:'trainer', label:'trainer', dot:'trainerDot', status:'trainerStatus', btn:'connectTrainerBtn', other:'otherTrainerBtn',
+      service:'fitness_machine', optionalServices:['cycling_power'], setup:setupTrainer, device:null, gen:0, up:false },
+    hr: { kind:'hr', label:'HR strap', dot:'hrDot', status:'hrStatus', btn:'connectHrBtn', other:'otherHrBtn',
+      service:'heart_rate', optionalServices:[], setup:setupHr, device:null, gen:0, up:false }
+  };
+  const CONNECT_TIMEOUT_MS = 20000;     // Android can sit on a connect to an out-of-range device for ~30 s
+  const RECONNECT_WINDOW_MS = 3*60*1000; // keep retrying a dropout for 3 minutes before asking for a tap
+  const watchedDevices = new WeakSet();
+
+  function setLinkStatus(link, text, state){
+    const dot = document.getElementById(link.dot);
+    dot.classList.toggle('on', state==='on');
+    dot.classList.toggle('err', state==='err');
+    document.getElementById(link.status).textContent = text;
+    refreshConnectButton(link);
+  }
+  function linkConnected(link){ return !!(link.up && link.device && link.device.gatt && link.device.gatt.connected); }
+  function setLinkDevice(link, device){
+    link.device = device;
+    if (link.kind==='trainer') trainerDevice = device; else hrDevice = device;
+  }
+  function onLinkLost(link){
+    if (link.kind!=='trainer') return;
+    trainerControlReady = false;
+    document.getElementById('calibrateBtn').disabled = true;
+    updateStartAvailability();
+  }
+  // disconnect() also aborts a connect() that's still pending, so call it even when not connected.
+  function safeDisconnect(device){
+    try { if (device && device.gatt) device.gatt.disconnect(); } catch(_){}
+  }
+  function withTimeout(p, ms){
+    let t;
+    return Promise.race([p, new Promise((_,rej)=>{ t = setTimeout(()=>rej(new Error('timed out')), ms); })])
+      .finally(()=>clearTimeout(t));
+  }
+
+  function watchDevice(link, device){
+    if (watchedDevices.has(device)) return;
+    watchedDevices.add(device);
+    device.addEventListener('gattserverdisconnected', ()=>{
+      // Only a link that was fully up counts as a dropout. Our own tear-downs mark the link down
+      // first (the event arrives a moment later), and devices we've swapped away from don't count.
+      if (!link.up || device !== link.device) return;
+      link.up = false;
+      onLinkLost(link);
+      setLinkStatus(link, 'Disconnected — reconnecting…', 'err');
+      reconnectLoop(link, device, RECONNECT_WINDOW_MS);
+    });
+  }
+
+  // One clean attempt: connect + set up, or tear the connection down again on any failure.
+  // A newer attempt (gen) owns the device, so a superseded one only cleans up a device that
+  // has since been swapped out — never the one the newer attempt is busy connecting.
+  async function tryConnectOnce(link, device, gen){
+    try {
+      await withTimeout(link.setup(device), CONNECT_TIMEOUT_MS);
+      if (gen !== link.gen){ if (device !== link.device) safeDisconnect(device); return false; }
+      link.up = true;
+      refreshConnectButton(link);
+      return true;
+    } catch(e){
+      if (gen !== link.gen){ if (device !== link.device) safeDisconnect(device); return false; }
+      link.lastError = e;
+      link.up = false;
+      onLinkLost(link);
+      safeDisconnect(device);
+      return false;
+    }
+  }
+
+  // Keeps trying the same device with growing gaps until it connects, a newer attempt starts,
+  // or the time window runs out. No chooser is needed for a device we already have.
+  async function reconnectLoop(link, device, windowMs, lookingText){
+    const gen = ++link.gen;
+    const started = Date.now();
+    for (let attempt=1; ; attempt++){
+      if (gen !== link.gen) return false;
+      setLinkStatus(link, lookingText || ('Reconnecting… (attempt ' + attempt + ')'), 'err');
+      if (await tryConnectOnce(link, device, gen)) return true;
+      if (gen !== link.gen) return false;
+      if (Date.now() - started > windowMs) break;
+      await sleep(Math.min(1500*attempt, 8000));
+    }
+    if (gen === link.gen) setLinkStatus(link, friendlyBtError(link.lastError, link.label), 'err');
+    return false;
   }
 
   // When the Bluetooth chooser comes up empty (nothing matching shows, or it's dismissed), the
@@ -1271,134 +1390,129 @@ const supabase = createSupabaseClient();
     if (e && e.name === 'NotFoundError'){
       return 'Didn\'t see it in the list — close any other app connected to the ' + kind + ' (its own app, Zwift, Garmin Connect, another browser tab), then power-cycle it and try again.';
     }
-    return 'Connection failed: ' + (e && e.message ? e.message : e);
+    return 'Couldn\'t connect to the ' + kind + '. Check it\'s awake (pedal a few turns) and tap Connect again' +
+      (e && e.message ? ' (' + e.message + ')' : '') + '.';
   }
 
-  document.getElementById('connectTrainerBtn').addEventListener('click', async ()=>{
-    if (!navigator.bluetooth){ notify('Use Chrome or Edge on a computer or Android. Safari and iPhone/iPad don\'t support it.', 'Bluetooth isn\'t available here'); return; }
+  // Browsers only remember Web Bluetooth devices across page loads behind a Chrome flag (see
+  // autoReconnectDevices), so the next best thing is to remember the name and narrow the
+  // chooser to just that device: one tap on Connect, one tap on the only entry in the list.
+  function rememberedName(link){
     try {
-      trainerDevice = await navigator.bluetooth.requestDevice({
-        filters: [{ services: ['fitness_machine'] }],
-        optionalServices: ['cycling_power']
-      });
-      trainerDevice.addEventListener('gattserverdisconnected', ()=>{
-        document.getElementById('trainerDot').classList.remove('on');
-        document.getElementById('trainerDot').classList.add('err');
-        document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
-        trainerControlReady = false;
-        updateStartAvailability();
-        scheduleTrainerReconnect(trainerDevice);
-      });
-      await setupTrainer(trainerDevice);
-      rememberDevice('trainer', trainerDevice);
-    } catch(e){
-      document.getElementById('trainerDot').classList.add('err');
-      document.getElementById('trainerStatus').textContent = friendlyBtError(e, 'trainer');
-    }
-  });
-
-  // ---- Bluetooth: remember + silently reconnect last-used devices ----
-  // Chrome/Android keep Web Bluetooth permission grants around, so navigator.bluetooth.getDevices()
-  // returns devices we've already been granted access to without popping the chooser again. On
-  // load we use that to reconnect straight to the trainer/HR strap used last time — no tap needed.
+      return localStorage.getItem('tc_last_'+link.kind+'_name') ||
+        (link.kind==='trainer' ? localStorage.getItem('tc_paired_trainer_name') : '') || '';
+    } catch(_){ return ''; }
+  }
   function rememberDevice(kind, device){
     try {
       localStorage.setItem('tc_last_'+kind+'_id', device.id);
       localStorage.setItem('tc_last_'+kind+'_name', device.name || '');
     } catch(e){ /* storage unavailable — silently skip remembering */ }
   }
+  function refreshConnectButton(link){
+    const btn = document.getElementById(link.btn), other = document.getElementById(link.other);
+    const name = rememberedName(link);
+    const noun = link.kind==='trainer' ? 'trainer' : 'HR strap';
+    btn.textContent = linkConnected(link) ? ('Reconnect ' + noun) : name ? ('Connect ' + name) : ('Connect ' + noun);
+    other.textContent = 'Use a different ' + noun;
+    other.style.display = (name || linkConnected(link)) ? '' : 'none';
+  }
+
+  async function connectWithRetries(link, device, gen){
+    for (let attempt=1; attempt<=3; attempt++){
+      setLinkStatus(link, 'Connecting to ' + (device.name || link.label) + '…' + (attempt>1 ? ' (try ' + attempt + ')' : ''), null);
+      if (await tryConnectOnce(link, device, gen)){ rememberDevice(link.kind, device); return true; }
+      if (gen !== link.gen) return false;
+      await sleep(1000*attempt);
+    }
+    setLinkStatus(link, friendlyBtError(link.lastError, link.label), 'err');
+    return false;
+  }
+
+  async function chooseAndConnect(link, anyDevice){
+    if (!navigator.bluetooth){ notify('Use Chrome or Edge on a computer or Android. Safari and iPhone/iPad don\'t support it.', 'Bluetooth isn\'t available here'); return; }
+    // "Reconnect" on a device we already hold is a reset, not a new pick: a connected trainer
+    // usually stops advertising, so it wouldn't even show in the chooser. Drop it and connect
+    // again from scratch — that's the fix when ERG control has gone odd mid-session.
+    if (!anyDevice && linkConnected(link)){
+      const gen = ++link.gen, device = link.device;
+      link.up = false;
+      safeDisconnect(device);
+      onLinkLost(link);
+      await sleep(600);
+      if (gen === link.gen) connectWithRetries(link, device, gen);
+      return;
+    }
+    const name = anyDevice ? '' : rememberedName(link);
+    const options = name
+      ? { filters:[{ name }], optionalServices:[link.service, ...link.optionalServices] }
+      : { filters:[{ services:[link.service] }], optionalServices: link.optionalServices };
+    let device;
+    try { device = await navigator.bluetooth.requestDevice(options); }
+    catch(e){
+      // Cancelling the chooser shouldn't knock out a device that's still working fine.
+      if (!linkConnected(link)) setLinkStatus(link, friendlyBtError(e, link.label), 'err');
+      return;
+    }
+    const gen = ++link.gen; // cancels any reconnect loop still running for the old device
+    const old = link.device;
+    setLinkDevice(link, device);
+    watchDevice(link, device);
+    // Start from a clean slate: drop the old device, or this one if it's still half-connected.
+    // This is what makes "Reconnect trainer" a real reset when ERG control has gone odd.
+    link.up = false;
+    safeDisconnect(old);
+    safeDisconnect(device);
+    onLinkLost(link);
+    connectWithRetries(link, device, gen);
+  }
+
+  document.getElementById('connectTrainerBtn').addEventListener('click', ()=>chooseAndConnect(links.trainer, false));
+  document.getElementById('otherTrainerBtn').addEventListener('click', ()=>chooseAndConnect(links.trainer, true));
+  document.getElementById('connectHrBtn').addEventListener('click', ()=>chooseAndConnect(links.hr, false));
+  document.getElementById('otherHrBtn').addEventListener('click', ()=>chooseAndConnect(links.hr, true));
+
+  // Let go of the trainer as soon as we leave the page, so the next page/app (or Live Ride
+  // opened again) finds it advertising rather than still tied to this one.
+  window.addEventListener('pagehide', ()=>{
+    for (const link of Object.values(links)){ link.gen++; link.up = false; safeDisconnect(link.device); }
+  });
+
+  // ---- Bluetooth: silently reconnect last-used devices on load ----
+  // navigator.bluetooth.getDevices() returns devices this site was granted before, without the
+  // chooser. Chrome still ships it behind a flag (chrome://flags "Experimental Web Platform
+  // features" + "Use the new permissions backend for Web Bluetooth"), so for most riders it's
+  // missing and the remembered-name button above is the fallback. Where it does exist, wait for
+  // the device to advertise (it may not be switched on yet) and connect straight away.
   async function autoReconnectDevices(){
+    for (const link of Object.values(links)) refreshConnectButton(link);
     if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
     let known;
     try { known = await navigator.bluetooth.getDevices(); } catch(e){ return; }
     if (!known.length) return;
-
-    const lastTrainerId = localStorage.getItem('tc_last_trainer_id');
-    const trainerMatch = lastTrainerId && known.find(d=>d.id===lastTrainerId);
-    if (trainerMatch && !trainerDevice){
-      document.getElementById('trainerStatus').textContent = 'Reconnecting to last trainer…';
-      trainerDevice = trainerMatch;
-      trainerDevice.addEventListener('gattserverdisconnected', ()=>{
-        document.getElementById('trainerDot').classList.remove('on');
-        document.getElementById('trainerDot').classList.add('err');
-        document.getElementById('trainerStatus').textContent = 'Disconnected — reconnecting…';
-        trainerControlReady = false;
-        updateStartAvailability();
-        scheduleTrainerReconnect(trainerDevice);
-      });
-      try { await setupTrainer(trainerDevice); }
-      catch(e){ document.getElementById('trainerStatus').textContent = 'Auto-reconnect failed — tap Connect trainer'; }
-    }
-
-    const lastHrId = localStorage.getItem('tc_last_hr_id');
-    const hrMatch = lastHrId && known.find(d=>d.id===lastHrId);
-    if (hrMatch && !hrDevice){
-      document.getElementById('hrStatus').textContent = 'Reconnecting to last HR strap…';
-      hrDevice = hrMatch;
-      hrDevice.addEventListener('gattserverdisconnected', ()=>{
-        document.getElementById('hrDot').classList.remove('on');
-        document.getElementById('hrDot').classList.add('err');
-        document.getElementById('hrStatus').textContent = 'Disconnected — reconnecting…';
-        scheduleHrReconnect(hrDevice);
-      });
-      try { await setupHr(hrDevice); }
-      catch(e){ document.getElementById('hrStatus').textContent = 'Auto-reconnect failed — tap Connect HR strap'; }
-    }
-  }
-
-  // ---- Bluetooth: heart rate strap ----
-  async function setupHr(device){
-    const server = await device.gatt.connect();
-    const service = await server.getPrimaryService('heart_rate');
-    const char = await service.getCharacteristic('heart_rate_measurement');
-    await char.startNotifications();
-    char.addEventListener('characteristicvaluechanged', (e)=>{
-      const v = e.target.value;
-      const flags = v.getUint8(0);
-      const hr = (flags & 0x1) ? v.getUint16(1,true) : v.getUint8(1);
-      document.getElementById('mHr').textContent = hr;
-    });
-    document.getElementById('hrDot').classList.remove('err');
-    document.getElementById('hrDot').classList.add('on');
-    document.getElementById('hrStatus').textContent = device.name || 'Connected';
-    document.getElementById('connectHrBtn').textContent = 'Reconnect HR strap';
-  }
-
-  function scheduleHrReconnect(device){
-    let attempt = 0;
-    const maxAttempts = 5;
-    (async function tryOnce(){
-      attempt++;
-      document.getElementById('hrStatus').textContent = 'Reconnecting… (' + attempt + '/' + maxAttempts + ')';
-      try { await setupHr(device); }
-      catch(e){
-        if (attempt < maxAttempts) setTimeout(tryOnce, 1000*attempt);
-        else {
-          document.getElementById('hrDot').classList.remove('on');
-          document.getElementById('hrDot').classList.add('err');
-          document.getElementById('hrStatus').textContent = 'Disconnected — reconnect failed';
-        }
+    for (const link of Object.values(links)){
+      let lastId = null;
+      try { lastId = localStorage.getItem('tc_last_'+link.kind+'_id'); } catch(_){}
+      const match = lastId && known.find(d=>d.id===lastId);
+      if (!match || link.device) continue;
+      setLinkDevice(link, match);
+      watchDevice(link, match);
+      const looking = 'Looking for ' + (match.name || ('your ' + link.label)) + '…';
+      if (match.watchAdvertisements){
+        const gen = ++link.gen;
+        setLinkStatus(link, looking, null);
+        const ctrl = new AbortController();
+        match.addEventListener('advertisementreceived', ()=>{
+          ctrl.abort();
+          if (gen === link.gen) reconnectLoop(link, match, 30000, 'Connecting to ' + (match.name || link.label) + '…');
+        }, { once:true });
+        try { await match.watchAdvertisements({ signal: ctrl.signal }); }
+        catch(e){ reconnectLoop(link, match, 60000, looking); }
+      } else {
+        reconnectLoop(link, match, 60000, looking);
       }
-    })();
-  }
-
-  document.getElementById('connectHrBtn').addEventListener('click', async ()=>{
-    if (!navigator.bluetooth){ notify('Use Chrome or Edge on a computer or Android. Safari and iPhone/iPad don\'t support it.', 'Bluetooth isn\'t available here'); return; }
-    try {
-      hrDevice = await navigator.bluetooth.requestDevice({ filters:[{ services:['heart_rate'] }] });
-      hrDevice.addEventListener('gattserverdisconnected', ()=>{
-        document.getElementById('hrDot').classList.remove('on');
-        document.getElementById('hrDot').classList.add('err');
-        document.getElementById('hrStatus').textContent = 'Disconnected — reconnecting…';
-        scheduleHrReconnect(hrDevice);
-      });
-      await setupHr(hrDevice);
-      rememberDevice('hr', hrDevice);
-    } catch(e){
-      document.getElementById('hrDot').classList.add('err');
-      document.getElementById('hrStatus').textContent = friendlyBtError(e, 'HR strap');
     }
-  });
+  }
 
   // ---- workout engine ----
   function pauseWorkout(auto){
@@ -1446,7 +1560,7 @@ const supabase = createSupabaseClient();
       if (wkgEl) wkgEl.textContent = (weightKg && weightKg>0) ? ('· '+(shownPower/weightKg).toFixed(1)+' W/kg') : '';
     }
     if (parsed.cadence!=null) document.getElementById('mCadence').textContent = Math.round(parsed.cadence);
-    if (parsed.heartRate!=null && !hrDevice) document.getElementById('mHr').textContent = parsed.heartRate;
+    if (parsed.heartRate!=null && !(hrDevice && hrDevice.gatt && hrDevice.gatt.connected)) document.getElementById('mHr').textContent = parsed.heartRate;
 
     // auto-pause/resume based on pedaling activity — requires both cadence and power to be near zero when both are reported
     if (running || autoPaused){
