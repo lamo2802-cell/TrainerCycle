@@ -104,6 +104,8 @@
   .eq-range input{ width:58px; padding:6px 6px; }
   .set-group-title{ font-size:11.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.07em; font-weight:600; margin:26px 0 10px; }
   h1 + .set-group-title{ margin-top:0; }
+  .set-group-title[id]{ scroll-margin-top:90px; }
+  .set-group-note{ color:var(--text-dim); font-size:13px; line-height:1.45; margin:-4px 0 12px; max-width:680px; }
   .set-group.two{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 16px; }
   @media (max-width:760px){ .set-group.two{ grid-template-columns:1fr; } }
   .panel-desc a{ color:var(--accent); }
@@ -142,7 +144,8 @@
     <div class="page-banner" style="background-image:url('banner-settings.jpg');"></div>
     <h1>Settings</h1>
 
-    <div class="set-group-title">Training</div>
+    <div class="set-group-title" id="zones">Your zones</div>
+    <div class="set-group-note">Every target in the app comes from these: power for rides, pace for runs and swims, heart rate when there's no power. Change one here and it's used everywhere.</div>
     <div class="set-group two">
     <div class="panel">
       <div class="panel-title">FTP</div>

@@ -741,7 +741,7 @@ const supabase = createSupabaseClient();
     try { trainerSeen = !!(localStorage.getItem('tc_last_trainer_id') || localStorage.getItem('tc_paired_trainer_name')); } catch(_){}
     const steps = [
       { done: !!ftp, title:'Set your FTP', text:'Every target is a % of it. A Ramp Test takes about 20 minutes.',
-        actions:'<a class="t-btn primary sm" href="live.html?load=prebuilt-ramp-test-25">Ramp Test</a><a class="t-btn sm" href="settings.html">Enter it</a>' },
+        actions:'<a class="t-btn primary sm" href="live.html?load=prebuilt-ramp-test-25">Ramp Test</a><a class="t-btn sm" href="settings.html#zones">Enter it</a>' },
       { done: trainerSeen || rides.length > 0, title:'Connect your trainer', text:'Use Chrome or Edge on a computer or Android, then press Connect trainer on Live Ride.',
         actions:'<a class="t-btn sm" href="live.html">Live Ride</a>' },
       { done: !!(follow && follow.planId), title:'Pick a training plan', text:'A plan puts the right workout on each day. You can move sessions around later.',

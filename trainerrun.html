@@ -485,7 +485,7 @@ const supabase = createSupabaseClient();
     const est = paceFromRuns(runs);
     const suggest = shouldSuggestPace(est, pace, paceDismissed);
     el.innerHTML = '<div class="panel-title">Threshold pace & zones</div>'
-      + '<div class="panel-desc">The pace you could hold for about an hour. Every session\'s paces come from it.</div>'
+      + '<div class="panel-desc">The pace you could hold for about an hour. Every session\'s paces come from it. It\'s also in <a href="settings.html#zones">Settings → Your zones</a>, with your FTP and swim pace.</div>'
       + '<div class="ftp-row"><span class="ftp-value" style="color:#C084FC">'+(pace ? fmtPace(pace) : '—')+'</span><span class="ftp-unit">/km</span></div>'
       + (suggest ? '<div class="suggest"><span>'+(pace ? 'Your runs say you\'re faster: ' : 'From your runs: ')+'<b>'+fmtPace(est.pace)+' /km</b>, from '+esc(est.basis)+'.</span><button class="primary" id="paceUse">Use it</button><button id="paceNo">Not now</button></div>' : '')
       + '<div class="pace-row"><input type="text" id="paceIn" placeholder="e.g. 4:45" inputmode="numeric" value="'+(pace ? fmtPace(pace) : '')+'"><button id="paceSave">Save</button></div>'
