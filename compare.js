@@ -55,7 +55,7 @@ export async function loadSameRoute(supabase, userId, r){
 export function sameWorkout(r, rides){
   if (!r.workout_id) return [];
   return rides.filter(x => x.id !== r.id && x.workout_id === r.workout_id && x.completed !== false && (x.sport || 'ride') === 'ride'
-    && x.source !== 'strava' && x.source !== 'manual')
+    && x.source !== 'strava' && x.source !== 'garmin' && x.source !== 'manual')
     .sort((a, b) => a.started_at < b.started_at ? 1 : -1);
 }
 

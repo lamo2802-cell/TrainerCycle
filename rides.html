@@ -137,6 +137,7 @@
   .run-recs tr[data-ride]{ cursor:pointer; } .run-recs tr[data-ride]:hover td{ background:var(--panel-2); }
   @media (max-width:520px){ .run-recs .opt{ display:none; } }
   .tag.strava{ color:#FC6A2C; border-color:rgba(252,106,44,.5); }
+  .tag.garmin{ color:#38BDF8; border-color:rgba(56,189,248,.5); }
   .ride-row .mini.ext{ color:var(--text-dim); }
   .seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
   .seg button{ border:none; border-radius:0; background:var(--panel-2); padding:8px 14px; }
@@ -380,7 +381,7 @@ import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=3';
-import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } from './compare.js?v=2';
+import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } from './compare.js?v=3';
 import { summaryHtml, SUMMARY_CSS } from './summary.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
@@ -529,7 +530,7 @@ const supabase = createSupabaseClient();
     const stat = (v,l)=>'<div class="d-stat"><div class="val">'+(v ?? '—')+'</div><div class="lbl">'+l+'</div></div>';
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
     return '<button class="back" data-back>‹ Activities</button>'
-      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag run">'+(r.source === 'strava' ? 'From Strava' : 'Run')+'</span></h1>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag run">'+(fromName(r) ? 'From '+fromName(r) : 'Run')+'</span></h1>'
       + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'">Delete run</button></div></div>'
       + '<div class="d-stats">'
@@ -537,11 +538,11 @@ const supabase = createSupabaseClient();
       + stat(r.tss,'TSS') + stat(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : null,'IF')
       + stat(r.feel ? FEEL_WORDS[r.feel] : null,'Felt') + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
-      + (r.source === 'strava' ? '<div id="runSummary"></div>' : '')
+      + (hasTrace(r) ? '<div id="runSummary"></div>' : '')
       + '<div id="runWorkout"></div>'
-      + (r.source === 'strava' ? '<div id="runChart"></div>' : '')
+      + (hasTrace(r) ? '<div id="runChart"></div>' : '')
       + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
-      + (r.source === 'strava' ? '<div id="runZones"></div><div id="runEff"></div><div id="runSplits"></div>' : '')
+      + (hasTrace(r) ? '<div id="runZones"></div><div id="runEff"></div><div id="runSplits"></div>' : '')
       + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
@@ -550,7 +551,7 @@ const supabase = createSupabaseClient();
     const pace = r.distance_m ? fmtSwimPace(r.duration_sec/(r.distance_m/100)) : null;
     const where = r.category === 'open_water' ? 'Open water' : 'Pool';
     return '<button class="back" data-back>‹ Activities</button>'
-      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag swim">'+(r.source === 'strava' ? 'From Strava' : where)+'</span></h1>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+'<span class="tag swim">'+(fromName(r) ? 'From '+fromName(r) : where)+'</span></h1>'
       + '<div class="when">'+fmtDate(r.started_at)+(r.plan_id ? ' · <span class="tag plan" style="margin-left:0">Plan session</span>' : '')+'</div></div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="swim">Delete swim</button></div></div>'
       + '<div class="d-stats">'
@@ -610,6 +611,8 @@ const supabase = createSupabaseClient();
     if (detail === undefined) return;   // column not there yet
     // Saved before cadence, elevation and grade-adjusted pace were kept: fetch once more, and fall back
     // to what's saved if Strava can't be reached.
+    // Garmin runs bring their splits with them; a run too short for any has nothing to show.
+    if (!detail && r.source === 'garmin'){ box.innerHTML = ''; return; }
     if (!detail || !(detail.v >= 2)){
       box.innerHTML = '<div class="panel empty-note">Loading splits from Strava…</div>';
       let fresh = null;
@@ -677,13 +680,17 @@ const supabase = createSupabaseClient();
   function swimRowHtml(r){
     const pace = r.distance_m ? fmtSwimPace(r.duration_sec/(r.distance_m/100)) : null;
     return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:#38BDF8"></span>'
-      + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+'<span class="tag swim">'+(r.source === 'strava' ? 'Strava swim' : 'Swim')+'</span></div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+      + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+'<span class="tag swim">'+(fromName(r) ? fromName(r)+' swim' : 'Swim')+'</span></div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
       + '<span class="mini run swim">'+SWIM_ICON+(pace ? pace+' /100 m' : '')+'</span>'
       + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.distance_m ? fmtMetres(r.distance_m).replace(/ (k?m)$/, '') : '—')+'</b>'+(r.distance_m >= 1000 ? 'km' : 'm')+'</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span></span>'
       + '</button>';
   }
   // Rides brought in from Strava (outdoors or other apps) or logged by hand only have totals, no second-by-second data.
-  function isImported(r){ return r.source === 'strava' || r.source === 'manual'; }
+  function isImported(r){ return r.source === 'strava' || r.source === 'garmin' || r.source === 'manual'; }
+  // Imported with splits and a trace (from Strava's API or a Garmin FIT file through Tredict).
+  function hasTrace(r){ return r.source === 'strava' || r.source === 'garmin'; }
+  function fromName(r){ return r.source === 'strava' ? 'Strava' : r.source === 'garmin' ? 'Garmin' : null; }
+
   function importedPbs(r){
     const pbs = newBests(r, rides.some(x=>x.id===r.id) ? rides : rides.concat([r]));
     return pbs.length ? '<div class="pb-chips">'+pbs.map(b=>'<span class="pb-chip" title="Previous best '+b.prev+' W">New '+pbLabel(b.d)+' best · '+b.w+' W</span>').join('')+'</div>' : '';
@@ -695,7 +702,7 @@ const supabase = createSupabaseClient();
     const manual = r.source === 'manual';
     const how = manual ? (r.avg_power ? 'from your average power and FTP' : 'from how it felt') : r.np ? 'from your power and FTP' : r.avg_hr ? 'from your heart rate against your threshold heart rate (set it in Settings)' : 'as a steady endurance ride, since there was no power or heart rate';
     return '<button class="back" data-back>‹ Activities</button>'
-      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+(manual ? '<span class="tag">Logged</span>' : '<span class="tag strava">From Strava</span>')+'</h1>'
+      + '<div class="d-head"><div><h1>'+escapeHtml(r.workout_name)+(manual ? '<span class="tag">Logged</span>' : '<span class="tag '+r.source+'">From '+fromName(r)+'</span>')+'</h1>'
       + '<div class="when">'+fmtDate(r.started_at)+'</div>'+importedPbs(r)+'</div>'
       + '<div class="d-actions"><button data-del-run="'+r.id+'" data-what="ride">Delete ride</button></div></div>'
       + '<div class="d-stats">'
@@ -705,14 +712,14 @@ const supabase = createSupabaseClient();
       + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
       + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
-      + '<div class="panel empty-note">'+(manual ? 'Logged by hand' : 'Brought in from Strava')+'. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Rides outside Live Ride don\'t change your workout levels.</div>';
+      + '<div class="panel empty-note">'+(manual ? 'Logged by hand' : 'Brought in from '+fromName(r))+'. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Rides outside Live Ride don\'t change your workout levels.</div>';
   }
   const BIKE_ICON = '<svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M14 5h2"/></svg>';
   const RUN_ICON = '<svg viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 3v5M7 12l3-4 4 1 3 4 3 1M10 8l-1 5"/></svg>';
   function runRowHtml(r){
     const pace = r.distance_m ? fmtPace(r.duration_sec/(r.distance_m/1000)) : null;
     return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:#C084FC"></span>'
-      + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+'<span class="tag run">'+(r.source === 'strava' ? 'Strava run' : 'Run')+'</span></div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+      + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+'<span class="tag run">'+(fromName(r) ? fromName(r)+' run' : 'Run')+'</span></div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
       + '<span class="mini run">'+RUN_ICON+(pace ? pace+' /km' : '')+'</span>'
       + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.distance_m ? fmtKm(r.distance_m) : '—')+'</b>km</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span></span>'
       + '</button>';
@@ -758,7 +765,7 @@ const supabase = createSupabaseClient();
           const pct0 = r.intensity_factor!=null ? Number(r.intensity_factor)*100 : CATEGORY_PCT[r.category];
           const pct = pct0 == null && isImported(r) ? 70 : pct0;
           return '<button class="ride-row" data-ride="'+r.id+'"><span class="bar" style="background:'+zoneColor(pct)+'"></span>'
-            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(isImported(r) ? (r.source === 'manual' ? '<span class="tag">Logged</span>' : '<span class="tag strava">Strava</span>') : '')+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
+            + '<span style="min-width:0;"><div class="nm">'+escapeHtml(r.workout_name)+(isImported(r) ? (r.source === 'manual' ? '<span class="tag">Logged</span>' : '<span class="tag '+r.source+'">'+fromName(r)+'</span>') : '')+(r.completed ? '' : '<span class="tag">Partial</span>')+(newBests(r, rides).length ? '<span class="tag pb">PB</span>' : '')+'</div><div class="when">'+fmtDate(r.started_at)+'</div></span>'
             + (isImported(r) ? '<span class="mini run ext">'+BIKE_ICON+(r.distance_m ? fmtKm(r.distance_m)+' km' : '')+'</span>' : miniProfile(r))
             + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
             + '</button>';
@@ -791,7 +798,7 @@ const supabase = createSupabaseClient();
     if (gone && gone.external_id){
       try {
         const { data } = await supabase.from('settings').select('value').eq('key','strava_import_ignored').eq('user_id', user.id).maybeSingle();
-        const list = ((data && data.value && data.value.v) || []).concat(gone.external_id).slice(-200);
+        const list = ((data && data.value && data.value.v) || []).concat(gone.external_id).slice(-1000);
         await supabase.from('settings').upsert({ user_id:user.id, key:'strava_import_ignored', value:{v:list}, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
       } catch(_){}
     }
@@ -872,7 +879,7 @@ const supabase = createSupabaseClient();
     const rd = readiness({ rides: h.acts, today: day, now, feel, restDay });
     const st = trainingStatus(rd);
     const ftpW = h.ftp || 200;
-    const bike = h.acts.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual');
+    const bike = h.acts.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'garmin' && r.source !== 'manual');
     const byId = {}, byName = {};
     h.library.forEach(w => { byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
     const { levels, byRide } = computeLevels(bike, r => byId[r.workout_id] || byName[r.workout_name] || null, ftpW);
@@ -1273,7 +1280,7 @@ const supabase = createSupabaseClient();
     const w = workoutFor(ride);
     const rideFtp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
     const wl = w ? workoutLevel(w, rideFtp) : null;
-    const { byRide } = computeLevels(rides.filter(x => isBike(x) && x.source !== 'strava' && x.source !== 'manual'), workoutFor, rideFtp);
+    const { byRide } = computeLevels(rides.filter(x => isBike(x) && x.source !== 'strava' && x.source !== 'garmin' && x.source !== 'manual'), workoutFor, rideFtp);
     const change = byRide[ride.id];
     const asked = ride.feel != null;
     if (!wl && asked && !prompt) return '';

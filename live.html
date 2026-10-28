@@ -839,7 +839,7 @@ const supabase = createSupabaseClient();
       riderGoals = goals;
       const byName = {}; library.forEach(w=>{ if (!byName[w.name]) byName[w.name] = w; });
       riderRides = data || [];
-      ({ levels: riderLevels, byRide: riderByRide } = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp));
+      ({ levels: riderLevels, byRide: riderByRide } = computeLevels((data||[]).filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'garmin' && r.source !== 'manual'), r => library.find(w=>w.id===r.workout_id) || byName[r.workout_name] || null, ftp));
     } catch(e){ riderLevels = null; }
   }
   function selectWorkout(id){
