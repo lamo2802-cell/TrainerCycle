@@ -30,6 +30,8 @@ export const RIDE_FOCUS = {
 const DEFAULT_SPEED = 25;      // km/h for a long ride when there's no outdoor riding to go on
 const LONG_SHARE = 0.75;       // the long session builds to about this much of the event's time
 const dayOf = r => isoDate(new Date(r.started_at));
+// A past day said from `now`: "today", "yesterday" or "3 days ago".
+export function relDay(d, now){ const n = daysBetween(d, now); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
 const weekday = iso => (parseIso(iso).getDay() + 6) % 7;   // Monday 0
 const mondayOf = iso => addDays(iso, -weekday(iso));
 const hm = mins => { const m = Math.round(mins); return m >= 60 ? Math.floor(m/60)+' h'+(m%60 ? ' '+String(m%60).padStart(2,'0') : '') : m+' min'; };
@@ -190,7 +192,8 @@ export function goalReason(guide, zone, { long = false } = {}){
 // gain: the sport owed more key sessions, the goal with less time left, the sport whose long day it is,
 // and the one left longest, with running held back after hard or long running (an easy ride recovers the
 // legs better) and when tired. Returns { sport, reason } or null when there's nothing to choose between.
-export function pickSport({ rideGuide, runGuide, rides, byRun = {}, band, beginner = false, today }){
+// now: the real date when `today` is a day ahead (Fitness & form after training today), so it says "Ride tomorrow".
+export function pickSport({ rideGuide, runGuide, rides, byRun = {}, band, beginner = false, today, now = today }){
   if (!runGuide && !rideGuide) return null;
   const last = sport => rides.filter(r => (sport === 'run' ? r.sport === 'run' : (r.sport || 'ride') === 'ride') && dayOf(r) < today).map(dayOf).sort().pop();
   const since = sport => { const d = last(sport); return d ? daysBetween(d, today) : 14; };
@@ -202,13 +205,17 @@ export function pickSport({ rideGuide, runGuide, rides, byRun = {}, band, beginn
     if (gd.keyLeft) add(sport, gd.keyLeft / gd.keys, 'you still have ' + (gd.keyLeft === 1 ? 'a key session' : gd.keyLeft + ' key sessions') + ' this week for ' + gd.phrase);
     if (gd.weeks != null && gd.weeks <= 16) add(sport, gd.weeks <= 8 ? 0.5 : 0.25, gd.phrase.replace('your ', 'your ') + ' is ' + Math.max(1, Math.round(gd.weeks)) + ' week' + (Math.round(gd.weeks) === 1 ? '' : 's') + ' away');
   });
-  ['ride', 'run'].forEach(sport => { const d = since(sport); if (d >= 2) add(sport, Math.min(d, 7) / 7 * 0.6, 'you haven\'t ' + (sport === 'run' ? 'run' : 'ridden') + ' for ' + d + ' days'); });
+  ['ride', 'run'].forEach(sport => {
+    const d = since(sport), l = last(sport), verb = sport === 'run' ? 'run' : 'ridden';
+    if (d >= 2) add(sport, Math.min(d, 7) / 7 * 0.6, !l ? 'you haven\'t ' + verb + ' lately' : daysBetween(l, now) <= 1 ? 'your last ' + sport + ' was ' + relDay(l, now)
+      : 'you haven\'t ' + verb + ' for ' + daysBetween(l, now) + ' days');
+  });
   const runs = rides.filter(r => r.sport === 'run' && dayOf(r) < today && dayOf(r) >= addDays(today, -2));
   const hardRun = runs.find(r => byRun[r.id] && byRun[r.id].zone !== 'easy');
   const longRun = runs.find(r => dayOf(r) === addDays(today, -1) && (r.duration_sec || 0) >= 75 * 60);
-  if (hardRun) add('run', -1, 'you ran hard ' + (dayOf(hardRun) === addDays(today, -1) ? 'yesterday' : '2 days ago') + ', and the bike gives your legs a break');
-  else if (longRun) add('run', -1, 'you ran long yesterday, and an easy ride recovers your legs better than another run');
-  else if (runs.some(r => dayOf(r) === addDays(today, -1))) add('run', -0.3, 'you ran yesterday');
+  if (hardRun) add('run', -1, 'you ran hard ' + relDay(dayOf(hardRun), now) + ', and the bike gives your legs a break');
+  else if (longRun) add('run', -1, 'you ran long ' + relDay(dayOf(longRun), now) + ', and an easy ride recovers your legs better than another run');
+  else if (runs.some(r => dayOf(r) === addDays(today, -1))) add('run', -0.3, 'you ran ' + relDay(addDays(today, -1), now));
   if (band <= 1) add('run', -0.7, 'you\'re tired, and an easy ride is gentler on your legs than a run');
   if (beginner && runs.length) add('run', -1, 'walk/run works best with a day or two between');
   const sum = s => f[s].reduce((a, [n]) => a + n, 0);
@@ -218,7 +225,8 @@ export function pickSport({ rideGuide, runGuide, rides, byRun = {}, band, beginn
   const pros = f[sport].filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]);
   const cons = f[other].filter(([n]) => n < 0).sort((a, b) => a[0] - b[0]);
   const why = cons.length && (!pros.length || -cons[0][0] >= pros[0][0]) ? cons[0][1] : pros.length ? pros[0][1] : '';
-  return { sport, reason: (sport === 'run' ? 'Run today' : 'Ride today') + (why ? ': ' + why + '.' : '.') };
+  const when = today > now ? (daysBetween(now, today) === 1 ? ' tomorrow' : ' next') : ' today';
+  return { sport, reason: (sport === 'run' ? 'Run' : 'Ride') + when + (why ? ': ' + why + '.' : '.') };
 }
 
 // ---- The goals card and the set-goal sheet ----
