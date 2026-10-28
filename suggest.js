@@ -11,7 +11,7 @@ import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
 import { BEGINNER_RUNS, runSession, TT_5K } from './run.js?v=9';
-import { goalPull, goalReason, relDay } from './goals.js?v=4';
+import { goalPull, goalReason, relDay } from './goals.js?v=5';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
@@ -105,11 +105,11 @@ export function trainingStatus(rd){
   const pts = n + (n === 1 ? ' point' : ' points');
   const formTxt = 'Form ' + signed(rd.form);
   if (rd.days < 21 || rd.ctl < 5) return { key:'new', title:'Getting started',
-    text:'Keep riding for a few weeks and we\'ll tell you whether you\'re improving. Every ride adds to your Fitness.' };
+    text:'Keep training for a few weeks and we\'ll tell you whether you\'re improving. Every ride, run, swim and strength session adds to your Fitness.' };
   if (rd.rest) return { key:'rest', title:'Fatigued: time to rest',
     text:'Your recent training has built up more fatigue than your fitness can absorb (' + formTxt + (rd.why.length ? ', and ' + rd.why.join(' and ') : '') + '). A rest day now lets your body adapt, so you come back stronger.' };
-  if (rd.sinceLast != null && rd.sinceLast > 10) return { key:'break', title:'Time off the bike',
-    text:'It\'s been ' + rd.sinceLast + ' days since your last ride, so your Fitness is slipping. You\'re fresh: start back with a couple of steady rides.' };
+  if (rd.sinceLast != null && rd.sinceLast > 10) return { key:'break', title:'Time off',
+    text:'It\'s been ' + rd.sinceLast + ' days since you last trained, so your Fitness is slipping. You\'re fresh: start back with a couple of steady sessions.' };
   if (rd.trend >= 2){
     const tail = rd.ramp > 7 ? ' That\'s a fast climb, so keep your easy days easy.'
       : rd.form < -10 ? ' You\'re carrying some fatigue, which is normal while you build.'
@@ -117,9 +117,9 @@ export function trainingStatus(rd){
     return { key:'improving', title:'Improving', text:'Your Fitness is up ' + pts + ' over the last two weeks.' + tail };
   }
   if (rd.trend <= -2) return { key:'declining', title:'Losing a little fitness',
-    text:'Your Fitness is down ' + pts + ' over the last two weeks' + (rd.form > 5 ? ', but you\'re fresh: a good time for a hard session or an FTP test.' : '. A little more riding each week will turn it around.') };
+    text:'Your Fitness is down ' + pts + ' over the last two weeks' + (rd.form > 5 ? ', but you\'re fresh: a good time for a hard session or an FTP test.' : '. A little more training each week will turn it around.') };
   return { key:'maintaining', title:'Maintaining',
-    text:'Your Fitness is steady over the last two weeks' + (rd.form < -10 ? ', and you\'re a bit tired.' : '.') + ' To keep improving, add a little more riding each week.' };
+    text:'Your Fitness is steady over the last two weeks' + (rd.form < -10 ? ', and you\'re a bit tired.' : '.') + ' To keep improving, add a little more training each week.' };
 }
 
 // The time picked on Today is for today only: tomorrow goes back to the recommended length.

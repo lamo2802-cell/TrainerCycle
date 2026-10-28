@@ -263,6 +263,13 @@ export function goalsCardHtml(goals, statuses, esc, { onPlan = false, progress =
   return rows ? '<div class="goal-rows">'+rows+'</div>'+(add ? '<div class="goal-add">'+add+'</div>' : '')
     : '<p class="goal-empty">Set a goal and your suggested rides and runs work towards it: a race time, an FTP, or a long ride.</p><div class="goal-add">'+add+'</div>';
 }
+// A goal as one compact chip ("10K in 43:00 · Behind") for Today's status line; the full card lives on
+// Progress → Fitness & form. p: goalProgress() for its pace against the target line.
+export function goalChipHtml(sport, g, st, p, esc){
+  const pace = p && p.pace && st.state !== 'there' ? p.pace : null;
+  const k = pace === 'ahead' ? 'on-track' : pace === 'behind' ? 'stretch' : st.state;
+  return '<a class="st-chip s-'+k+'" href="rides.html?view=fitness#goals"><span>'+esc(goalLabel(sport, g))+'</span> · '+(pace === 'behind' ? 'Behind' : STATE_WORD[k])+'</a>';
+}
 export const GOALS_CSS = `
 .goal-rows{ display:flex; flex-direction:column; gap:2px; }
 .goal-row{ display:grid; grid-template-columns:44px 1fr auto; gap:10px; align-items:start; padding:10px 0; border-top:1px solid var(--line, #2A323D); cursor:pointer; }
