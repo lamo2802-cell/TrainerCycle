@@ -592,8 +592,9 @@ html select option{ background:#1D242D; color:#E7ECF2; }
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription, isSubscriptionActive, checkBluetoothSupport } from './auth.js?v=19';
 import { notify, ask, showSheet } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, rideZone, loadFeel, loadLength } from './suggest.js?v=6';
+import { suggestRide, rideZone, loadFeel, loadLength } from './suggest.js?v=7';
 import { loadGoals, guidesFor } from './goals.js?v=1';
+import { focusPoints, focusWeights } from './focus.js?v=1';
 import { powerBests } from './ftp-estimate.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso, addDays, isoDate } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
@@ -2196,8 +2197,9 @@ const supabase = createSupabaseClient();
   async function preselectSuggestion(){
     const today = todayIso();
     if (!riderLevels || !riderRides.length || riderRides.some(r => isoDate(new Date(r.started_at)) === today)) return;
+    const guides = guidesFor({ goals: riderGoals, rides: riderRides, byRide: riderByRide, today, rideZone });
     const res = suggestRide({ rides: riderRides, byRide: riderByRide, levels: riderLevels, library: library.filter(w => w.steps), ftp, today, maxMin: loadLength(today) || 'auto', feel: loadFeel(today), restDay: !!activePlan,
-      goal: guidesFor({ goals: riderGoals, rides: riderRides, byRide: riderByRide, today, rideZone }).ride });
+      goal: guides.ride, focus: focusWeights(focusPoints({ rides: riderRides, byRide: riderByRide, levels: riderLevels, guides, rideZone, today }), 'ride') });
     const id = res && res.picks[0].w.id;
     if (!id || document.getElementById('workoutSelect').value !== '') return;
     preselectedSuggestion = id; preselectedRest = !!res.rest;

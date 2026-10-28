@@ -318,6 +318,9 @@
   .rest-note{ font-size:13px; line-height:1.45; margin-top:8px; color:var(--s-fatigue); }
   .sg-rest-note{ font-size:14px; line-height:1.5; margin:2px 0 14px; padding:10px 12px; border-radius:9px; background:color-mix(in srgb, var(--s-fatigue, #E5484D) 12%, transparent); border:1px solid color-mix(in srgb, var(--s-fatigue, #E5484D) 35%, var(--line)); max-width:620px; }
   .sg-pick{ font-size:13.5px; font-weight:600; color:var(--accent); margin:-2px 0 10px; }
+  .goal-focus{ display:grid; grid-template-columns:44px 1fr; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; color:var(--text-dim); line-height:1.45; }
+  .goal-focus > span{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding-top:1px; }
+  .goal-focus b{ color:var(--text); font-weight:600; } .goal-focus a{ color:var(--accent); text-decoration:none; white-space:nowrap; }
   .goal-hint{ text-transform:none; letter-spacing:0; font-size:12px; }
   .sg-why{ font-size:13.5px; color:var(--text-dim); line-height:1.45; margin-top:8px; max-width:620px; }
   .hero-more{ display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; }
@@ -478,8 +481,9 @@ import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
+import { focusPoints, focusWeights } from './focus.js?v=1';
 import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=1';
-import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=6';
+import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=7';
 import { computeRunLevels, RUN_LEVEL_ZONES, runZoneInfo } from './run-levels.js?v=1';
 const supabase = createSupabaseClient();
 
@@ -554,12 +558,12 @@ const supabase = createSupabaseClient();
 
     const today = todayIso();
     let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
-    let whatsNewSeen = null, runTryDismissed = false, goals = { run:null, ride:null };
+    let whatsNewSeen = null, runTryDismissed = false, goals = { run:null, ride:null }, ftpSetAt = null;
     let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null;
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
       const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes, hol, rpRes, dy, gl] = await Promise.all([
-        supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+        supabase.from('settings').select('value,updated_at').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
         loadFollowState(supabase, user.id),
         supabase.from('workouts').select('id,name,category,steps,duration_sec'),
         supabase.from('strength_workouts').select('id,name,exercises'),
@@ -583,7 +587,7 @@ const supabase = createSupabaseClient();
       gsDismissed = !!(gsRes && gsRes.data);
       stravaOn = !!(stravaRes && stravaRes.data);
       if (dRes && dRes.data && dRes.data.value && typeof dRes.data.value.v === 'number') ftpDismissed = dRes.data.value.v;
-      if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number') ftp = ftpRes.data.value.v;
+      if (ftpRes.data && ftpRes.data.value && typeof ftpRes.data.value.v === 'number'){ ftp = ftpRes.data.value.v; ftpSetAt = ftpRes.data.updated_at || null; }
       follow = st;
       (wRes.data||[]).forEach(w=>{ workouts[w.id] = w; });
       (sRes.data||[]).forEach(w=>{ workouts[w.id] = { name:w.name, category:'strength', exercises:w.exercises }; });
@@ -607,6 +611,8 @@ const supabase = createSupabaseClient();
     const { levels: runLevels, byRun, runs: runList } = computeRunLevels(rides);
     // Goals steer the suggested ride and run (goals.js), and with both set, which of the two to do.
     const guides = guidesFor({ goals, rides, byRide, byRun, today, runPace, rideZone });
+    // What recent training is missing (focus.js): shown with the goals, and nudging the suggestions too.
+    const focus = focusPoints({ rides, byRide, levels, byRun, runLevels, guides, rideZone, ftpSetAt, today });
     const ridesByDate = new Map();
     rides.forEach(r=>{ const d = isoDate(new Date(r.started_at)); if (!ridesByDate.has(d)) ridesByDate.set(d, []); ridesByDate.get(d).push(r); });
     const sessions = plan ? planSessions(plan, follow.startedAt, follow.moves).map(s=>{
@@ -683,7 +689,7 @@ const supabase = createSupabaseClient();
           return;
         }
         if (sport === 'run') return drawRun();
-        const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay, goal: guides.ride });
+        const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride') });
         if (!res){ box.remove(); return; }
         const c = res.picks[pick % res.picks.length];
         const why = pick % res.picks.length === 0 ? (res.rest ? '' : res.reason)
@@ -698,7 +704,7 @@ const supabase = createSupabaseClient();
       // The suggested run: name, length, level and the session written out, then log it once it's done.
       let runCur = null;
       function drawRun(){
-        const res = suggestRun({ rides, runLevels, byRun, today, maxMin: runMin, feel, restDay, goal: guides.run });
+        const res = suggestRun({ rides, runLevels, byRun, today, maxMin: runMin, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run') });
         if (!res){ sport = 'ride'; return draw(); }
         const c = res.picks[pick % res.picks.length];
         runCur = c;
@@ -941,7 +947,9 @@ const supabase = createSupabaseClient();
     if (goals.run || goals.ride || (!plan && rides.length)){
       const statuses = { run: goals.run ? runGoalStatus(goals.run, runPace) : null, ride: goals.ride ? rideGoalStatus(goals.ride, { ftp, estFtp: est && est.ftp, rides }) : null };
       html += '<div class="t-panel goals-card"><div class="t-label"><span>Your goals</span>'+(goals.run || goals.ride ? '<span class="goal-hint">Tap one to change it</span>' : '')+'</div>'
-        + goalsCardHtml(goals, statuses, esc)+'</div>';
+        + goalsCardHtml(goals, statuses, esc)
+        + (focus.length ? '<div class="goal-focus"><span>Focus</span><div><b>'+esc(focus[0].title)+'.</b> '+esc(focus[0].text)
+          + (focus.length > 1 ? ' <a href="rides.html?view=fitness">'+(focus.length - 1)+' more →</a>' : '')+'</div></div>' : '')+'</div>';
     }
     const weekIdx = plan && follow.startedAt ? Math.floor(daysBetween(planStart(follow.startedAt), today) / 7) : -1;
     const note = weekIdx >= 0 ? planWeekNote(plan, weekIdx) : null;

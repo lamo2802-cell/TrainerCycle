@@ -361,6 +361,7 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { notify, ask } from './sheet.js?v=3';
 import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS, loadBodyLog, logBodyWeight } from './strength-kit.js?v=6';
 import { openRunLog, fmtPace, fmtKm, syncStrava, RUN_PACE_KEY } from './run.js?v=8';
+import { focusPoints, focusWeights, focusListHtml, ensureFocusCss } from './focus.js?v=1';
 import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=1';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
@@ -372,7 +373,7 @@ import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
-import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=6';
+import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=7';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
@@ -723,7 +724,7 @@ const supabase = createSupabaseClient();
     const [aRes, fRes, wRes, tRes, pRes, goals] = await Promise.all([
       supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,intensity_factor,np,plan_id,category,source,completed,workout_name,workout_id,feel')
         .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
-      supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+      supabase.from('settings').select('value,updated_at').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
       supabase.from('workouts').select('id,name,category,steps,duration_sec'),
       supabase.from('settings').select('value').eq('key', RUN_TRY_KEY).eq('user_id', user.id).maybeSingle(),
       supabase.from('settings').select('value').eq('key', RUN_PACE_KEY).eq('user_id', user.id).maybeSingle(),
@@ -734,7 +735,8 @@ const supabase = createSupabaseClient();
     let planned = [];
     try { planned = await loadPlanned(supabase, user.id, acts); } catch(_){}
     trainHist = { acts, planned, library: (wRes.data || []).filter(w => w.steps), ftp: (fRes.data && fRes.data.value && Number(fRes.data.value.v)) || null,
-      runTryDismissed: !!(tRes && tRes.data), runPace: (pRes && pRes.data && pRes.data.value && Number(pRes.data.value.v)) || null, goals };
+      runTryDismissed: !!(tRes && tRes.data), runPace: (pRes && pRes.data && pRes.data.value && Number(pRes.data.value.v)) || null, goals,
+      ftpSetAt: (fRes.data && fRes.data.updated_at) || null };
     return trainHist;
   }
   async function showHub(view){
@@ -779,10 +781,11 @@ const supabase = createSupabaseClient();
     const sportPick = (guides.ride || guides.run) && (runs.length || guides.run)
       ? pickSport({ rideGuide: guides.ride, runGuide: guides.run, rides: h.acts, byRun, band: rd.band, beginner: isNewRunner(runLevels), today: day }) : null;
     const runFirst = !!(sportPick && sportPick.sport === 'run');
+    const focus = focusPoints({ rides: h.acts, byRide, levels, byRun, runLevels, guides, rideZone, ftpSetAt: h.ftpSetAt, today: day });
     // The run we'd do instead, under the ride: for runners, and as a first walk/run for anyone who hasn't.
     function runRec(){
       if (!runs.length && h.runTryDismissed) return '';
-      const res = suggestRun({ rides: h.acts, runLevels, byRun, today: day, feel, restDay, goal: guides.run });
+      const res = suggestRun({ rides: h.acts, runLevels, byRun, today: day, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run') });
       if (!res || res.rest) return '';
       const c = res.picks[runPick % res.picks.length], z = runZoneInfo(c.zone);
       return '<div class="'+(runFirst ? 'rd-run-first' : 'rd-run')+'"><div class="rd-kicker">'+(runFirst ? 'Recommended run'+(rodeToday ? ' for tomorrow' : ' for today') : runs.length ? 'Rather run?' : 'Would you like to try running?')+'</div>'
@@ -801,7 +804,7 @@ const supabase = createSupabaseClient();
           + (rd.rest ? ' Your form says rest: skip it or choose an easier workout.' : rd.band <= 1 ? ' You\'re a bit tired, so it\'s fine to choose an easier workout.' : '')+'</div>'
           + '<div class="rd-actions"><a class="btn-link primary" href="index.html">'+(rodeToday ? 'See Today' : 'Go to today\'s session')+'</a></div>';
       } else if (bike.length || h.acts.length){
-        const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay, goal: guides.ride });
+        const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride') });
         if (res){
           const c = res.picks[pick % res.picks.length];
           const z = zoneInfo(c.zone), tss = plannedTss(c.w.steps, ftpW);
@@ -820,9 +823,10 @@ const supabase = createSupabaseClient();
         ride: h.goals.ride ? rideGoalStatus(h.goals.ride, { ftp: h.ftp, estFtp: (estimateFtp(h.acts) || {}).ftp, rides: h.acts }) : null };
       el.innerHTML = '<div class="panel rd-card rd-'+st.key+'"><div class="rd-status"><span class="rd-dot" aria-hidden="true"></span><div><div class="rd-title">'+escapeHtml(st.title)+'</div><div class="rd-text">'+escapeHtml(st.text)+'</div></div></div>'
         + '<div class="rd-goals"><div class="rd-kicker">Your goals</div>'+goalsCardHtml(h.goals, statuses, escapeHtml)+'</div>'
+        + (focus.length ? '<div class="rd-goals"><div class="rd-kicker">Your focus</div>'+focusListHtml(focus, escapeHtml)+'</div>' : '')
         + (rec ? '<div class="rd-rec">'+rec+'</div>' : '') + '</div>';
     }
-    ensureGoalsCss();
+    ensureGoalsCss(); ensureFocusCss();
     el.addEventListener('click', async e => {
       const ge = e.target.closest('[data-goal-edit]');
       if (ge){
