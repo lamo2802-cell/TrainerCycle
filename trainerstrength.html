@@ -8,6 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TrainerCycle — TrainerStrength</title>
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
+<script>/* TVs (Fire TV's Silk, Android TV, smart TV browsers) get the from-the-sofa layout. ?tv=1 or ?tv=0 forces it either way and is remembered. */(function(){var f=null;try{var m=/[?&]tv=([01])/.exec(location.search);if(m){f=m[1];localStorage.setItem('tc_tv',f);}else f=localStorage.getItem('tc_tv');}catch(e){}if(f==='1'||(f!=='0'&&/AFT[A-Z0-9]|Android TV|GoogleTV|SMART-TV|SmartTV|Tizen|Web0S|webOS|BRAVIA|HbbTV|CrKey/i.test(navigator.userAgent)))document.documentElement.classList.add('tv');})();</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#10141A">
@@ -264,6 +265,62 @@
     .sstrip-meta{ font-size:clamp(13px, 1.6vh, 38px); }
     .controls button{ font-size:clamp(16px, 2vh, 46px); padding:1.6vh 14px; }
   }
+
+  /* TV (html.tv): read from across the room and worked with a remote's cursor. Sizes follow the
+     screen height, whatever size the TV's browser says it is (Silk on a 1080p Fire TV reports
+     960x540). During a session the set sits on the left and what you tap on the right, so
+     nothing needs scrolling. */
+  html.tv .main{ max-width:none; padding-left:4vw; padding-right:4vw; }
+  html.tv body.focus .main{ padding-top:3vh; padding-bottom:2vh; }
+  html.tv .sstrip{ margin-bottom:2.4vh; }
+  html.tv .sstrip-bars{ gap:.8vh; }
+  html.tv .sstrip-bars i{ height:1.4vh; }
+  html.tv .sstrip-meta{ font-size:3.2vh; margin-top:1.2vh; }
+  html.tv .focus-exit{ width:7vh; height:7vh; font-size:3.6vh; margin-top:0; }
+  html.tv .stage{ padding:2.4vh 3vw; margin-bottom:2vh; }
+  html.tv .stage-name{ font-size:7.4vh; line-height:1.1; margin-bottom:1vh; }
+  html.tv .stage-target{ font-size:3.8vh; }
+  html.tv .set-dots{ font-size:3.2vh; gap:1vh; margin-bottom:1.4vh; }
+  html.tv .set-dots i{ width:2.2vh; height:2.2vh; border-width:.3vh; }
+  html.tv .big-target{ font-size:11vh; }
+  html.tv body.focus .big-target small{ display:block; font-size:.42em; margin-top:.4vh; }
+  html.tv .stage-notes, html.tv .log-tip, html.tv .log-why, html.tv .log-last{ font-size:2.8vh; }
+  html.tv .log-last{ padding:1.4vh 1.8vh; margin-bottom:1.2vh; }
+  html.tv .log-warm{ padding:1vh 1.8vh; margin-bottom:1.2vh; }
+  html.tv .log-form{ max-width:none; }
+  html.tv .log-warm, html.tv .log-warm .lw-r, html.tv .log-warm.inline{ font-size:2.8vh; }
+  html.tv .log-warm .lw-t, html.tv .rir-q{ font-size:2.4vh; }
+  html.tv .log-hint{ display:none; }
+  html.tv .log-grid{ grid-template-columns:repeat(auto-fit, minmax(min(100%, 36vh), 1fr)); gap:1.4vh; margin-bottom:1.2vh; }
+  html.tv .stepper{ padding:1vh; border-radius:1.6vh; }
+  html.tv .stage-action .stepper button{ width:8vh; height:8vh; font-size:5vh; border-radius:1.4vh; }
+  html.tv .stepper .sv b{ font-size:5vh; white-space:nowrap; }
+  html.tv .stepper .sv span{ font-size:2.2vh; }
+  html.tv .rir{ gap:1.2vh; margin-bottom:0; }
+  html.tv .stage-action .rir button{ font-size:4.4vh; padding:1.6vh 0; border-radius:1.4vh; }
+  html.tv .rest-ring{ width:min(40vh, 36vw); margin:2vh 0 0; }
+  html.tv .rest-ring .stage-rest-count{ font-size:11vh; }
+  html.tv .up-next{ max-width:none; padding:2.4vh 3vh; border-radius:2vh; gap:.6vh; }
+  html.tv .up-next .pill{ font-size:2.4vh; padding:.6vh 1.6vh; }
+  html.tv .up-next .un-t{ font-size:4.4vh; }
+  html.tv .up-next .un-v{ font-size:7vh; }
+  html.tv .up-next .un-v small, html.tv .up-next .un-w{ font-size:3vh; }
+  html.tv .next-step{ font-size:3vh; }
+  html.tv .controls{ gap:2vh; padding-top:2vh; }
+  html.tv .controls button{ font-size:4.4vh; padding:2.6vh 2vw; border-radius:1.6vh; }
+  html.tv .controls .live-bar{ gap:2vh; }
+  html.tv .controls .live-bar .more-btn{ flex-basis:14vh; font-size:5vh; }
+  html.tv button:focus-visible{ outline:.6vh solid var(--text); outline-offset:.4vh; }
+  html.tv body.focus .stage{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); grid-template-rows:repeat(4, auto);
+    column-gap:4vw; align-content:center; align-items:center; text-align:left; }
+  html.tv body.focus .stage > *{ grid-column:1; margin-left:0; margin-right:0; }
+  html.tv body.focus .positions-row{ grid-row:1; justify-content:flex-start; }
+  html.tv body.focus .stage-name{ grid-row:2; }
+  html.tv body.focus .stage-target{ grid-row:3; }
+  html.tv body.focus .set-dots{ justify-content:flex-start; }
+  html.tv body.focus .rest-ring{ grid-row:4; justify-self:start; }
+  html.tv body.focus .stage-notes, html.tv body.focus .stage-action{ grid-column:2; grid-row:1 / 5; margin:0; }
+  html.tv body.focus .stage-notes:empty, html.tv body.focus .stage-action:empty{ display:none; }
 
   .celebrate-overlay{ position:fixed; inset:0; background:rgba(16,20,26,0.94); z-index:200; display:flex; align-items:center; justify-content:center; }
   .celebrate-overlay canvas{ position:absolute; inset:0; width:100%; height:100%; }
@@ -1012,7 +1069,7 @@ const supabase = createSupabaseClient();
     document.querySelector('.controls').classList.toggle('live', !!entry);
     if (key === barKey) return;
     barKey = key;
-    const bar = document.getElementById('liveBar');
+    const bar = document.getElementById('liveBar'), hadFocus = bar.contains(document.activeElement);
     if (!entry){ bar.innerHTML = ''; return; }
     bar.innerHTML = entry.type === 'work'
       ? '<button class="primary" id="setCompleteBtn">Log set ✓</button><button class="more-btn" id="moreBtn" aria-label="More: swap, skip, pause or stop">⋯</button>'
@@ -1022,7 +1079,25 @@ const supabase = createSupabaseClient();
     on('skipRestBtn', () => { if (flat[idx] && flat[idx].type === 'rest') advance(); });
     on('addRestBtn', () => { restEndsAt += 30000; restRemaining += 30; restTotal += 30; lastBeep = null; renderStage(); saveLive(); });
     on('moreBtn', moreMenu);
+    // A remote or keyboard user keeps their place when the bar changes between set and rest.
+    if (hadFocus) bar.querySelector('button').focus();
   }
+  // TV remotes: Play/Pause does the main button (Log set, or Skip rest), and Back opens the ⋯ menu
+  // during a session instead of leaving the page.
+  document.addEventListener('keydown', e => {
+    if (!running || !['MediaPlayPause','MediaPlay','MediaPause'].includes(e.key) && e.keyCode !== 179) return;
+    e.preventDefault();
+    const b = document.querySelector('#liveBar button');
+    if (b) b.click();
+  });
+  const tvMode = document.documentElement.classList.contains('tv');
+  function holdBack(){ if (tvMode && !(window.history.state && window.history.state.tcSession)) window.history.pushState({ tcSession:true }, ''); }
+  function releaseBack(){ if (tvMode && window.history.state && window.history.state.tcSession) window.history.back(); }
+  window.addEventListener('popstate', () => {
+    if (!tvMode || !flat[idx] || !document.querySelector('.live-layout').classList.contains('session-active')) return;
+    window.history.pushState({ tcSession:true }, '');
+    moreMenu();
+  });
   async function moreMenu(){
     const entry = flat[idx]; if (!entry) return;
     const buttons = entry.type === 'work' ? [{ label:'Swap exercise', value:'swap' }, { label:'Skip exercise', value:'skip' }] : [];
@@ -1159,6 +1234,7 @@ const supabase = createSupabaseClient();
     document.querySelector('.live-layout').classList.add('session-active'); setFocus(true);
     renderBar();
     requestWakeLock();
+    holdBack();
   });
   document.getElementById('pauseBtn').addEventListener('click', ()=>{
     running = false;
@@ -1175,6 +1251,7 @@ const supabase = createSupabaseClient();
     clearInterval(tickHandle);
     releaseWakeLock();
     document.querySelector('.live-layout').classList.remove('session-active'); setFocus(false);
+    releaseBack();
     const finalElapsed = elapsedSec;
     const finalSets = totalSets;
     const setsDone = completed ? totalSets : completedSetsCount();
@@ -1402,6 +1479,7 @@ const supabase = createSupabaseClient();
     document.getElementById('workoutSelect').disabled = true; updateBuildButtons();
     document.querySelector('.live-layout').classList.add('session-active'); setFocus(true);
     renderStage(true);
+    holdBack();
     return true;
   }
 
