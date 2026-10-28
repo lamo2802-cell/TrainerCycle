@@ -4,7 +4,8 @@
 // which zone from how long since each was ridden and how far behind the rider's level is there, and
 // which workout from how close its level is to the target. Nothing is ever generated: when no workout
 // is that close, the nearest length is offered and the reason says so.
-// The chosen length lives in settings key suggest_max_min; "how I feel" is for today only (localStorage).
+// The length defaults to the recommended one (recommendedLength()); a length the rider picks and "how I feel"
+// are for today only (localStorage). Settings key suggest_max_min is the old saved length, no longer read on Today.
 import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
@@ -16,7 +17,8 @@ const HARD = new Set(['sweet_spot', 'threshold', 'vo2max', 'anaerobic']);
 const OFFSET = [-10, 0.25, 1, 2];           // target level above the rider's, by band (very tired: as easy as it gets)
 const RECENT_DAYS = 10;                       // don't suggest a workout ridden this recently
 const GAP_CAP = 21;
-const CLOSE_SEC = 5 * 60;                   // within 5 minutes of the time picked counts as a match
+const CLOSE_SEC = 5 * 60;
+const REST_FORM = -18;                      // Form at or below this, with nothing else saying go, means rest                   // within 5 minutes of the time picked counts as a match
 
 export function durationOf(w){
   if (w.duration_sec) return w.duration_sec;
@@ -37,25 +39,19 @@ const dayOf = r => isoDate(new Date(r.started_at));
 const zoneName = z => zoneInfo(z).name.toLowerCase().replace('vo2 max', 'VO2');
 const signed = n => (n > 0 ? '+' : '') + n;
 
-// rides: completed_rides (all sports), oldest first or not. byRide/levels: from computeLevels().
-// library: workouts with steps. restDay: the plan has nothing today (keep it easy). feel: 'tired' | 'fresh' | null.
-// Returns null when there's no history to go on or nothing in the library, else
-// { picks:[{ w, zone, level, durationSec, over }], band, form, reason }; picks[0] is the suggestion.
-export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = DEFAULT_MAX, feel = null, restDay = false }){
-  if (!library || !library.length) return null;
-  const maxSec = maxMin * 60;
-
-  // 1. How hard today can be.
+// How ready the rider is going into `today`: Form and its trend, plus the band of how hard today can be
+// (0 = very easy, 1 = easy, 2 = normal, 3 = fresh) and whether to rest. Today's own rides aren't counted, so a ride this morning
+// doesn't change the advice. Shared by the suggested ride and the status on Progress → Fitness & form.
+export function readiness({ rides, byRide = {}, today, feel = null, restDay = false }){
   const daily = new Map();
-  // Form going into today: today's own rides aren't counted, so a ride this morning doesn't change the advice.
   rides.forEach(r => { const d = dayOf(r); if (r.tss != null && d < today) daily.set(d, (daily.get(d)||0) + r.tss); });
   const first = rides.reduce((m, r) => { const d = dayOf(r); return d < m ? d : m; }, today);
   const series = loadSeries(daily, first, today, today);
-  const now = series[series.length-1], weekAgo = series[Math.max(0, series.length-8)];
+  const now = series[series.length-1], weekAgo = series[Math.max(0, series.length-8)], twoWeeks = series[Math.max(0, series.length-15)];
   const form = Math.round(now.ctl - now.atl);
   const ramp = now.ctl - weekAgo.ctl;
   const yesterdayHard = rides.some(r => dayOf(r) === addDays(today, -1) && isHard(r, byRide));
-  const week = rides.filter(r => dayOf(r) > addDays(today, -7) && dayOf(r) <= today);
+  const week = rides.filter(r => dayOf(r) > addDays(today, -7) && dayOf(r) < today);
   const hardCount = week.filter(r => isHard(r, byRide)).length;
   let band = form < -25 ? 0 : form < -10 ? 1 : form <= 5 ? 2 : 3;
   const why = [];
@@ -65,13 +61,80 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   if (feel === 'fresh'){ band++; }
   if (restDay && band > 1){ band = 1; why.push('it\'s a rest day in your plan'); }
   band = Math.max(0, Math.min(3, band));
-  const tooManyHard = hardCount >= 3;
-
-  // 2. Which zone.
-  let zones = band === 0 ? ['endurance'] : band === 1 || tooManyHard ? ['endurance', 'tempo'] : LEVEL_ZONES.map(z => z.key);
+  // Rest is advised only when the fatigue is real: the easiest band and Form well below zero.
+  // A merely tired day (say Form -12 after a hard ride) gets an easy ride instead.
+  const rest = band === 0 && form <= REST_FORM;
   const lastIn = {};
   rides.forEach(r => { const z = rideZone(r, byRide); if (z && (!lastIn[z] || dayOf(r) > lastIn[z])) lastIn[z] = dayOf(r); });
   const gap = z => lastIn[z] ? Math.min(GAP_CAP, daysBetween(lastIn[z], today)) : GAP_CAP;
+  return { form, ctl: now.ctl, atl: now.atl, ramp, trend: now.ctl - twoWeeks.ctl, days: series.length,
+    band, rest, why, yesterdayHard, hardCount, lastIn, gap,
+    sinceLast: rides.length ? daysBetween(rides.reduce((m, r) => { const d = dayOf(r); return d > m && d < today ? d : m; }, first), today) : null };
+}
+
+// The length to ride when the rider hasn't picked one: what they usually ride (the middle of their last
+// four weeks of rides), a step shorter when tired and half an hour when rest is advised.
+export function recommendedLength(rides, band, today){
+  if (band === 0) return 30;   // a rest day, or close to one
+  const mins = rides.filter(r => (r.sport || 'ride') === 'ride' && r.duration_sec && dayOf(r) > addDays(today, -28) && dayOf(r) < today)
+    .map(r => r.duration_sec / 60).sort((a, b) => a - b);
+  const usual = mins.length ? mins[Math.floor(mins.length / 2)] : DEFAULT_MAX;
+  let i = MAX_CHOICES.reduce((best, m, j) => Math.abs(m - usual) < Math.abs(MAX_CHOICES[best] - usual) ? j : best, 0);
+  if (band === 1) i--;
+  return MAX_CHOICES[Math.max(0, Math.min(MAX_CHOICES.length - 2, i))];   // two hours only when asked for
+}
+
+// Plain-language read of where the rider is: { key, title, text }.
+// key: 'new' | 'rest' | 'improving' | 'maintaining' | 'declining' | 'break'.
+export function trainingStatus(rd){
+  const n = Math.round(Math.abs(rd.trend));
+  const pts = n + (n === 1 ? ' point' : ' points');
+  const formTxt = 'Form ' + signed(rd.form);
+  if (rd.days < 21 || rd.ctl < 5) return { key:'new', title:'Getting started',
+    text:'Keep riding for a few weeks and we\'ll tell you whether you\'re improving. Every ride adds to your Fitness.' };
+  if (rd.rest) return { key:'rest', title:'Fatigued: time to rest',
+    text:'Your recent training has built up more fatigue than your fitness can absorb (' + formTxt + (rd.why.length ? ', and ' + rd.why.join(' and ') : '') + '). A rest day now lets your body adapt, so you come back stronger.' };
+  if (rd.sinceLast != null && rd.sinceLast > 10) return { key:'break', title:'Time off the bike',
+    text:'It\'s been ' + rd.sinceLast + ' days since your last ride, so your Fitness is slipping. You\'re fresh: start back with a couple of steady rides.' };
+  if (rd.trend >= 2){
+    const tail = rd.ramp > 7 ? ' That\'s a fast climb, so keep your easy days easy.'
+      : rd.form < -10 ? ' You\'re carrying some fatigue, which is normal while you build.'
+      : rd.form > 5 ? ' You\'re fresh too, so you\'re ready for a hard session.' : '';
+    return { key:'improving', title:'Improving', text:'Your Fitness is up ' + pts + ' over the last two weeks.' + tail };
+  }
+  if (rd.trend <= -2) return { key:'declining', title:'Losing a little fitness',
+    text:'Your Fitness is down ' + pts + ' over the last two weeks' + (rd.form > 5 ? ', but you\'re fresh: a good time for a hard session or an FTP test.' : '. A little more riding each week will turn it around.') };
+  return { key:'maintaining', title:'Maintaining',
+    text:'Your Fitness is steady over the last two weeks' + (rd.form < -10 ? ', and you\'re a bit tired.' : '.') + ' To keep improving, add a little more riding each week.' };
+}
+
+// The time picked on Today is for today only: tomorrow goes back to the recommended length.
+export function loadLength(today){
+  try { const v = JSON.parse(localStorage.getItem('tc_suggest_len') || 'null'); return v && v.date === today ? v.v : null; } catch(_){ return null; }
+}
+export function saveLength(today, v){
+  try { localStorage.setItem('tc_suggest_len', JSON.stringify({ date: today, v })); } catch(_){}
+}
+
+// rides: completed_rides (all sports), oldest first or not. byRide/levels: from computeLevels().
+// library: workouts with steps. restDay: the plan has nothing today (keep it easy). feel: 'tired' | 'fresh' | null.
+// maxMin: minutes, or 'auto' for the recommended length (recommendedLength()).
+// Returns null when there's no history to go on or nothing in the library, else
+// { picks:[{ w, zone, level, durationSec, over }], band, form, reason, rest, maxMin, auto }; picks[0] is the suggestion.
+// rest: rest is advised and the picks are easy spins for riding anyway.
+export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false }){
+  if (!library || !library.length) return null;
+
+  // 1. How hard today can be, and how long.
+  const rd = readiness({ rides, byRide, today, feel, restDay });
+  const { form, band, rest, why, lastIn, gap, hardCount } = rd;
+  const tooManyHard = hardCount >= 3;
+  const auto = !maxMin || maxMin === 'auto';
+  if (auto) maxMin = recommendedLength(rides, band, today);
+  const maxSec = maxMin * 60;
+
+  // 2. Which zone.
+  let zones = band === 0 ? ['endurance'] : band === 1 || tooManyHard ? ['endurance', 'tempo'] : LEVEL_ZONES.map(z => z.key);
   const lv = LEVEL_ZONES.map(z => levels[z.key] || 1), hi = Math.max(...lv), lo = Math.min(...lv);
   const zoneScore = z => gap(z) / GAP_CAP
     + 0.5 * (hi - (levels[z] || 1)) / ((hi - lo) || 1)
@@ -93,8 +156,9 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
     const target = Math.max(1, (levels[wl.zone] || 1) + OFFSET[band]);
     const off = Math.abs(d - maxSec);
     cands.push({ w, zone: wl.zone, level: wl.level, durationSec: d, off, over: off > CLOSE_SEC, recent: recent.has(w.id),
-      // a fresh day is for intervals: steady zones stay on offer, behind them
-      score: Math.abs(wl.level - target) + off / 600 + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0) });
+      // a fresh day is for intervals: steady zones stay on offer, behind them; a rest day is for a recovery spin
+      score: Math.abs(wl.level - target) + off / 600 + (recent.has(w.id) ? 2 : 0) - zoneScore(wl.zone) + (band === 3 && !HARD.has(wl.zone) ? 1 : 0)
+        + (rest && w.category !== 'recovery' ? 3 : 0) });
   }
   if (!cands.length) return null;
   // The time picked comes first: rides within 5 minutes of it, best first; then the nearest lengths.
@@ -118,8 +182,11 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
   // Name the ride by how hard it really is for the rider: the library may not have the exact level.
   const feelWord = difficultyLabel(top.level, levels[top.zone] || 1).label.toLowerCase().replace('recovery-ish', 'easy').replace('not recommended', 'big step up');
   let reason = list + ', so ' + (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + (top.w.category === 'recovery' ? 'recovery' : zoneName(top.zone)) + ' ride.';
+  // Rest first: the ride is only for riders who want to ride anyway.
+  if (rest) reason = 'Based on your recent fitness and form (' + list + '), we recommend a rest day. If you\'d still like to ride, keep it light: an easy spin that won\'t add to your fatigue.';
+  else if (auto) reason += band === 0 ? ' Kept to ' + maxMin + ' min so you recover.' : ' ' + maxMin + ' min suits your recent riding' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
   if (top.over) reason += ' ' + nearestNote(maxMin, top.durationSec);
-  return { picks: picks.slice(0, 6), band, form, reason };
+  return { picks: picks.slice(0, 6), band, form, reason, rest, maxMin, auto };
 }
 
 // The line added when no ride is within 5 minutes of the time picked.

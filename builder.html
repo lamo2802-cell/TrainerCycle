@@ -361,7 +361,7 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, loadFeel } from './suggest.js?v=3';
+import { suggestRide, loadFeel } from './suggest.js?v=4';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
@@ -429,7 +429,7 @@ const supabase = createSupabaseClient();
     }
     // Rider's progression levels, from ride history (used to label each workout Achievable, Productive…)
     try {
-      const { data } = await supabase.from('completed_rides').select('id,started_at,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss').eq('user_id', user.id);
+      const { data } = await supabase.from('completed_rides').select('id,started_at,duration_sec,completed,workout_id,workout_name,feel,np,intensity_factor,sport,source,tss').eq('user_id', user.id);
       const byId = {}, byName = {};
       library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
       riderRides = data || [];
@@ -641,7 +641,7 @@ const supabase = createSupabaseClient();
     const c = res.picks[0], stats = computeStats(c.w.steps), d = fmtLong(stats.totalDur);
     box.innerHTML = '<div class="sg-card fit-card" data-preview="'+c.w.id+'">'
       + profileSVG(c.w.steps, 'fit-chart')
-      + '<div class="fit-body"><div class="sg-kicker">Suggested for today</div>'
+      + '<div class="fit-body"><div class="sg-kicker">'+(res.rest ? 'Rest day recommended · if you ride, keep it light' : 'Suggested for today')+'</div>'
       + '<div><div class="fit-name">'+escapeHtml(c.w.name)+'</div><div class="fit-meta">'+catDot(c.w.category)+categoryLabel(c.w.category)+(levelChip(c.w) ? ' '+levelChip(c.w) : '')+'</div></div>'
       + '<div class="sg-why">'+escapeHtml(res.reason)+'</div>'
       + '<div class="fit-stats"><div><span class="big">'+d.big+'</span><span class="u">'+d.unit+'</span></div>'

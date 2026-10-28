@@ -185,6 +185,25 @@
   .feel-card{ padding:14px 16px; }
   .feel-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px 16px; flex-wrap:wrap; margin-bottom:12px; }
   .feel-wl{ font-size:13px; color:var(--text-dim); }
+  .rd-card{ padding:16px 18px; margin-bottom:14px; --rd:var(--accent); }
+  .rd-card.rd-rest{ --rd:var(--s-fatigue); } .rd-card.rd-declining, .rd-card.rd-break{ --rd:#E8B93D; } .rd-card.rd-maintaining{ --rd:var(--s-form); } .rd-card.rd-new{ --rd:var(--text-dim); }
+  .rd-card{ border-color:color-mix(in srgb, var(--rd) 45%, var(--line)); }
+  .rd-status{ display:flex; gap:12px; align-items:flex-start; }
+  .rd-dot{ width:12px; height:12px; border-radius:50%; background:var(--rd); margin-top:6px; flex-shrink:0; box-shadow:0 0 0 4px color-mix(in srgb, var(--rd) 22%, transparent); }
+  .rd-title{ font-size:19px; font-weight:700; }
+  .rd-text{ font-size:14px; color:var(--text-dim); line-height:1.5; margin-top:2px; max-width:680px; }
+  .rd-rec{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .rd-kicker{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  .rd-rest .rd-kicker{ color:var(--rd); }
+  .rd-why, .rd-plan{ font-size:14px; line-height:1.5; margin-top:4px; max-width:680px; }
+  .rd-why{ color:var(--text-dim); }
+  .rd-ride{ margin-top:10px; }
+  .rd-name{ font-size:16px; font-weight:600; }
+  .rd-meta{ display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px; color:var(--text-dim); margin-top:4px; }
+  .rd-meta b{ font-family:var(--mono); color:var(--text); }
+  .rd-actions{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .rd-actions button, .rd-actions .btn-link{ width:auto; margin:0; min-height:38px; display:inline-flex; align-items:center; padding:7px 14px; border-radius:6px; font-size:13px; text-decoration:none; background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+  .rd-actions .btn-link.primary{ background:var(--accent); color:#08211E; border-color:var(--accent); font-weight:600; }
   .lvl-chip{ display:inline-block; font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--text); padding:2px 8px; border-radius:6px;
     background:color-mix(in srgb, var(--zc) 18%, transparent); border:1px solid color-mix(in srgb, var(--zc) 55%, transparent); }
   .feel-result{ font-size:14px; }
@@ -346,7 +365,9 @@ import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
-import { computeLevels, workoutLevel, zoneInfo, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
+import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
+import { readiness, trainingStatus, suggestRide, loadFeel, loadLength } from './suggest.js?v=4';
+import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
 { const st = document.createElement('style'); st.textContent = ROUTE_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
@@ -692,16 +713,17 @@ const supabase = createSupabaseClient();
   async function loadHistory(){
     if (trainHist) return trainHist;
     const since = new Date(Date.now() - 400*86400000).toISOString();
-    const [aRes, fRes] = await Promise.all([
-      supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,intensity_factor,np,plan_id,category,source,completed,workout_name')
+    const [aRes, fRes, wRes] = await Promise.all([
+      supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,intensity_factor,np,plan_id,category,source,completed,workout_name,workout_id,feel')
         .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
       supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
+      supabase.from('workouts').select('id,name,category,steps,duration_sec'),
     ]);
     if (aRes.error) throw aRes.error;
     const acts = aRes.data || [];
     let planned = [];
     try { planned = await loadPlanned(supabase, user.id, acts); } catch(_){}
-    trainHist = { acts, planned, ftp: (fRes.data && fRes.data.value && Number(fRes.data.value.v)) || null };
+    trainHist = { acts, planned, library: (wRes.data || []).filter(w => w.steps), ftp: (fRes.data && fRes.data.value && Number(fRes.data.value.v)) || null };
     return trainHist;
   }
   async function showHub(view){
@@ -721,8 +743,50 @@ const supabase = createSupabaseClient();
     try { h = await loadHistory(); }
     catch(e){ hub.innerHTML = '<div class="empty-note">Couldn\'t load your training. Check your connection and refresh.</div>'; return; }
     if (new URLSearchParams(location.search).get('view') !== view) return; // moved on while loading
-    if (view === 'fitness'){ hub.innerHTML = '<div id="fitRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); }
+    if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h); }
     else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); }
+  }
+  // ---- Fitness & form: where you are in plain words, and the ride we'd do next ----
+  function renderReady(el, h){
+    const now = todayIso();
+    const rodeToday = h.acts.some(r => isoDate(new Date(r.started_at)) === now && r.sport !== 'strength');
+    const day = rodeToday ? addDays(now, 1) : now;   // already trained today: what's next is tomorrow
+    const feel = rodeToday ? null : loadFeel(now);
+    const planned = (h.planned || []).filter(p => p.date === day && !p.skipped && p.sport !== 'race');
+    const restDay = !planned.length && (h.planned || []).some(p => p.date > day && !p.skipped);
+    const rd = readiness({ rides: h.acts, today: day, feel, restDay });
+    const st = trainingStatus(rd);
+    const ftpW = h.ftp || 200;
+    const bike = h.acts.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual');
+    const byId = {}, byName = {};
+    h.library.forEach(w => { byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
+    const { levels, byRide } = computeLevels(bike, r => byId[r.workout_id] || byName[r.workout_name] || null, ftpW);
+    let pick = 0;
+    function draw(){
+      let rec = '';
+      if (planned.some(p => !p.done)){
+        rec = '<div class="rd-kicker">'+(rodeToday ? 'Tomorrow' : 'Today')+'</div><div class="rd-plan">Your plan has a session '+(rodeToday ? 'tomorrow' : 'today')+'.'
+          + (rd.rest ? ' Your form says rest: skip it or choose an easier workout.' : rd.band <= 1 ? ' You\'re a bit tired, so it\'s fine to choose an easier workout.' : '')+'</div>'
+          + '<div class="rd-actions"><a class="btn-link primary" href="index.html">'+(rodeToday ? 'See Today' : 'Go to today\'s session')+'</a></div>';
+      } else if (bike.length || h.acts.length){
+        const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay });
+        if (res){
+          const c = res.picks[pick % res.picks.length];
+          const z = zoneInfo(c.zone), tss = plannedTss(c.w.steps, ftpW);
+          const why = pick % res.picks.length === 0 ? (res.rest ? 'If you\'d still like to ride, try something light:' : res.reason) : 'Another option'+(c.w.category === 'recovery' ? ': recovery.' : ': '+z.name.toLowerCase().replace('vo2 max','VO2')+'.');
+          rec = '<div class="rd-kicker">'+(res.rest ? 'Rest day recommended' : 'Recommended ride'+(rodeToday ? ' for tomorrow' : ' for today'))+'</div>'
+            + '<div class="rd-why">'+escapeHtml(why)+'</div>'
+            + '<div class="rd-ride"><div class="rd-name">'+escapeHtml(c.w.name)+'</div><div class="rd-meta"><span><b>'+Math.round(c.durationSec/60)+'</b> min</span>'+(tss ? '<span><b>'+tss+'</b> TSS</span>' : '')
+            + (c.w.category === 'recovery' ? '<span class="lvl-chip" style="--zc:'+z.color+'">Recovery</span>' : '<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+' · '+difficultyLabel(c.level, levels[c.zone] || 1).label+'</span>')+'</div></div>'
+            + '<div class="rd-actions"><a class="btn-link primary" href="live.html?load='+encodeURIComponent(c.w.id)+'">Ride it</a>'
+            + (res.picks.length > 1 ? '<button type="button" data-rd-next>Something else</button>' : '')+'<a class="btn-link" href="builder.html">All workouts</a></div>';
+        }
+      }
+      el.innerHTML = '<div class="panel rd-card rd-'+st.key+'"><div class="rd-status"><span class="rd-dot" aria-hidden="true"></span><div><div class="rd-title">'+escapeHtml(st.title)+'</div><div class="rd-text">'+escapeHtml(st.text)+'</div></div></div>'
+        + (rec ? '<div class="rd-rec">'+rec+'</div>' : '') + '</div>';
+    }
+    el.addEventListener('click', e => { if (e.target.closest('[data-rd-next]')){ pick++; draw(); } });
+    draw();
   }
   document.getElementById('pTabs').addEventListener('click', e=>{
     const a = e.target.closest('a[data-view]'); if (!a) return;
