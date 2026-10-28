@@ -306,6 +306,8 @@
   .sg-seg button:hover{ color:var(--text); }
   .sg-seg button.on{ background:var(--accent); color:#08211E; }
   @media (max-width:480px){ .sg-row > span{ display:none; } .sg-seg{ display:flex; flex-wrap:nowrap; flex:1; } .sg-seg button{ flex:1; padding:6px 4px; } }
+  .rest-note{ font-size:13px; line-height:1.45; margin-top:8px; color:var(--s-fatigue); }
+  .sg-rest-note{ font-size:14px; line-height:1.5; margin:2px 0 14px; padding:10px 12px; border-radius:9px; background:color-mix(in srgb, var(--s-fatigue, #E5484D) 12%, transparent); border:1px solid color-mix(in srgb, var(--s-fatigue, #E5484D) 35%, var(--line)); max-width:620px; }
   .sg-why{ font-size:13.5px; color:var(--text-dim); line-height:1.45; margin-top:8px; max-width:620px; }
   .hero-more{ display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:14px; }
   .hero-more .link-btn{ font-size:13.5px; padding:4px 0; }
@@ -460,7 +462,7 @@ import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
-import { suggestRide, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, DEFAULT_MAX, SUGGEST_MAX_KEY, loadFeel, saveFeel, saveMaxMin } from './suggest.js?v=3';
+import { suggestRide, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=4';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -535,7 +537,7 @@ const supabase = createSupabaseClient();
     const today = todayIso();
     let ftpDismissed = null, gsDismissed = false, stravaOn = false, adaptDismissed = [];
     let whatsNewSeen = null;
-    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null, maxMin = DEFAULT_MAX;
+    let ftp = null, follow, plan = null, doneDays = new Map(), rides = [], workouts = {}, holidays = [], diary = [], runPace = null, paceDismissed = null;
     try {
       const since = new Date(Date.now() - 400*86400000).toISOString();
       const [ftpRes, st, wRes, sRes, rRes, dRes, gsRes, stravaRes, adRes, hol, rpRes, dy] = await Promise.all([
@@ -550,12 +552,12 @@ const supabase = createSupabaseClient();
         supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(),
         supabase.from('settings').select('value').eq('key', DISMISSED_KEY).eq('user_id', user.id).maybeSingle(),
         loadHolidays(supabase, user.id),
-        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY, SUGGEST_MAX_KEY, WHATS_NEW_KEY]),
+        supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY, SWIM_CSS_KEY, WHATS_NEW_KEY]),
         loadDiary(supabase, user.id)
       ]);
       holidays = hol || [];
       diary = dy || [];
-      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else if (r.key === SUGGEST_MAX_KEY) maxMin = Number(r.value && r.value.v) || DEFAULT_MAX; else if (r.key === WHATS_NEW_KEY) whatsNewSeen = r.value && r.value.v; else paceDismissed = Number(r.value && r.value.v) || null; });
+      (rpRes && rpRes.data || []).forEach(r => { if (r.key === RUN_PACE_KEY) runPace = Number(r.value && r.value.v) || null; else if (r.key === SWIM_CSS_KEY) setSwimCss(r.value && r.value.v); else if (r.key === WHATS_NEW_KEY) whatsNewSeen = r.value && r.value.v; else paceDismissed = Number(r.value && r.value.v) || null; });
       setRunPace(runPace);
       if (adRes && adRes.data && adRes.data.value && Array.isArray(adRes.data.value.v)) adaptDismissed = adRes.data.value.v;
       gsDismissed = !!(gsRes && gsRes.data);
@@ -610,11 +612,13 @@ const supabase = createSupabaseClient();
     function mountSuggest(){
       const box = document.getElementById('suggestBox');
       if (!box) return;
-      let feel = loadFeel(today), pick = 0;
+      // The length is the recommended one unless the rider picks a time today.
+      let feel = loadFeel(today), pick = 0, maxMin = loadLength(today) || 'auto';
+      if (sgMode === 'shorter' && maxMin === 'auto') maxMin = MAX_CHOICES.filter(m => m*60 < (rideToday.durationSec || 0) - 60).pop() || MAX_CHOICES[0];
       const restDay = !!(plan && !todoToday && sessions.some(s => s.date > today && !s.skipped));
       const maxLabel = m => m < 60 ? m+'m' : Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '');
       const segs = () => '<div class="sg-opts"><div class="sg-row"><span>Time</span><div class="sg-seg" role="group" aria-label="How long to ride">'
-          + MAX_CHOICES.map(m => '<button data-sg-max="'+m+'" class="'+(m === maxMin ? 'on' : '')+'" aria-pressed="'+(m === maxMin)+'">'+maxLabel(m)+'</button>').join('')+'</div></div>'
+          + (sgMode === 'suggest' ? ['auto'] : []).concat(MAX_CHOICES).map(m => '<button data-sg-max="'+m+'" class="'+(m === maxMin ? 'on' : '')+'" aria-pressed="'+(m === maxMin)+'"'+(m === 'auto' ? ' title="The length we recommend from your recent riding and form"' : '')+'>'+(m === 'auto' ? 'Auto' : maxLabel(m))+'</button>').join('')+'</div></div>'
         + (sgMode === 'suggest' ? '<div class="sg-row"><span>Feeling</span><div class="sg-seg" role="group" aria-label="How you feel today">'
           + [['tired','Tired'],['','Normal'],['fresh','Fresh']].map(([k, t]) => '<button data-sg-feel="'+k+'" class="'+((feel || '') === k ? 'on' : '')+'" aria-pressed="'+((feel || '') === k)+'">'+t+'</button>').join('')+'</div></div>' : '')
         + '</div>';
@@ -643,15 +647,17 @@ const supabase = createSupabaseClient();
         const res = suggestRide({ rides, byRide, levels, library, ftp: ftpW, today, maxMin, feel, restDay });
         if (!res){ box.remove(); return; }
         const c = res.picks[pick % res.picks.length];
-        const why = pick % res.picks.length === 0 ? res.reason
-          : 'Another option: '+zoneInfo(c.zone).name.toLowerCase().replace('vo2 max', 'VO2')+'.'+(c.over ? ' '+nearestNote(maxMin, c.durationSec) : '');
-        box.innerHTML = '<div class="t-label"><span>'+(restDay ? 'Rest day · want to ride?' : 'Suggested ride')+'</span><a href="builder.html">Workouts →</a></div>' + segs()
+        const why = pick % res.picks.length === 0 ? (res.rest ? '' : res.reason)
+          : 'Another option: '+(c.w.category === 'recovery' ? 'recovery' : zoneInfo(c.zone).name.toLowerCase().replace('vo2 max', 'VO2'))+'.'+(c.over ? ' '+nearestNote(res.maxMin, c.durationSec) : '');
+        box.classList.toggle('sg-rest', !!res.rest);
+        box.innerHTML = '<div class="t-label"><span>'+(res.rest ? 'Rest day recommended' : restDay ? 'Rest day · want to ride?' : 'Suggested ride')+'</span><a href="builder.html">Workouts →</a></div>'
+          + (res.rest ? '<div class="sg-rest-note">'+esc(res.reason)+'</div>' : '') + segs()
           + workoutBlock(c, why, 'live.html?load='+encodeURIComponent(c.w.id));
       }
       box.addEventListener('click', async e => {
         const t = e.target.closest('[data-sg-max],[data-sg-feel],[data-sg-next]');
         if (!t) return;
-        if (t.dataset.sgMax){ maxMin = Number(t.dataset.sgMax); pick = 0; draw(); try { await saveMaxMin(supabase, user.id, maxMin); } catch(_){} }
+        if (t.dataset.sgMax){ maxMin = t.dataset.sgMax === 'auto' ? 'auto' : Number(t.dataset.sgMax); pick = 0; if (sgMode === 'suggest') saveLength(today, maxMin); draw(); }
         else if (t.dataset.sgFeel != null){ feel = t.dataset.sgFeel || null; pick = 0; saveFeel(today, feel); draw(); }
         else { pick++; draw(); }
       });
@@ -749,6 +755,8 @@ const supabase = createSupabaseClient();
     }
     // A plan session can be skipped, or swapped for another workout of the same length.
     const canChange = s => !s.diaryId && !s.done && !s.isRace;
+    // Form low enough that we'd rest: say so on today's planned session, which can be skipped or swapped.
+    const restAdvised = rides.length > 0 && readiness({ rides, byRide, today, feel: loadFeel(today) }).rest;
     const canSwap = s => canChange(s) && (s.isRun ? runAlternatives(s.dayObj.workoutId).length > 0
       : !s.isStrength && !s.isSwim && !s.isBrick && !!s.steps && alternativesFor(s, library, ftpW).length > 0);
     function sessionHero(s, heading, extra = '', shortLink = false){
@@ -769,6 +777,7 @@ const supabase = createSupabaseClient();
         + '<div class="hero-sub">'+(s.diaryId ? 'Planned on your calendar' : esc(plan.name)+' · Week '+s.weekNum+(s.deload ? ' · Deload week' : ''))+'</div>'
         + (s.dayObj.holiday ? '<div class="adapted-note">Easy version of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' while you\'re away</div>'
           : s.dayObj.swappedFrom ? '<div class="adapted-note">Instead of '+esc((workouts[s.dayObj.swappedFrom]||{}).name || (runSession(s.dayObj.swappedFrom)||{}).name || s.dayObj.swappedFrom)+' · <button class="link-btn" data-undo-swap="'+s.dayIndex+'">Undo</button></div>' : '')
+        + (restAdvised && s.date === today && !s.done && !s.isRace ? '<div class="rest-note">Based on your recent fitness and form we recommend a rest day. If you still want to train, '+(canSwap(s) ? 'choose an easier workout or skip this one.' : 'keep it light.')+'</div>' : '')
         + (!s.isStrength && s.steps ? profileSvg(s.steps, ftpW) : '')
         + (s.isRun ? '<div class="run-desc">'+esc(s.run.text)+'</div>' : (s.isSwim || s.isBrick || s.isRace) && s.info.text ? '<div class="run-desc">'+esc(s.info.text)+'</div>' : '')
         + '<div class="hero-actions">'+(s.isRace ? '<a class="t-btn primary" href="calendar.html">See race week</a>'
