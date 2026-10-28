@@ -481,8 +481,9 @@ import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, saveDiary, diarySessions, diaryHref, openRideLog } from './diary.js?v=2';
 import { applySwaps, findAdaptations, acceptAdaptation, dismissAdaptation, undoSwap, DISMISSED_KEY } from './adapt.js?v=5';
 import { legHeavy } from './strength-kit.js?v=6';
+import { goalProgress, progressBarHtml, ensureProgressCss } from './goal-progress.js?v=1';
 import { focusPoints, focusWeights, benchmarkDue } from './focus.js?v=2';
-import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=3';
+import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=4';
 import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=9';
 import { computeRunLevels, RUN_LEVEL_ZONES, runZoneInfo } from './run-levels.js?v=1';
 const supabase = createSupabaseClient();
@@ -948,7 +949,7 @@ const supabase = createSupabaseClient();
     if (goals.run || goals.ride || (!plan && rides.length)){
       const statuses = { run: goals.run ? runGoalStatus(goals.run, runPace) : null, ride: goals.ride ? rideGoalStatus(goals.ride, { ftp, estFtp: est && est.ftp, rides }) : null };
       html += '<div class="t-panel goals-card"><div class="t-label"><span>Your goals</span>'+(goals.run || goals.ride ? '<span class="goal-hint">Tap one to change it</span>' : '')+'</div>'
-        + goalsCardHtml(goals, statuses, esc, { onPlan: !!plan })
+        + goalsCardHtml(goals, statuses, esc, { onPlan: !!plan, progress: Object.fromEntries(['run', 'ride'].map(k => { const p = goalProgress(k, goals[k], { rides, ftp, estFtp: est && est.ftp, runPace, today }); return [k, p && { html: progressBarHtml(p), pace: p.pace }]; })) })
         + (focus.length ? '<div class="goal-focus"><span>Focus</span><div><b>'+esc(focus[0].title)+'.</b> '+esc(focus[0].text)
           + (focus.length > 1 ? ' <a href="rides.html?view=fitness">'+(focus.length - 1)+' more →</a>' : '')+'</div></div>' : '')+'</div>';
     }
@@ -1021,10 +1022,10 @@ const supabase = createSupabaseClient();
     el.innerHTML = html;
     if (sgMode) mountSuggest();
     const goalsCard = el.querySelector(".goals-card");
-    if (goalsCard) ensureGoalsCss();
+    if (goalsCard){ ensureGoalsCss(); ensureProgressCss(); }
     if (goalsCard) goalsCard.addEventListener('click', async e => {
       const t = !e.target.closest('a') && e.target.closest('[data-goal-edit]'); if (!t) return;
-      const next = await openGoalSheet(supabase, user.id, goals, t.dataset.goalEdit, { ftp, runPace });
+      const next = await openGoalSheet(supabase, user.id, goals, t.dataset.goalEdit, { ftp, runPace, rides, estFtp: est && est.ftp });
       if (next) renderToday(user);
     });
     el.classList.remove('fade-in'); void el.offsetWidth; el.classList.add('fade-in');

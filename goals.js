@@ -28,7 +28,7 @@ export const RIDE_FOCUS = {
   distance: { weights:{ endurance:0.6, tempo:0.4, sweet_spot:0.2 },  key:['tempo','sweet_spot'],              keys:1 },
 };
 const DEFAULT_SPEED = 25;      // km/h for a long ride when there's no outdoor riding to go on
-const LONG_SHARE = 0.75;       // the long session builds to about this much of the event's time
+export const LONG_SHARE = 0.75;       // the long session builds to about this much of the event's time
 const dayOf = r => isoDate(new Date(r.started_at));
 // A past day said from `now`: "today", "yesterday" or "3 days ago".
 export function relDay(d, now){ const n = daysBetween(d, now); return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n + ' days ago'; }
@@ -68,6 +68,17 @@ function outdoorSpeed(rides){
 export function eventMinutes(g, rides){
   const speed = outdoorSpeed(rides) || DEFAULT_SPEED;
   return { mins: Math.round(g.km / speed * 60 / 5) * 5, speed: Math.round(speed * 10) / 10, measured: !!outdoorSpeed(rides) };
+}
+
+// The goal's measure today: FTP (the saved one or a higher detected one), predicted race time from the
+// threshold pace, or the longest ride in six weeks (minutes). Saved as the goal's start when it's set, and
+// the latest point of its progress (goal-progress.js). ctx: { ftp, estFtp, runPace, rides }.
+export function currentValue(sport, g, { ftp = null, estFtp = null, runPace = null, rides = [] } = {}){
+  if (!g) return null;
+  if (sport === 'run') return predictTime(g.goal, runPace);
+  if (g.type === 'ftp') return Math.max(ftp || 0, estFtp || 0) || null;
+  const since = addDays(isoDate(new Date()), -42);
+  return rides.filter(r => (r.sport || 'ride') === 'ride' && dayOf(r) >= since).reduce((m, r) => Math.max(m, (r.duration_sec || 0) / 60), 0) || null;
 }
 
 // ---- Progress: where the rider is against the goal ----
@@ -237,11 +248,16 @@ export function planLinkFor(sport, g){
   if (!g || !g.date || daysBetween(isoDate(new Date()), g.date) < 56) return null;
   return sport === 'run' ? { href:'trainerrun.html?build=' + g.goal + '&race=' + g.date, label:'Build me a plan for this' } : { href:'plans.html', label:'Find a plan for this' };
 }
-export function goalsCardHtml(goals, statuses, esc, { onPlan = false } = {}){
+// progress: { run, ride } as { html, pace } (goal-progress.js): shown under each goal, and for a dated goal
+// the chip says whether the rider is on the line to it ('ahead') or behind it.
+export function goalsCardHtml(goals, statuses, esc, { onPlan = false, progress = {} } = {}){
   const row = (sport, g, st) => '<div class="goal-row" data-goal-edit="'+sport+'"><span class="goal-sport">'+(sport === 'run' ? 'Run' : 'Ride')+'</span>'
     + '<div class="goal-body"><b>'+esc(goalLabel(sport, g))+(g.date ? ' · '+parseIso(g.date).toLocaleDateString('en-GB', { day:'numeric', month:'short', year: g.date.slice(0,4) === String(new Date().getFullYear()) ? undefined : 'numeric' }) : '')+'</b>'
     + '<p>'+esc(st.text)+'</p>'+(!onPlan && planLinkFor(sport, g) ? '<a class="goal-plan" href="'+planLinkFor(sport, g).href+'">'+planLinkFor(sport, g).label+' →</a>' : '')
-    + '</div><span class="goal-state s-'+st.state+'">'+STATE_WORD[st.state]+'</span></div>';
+    + '</div>'+chip(st, progress[sport])+((progress[sport] || {}).html ? '<div class="goal-prog">'+progress[sport].html+'</div>' : '')+'</div>';
+  const chip = (st, p) => { const pace = p && p.pace && st.state !== 'there' ? p.pace : null;
+    const k = pace === 'ahead' ? 'on-track' : pace === 'behind' ? 'stretch' : st.state;
+    return '<span class="goal-state s-'+k+'">'+(pace === 'behind' ? 'Behind' : STATE_WORD[k])+'</span>'; };
   const rows = [goals.run ? row('run', goals.run, statuses.run) : '', goals.ride ? row('ride', goals.ride, statuses.ride) : ''].join('');
   const add = [!goals.ride ? '<button class="link-btn" data-goal-edit="ride">+ Riding goal</button>' : '', !goals.run ? '<button class="link-btn" data-goal-edit="run">+ Running goal</button>' : ''].join('');
   return rows ? '<div class="goal-rows">'+rows+'</div>'+(add ? '<div class="goal-add">'+add+'</div>' : '')
@@ -255,6 +271,7 @@ export const GOALS_CSS = `
 .goal-body{ min-width:0; } .goal-body b{ font-size:14.5px; } .goal-body p{ margin:3px 0 0; font-size:13px; line-height:1.45; color:var(--text-dim, #8C97A6); }
 .goal-state{ font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; color:var(--text-dim, #8C97A6); }
 .goal-state.s-there, .goal-state.s-on-track{ color:#3DBE7A; } .goal-state.s-stretch{ color:#E8B93D; }
+.goal-prog{ grid-column:2 / -1; min-width:0; margin-top:-2px; }
 .goal-plan{ display:inline-block; margin-top:5px; font-size:13px; font-weight:600; color:var(--accent, #45D6C4); text-decoration:none; }
 .goal-add{ display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; }
 .goal-empty{ margin:0 0 4px; font-size:13.5px; color:var(--text-dim, #8C97A6); line-height:1.5; }
@@ -328,7 +345,15 @@ export async function openGoalSheet(supabase, userId, goals, sport, ctx = {}){
     onAction: async v => {
       const next = Object.assign({}, goals);
       if (v === 'remove') next[sport] = null;
-      else { const g = read(); if (!g) return false; next[sport] = g; }
+      else {
+        const g = read(); if (!g) return false;
+        // Progress counts from when a goal was set: keep the start while only the date changes.
+        const key = x => [x.goal, x.type, x.targetSec, x.watts, x.km].join('|');
+        const same = cur && key(cur) === key(g);
+        g.setAt = same && cur.setAt ? cur.setAt : today;
+        g.start = same && cur.start != null ? cur.start : currentValue(sport, g, ctx);
+        next[sport] = g;
+      }
       try { await saveGoals(supabase, userId, next); } catch(_){ form.querySelector('#gsErr').textContent = 'Couldn\'t save. Check your connection and try again.'; return false; }
       result = next;
       return true;

@@ -361,8 +361,9 @@ import { createSupabaseClient, requireAuth, renderSidebarUserBadge, showSubscrib
 import { notify, ask } from './sheet.js?v=3';
 import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS, loadBodyLog, logBodyWeight } from './strength-kit.js?v=6';
 import { openRunLog, fmtPace, fmtKm, syncStrava, RUN_PACE_KEY } from './run.js?v=9';
+import { goalProgress, progressBarHtml, progressChartHtml, ensureProgressCss } from './goal-progress.js?v=1';
 import { focusPoints, focusWeights, focusListHtml, ensureFocusCss, benchmarkDue } from './focus.js?v=2';
-import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=3';
+import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=4';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
@@ -820,18 +821,23 @@ const supabase = createSupabaseClient();
           rec = pickLine + (runFirst && !res.rest ? runRec() + ride : ride + runRec());
         }
       }
+      // Progress towards each goal: the bar, a line on how it's going, and the week-by-week chart.
+      const progressFor = () => Object.fromEntries(['run', 'ride'].map(k => {
+        const p = goalProgress(k, h.goals[k], { rides: h.acts, ftp: h.ftp, estFtp: (estimateFtp(h.acts) || {}).ftp, runPace: h.runPace, today: now });
+        return [k, p && { html: progressBarHtml(p) + '<p class="gp-text">'+escapeHtml(p.text)+'</p>' + progressChartHtml(p, h.goals[k], escapeHtml), pace: p.pace }];
+      }));
       const statuses = { run: h.goals.run ? runGoalStatus(h.goals.run, h.runPace) : null,
         ride: h.goals.ride ? rideGoalStatus(h.goals.ride, { ftp: h.ftp, estFtp: (estimateFtp(h.acts) || {}).ftp, rides: h.acts }) : null };
       el.innerHTML = '<div class="panel rd-card rd-'+st.key+'"><div class="rd-status"><span class="rd-dot" aria-hidden="true"></span><div><div class="rd-title">'+escapeHtml(st.title)+'</div><div class="rd-text">'+escapeHtml(st.text)+'</div></div></div>'
-        + '<div class="rd-goals"><div class="rd-kicker">Your goals</div>'+goalsCardHtml(h.goals, statuses, escapeHtml, { onPlan: (h.planned || []).some(p => p.date >= now) })+'</div>'
+        + '<div class="rd-goals"><div class="rd-kicker">Your goals</div>'+goalsCardHtml(h.goals, statuses, escapeHtml, { onPlan: (h.planned || []).some(p => p.date >= now), progress: progressFor() })+'</div>'
         + (focus.length ? '<div class="rd-goals"><div class="rd-kicker">Your focus</div>'+focusListHtml(focus, escapeHtml)+'</div>' : '')
         + (rec ? '<div class="rd-rec">'+rec+'</div>' : '') + '</div>';
     }
-    ensureGoalsCss(); ensureFocusCss();
+    ensureGoalsCss(); ensureFocusCss(); ensureProgressCss();
     el.addEventListener('click', async e => {
-      const ge = !e.target.closest('a') && e.target.closest('[data-goal-edit]');
+      const ge = !e.target.closest('a, .gp-chart') && e.target.closest('[data-goal-edit]');
       if (ge){
-        const next = await openGoalSheet(supabase, user.id, h.goals, ge.dataset.goalEdit, { ftp: h.ftp, runPace: h.runPace });
+        const next = await openGoalSheet(supabase, user.id, h.goals, ge.dataset.goalEdit, { ftp: h.ftp, runPace: h.runPace, rides: h.acts, estFtp: (estimateFtp(h.acts) || {}).ftp });
         if (next){ h.goals = next; showHub('fitness'); }
         return;
       }

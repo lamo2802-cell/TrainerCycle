@@ -11,7 +11,7 @@ import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
 import { BEGINNER_RUNS, runSession, TT_5K } from './run.js?v=9';
-import { goalPull, goalReason, relDay } from './goals.js?v=3';
+import { goalPull, goalReason, relDay } from './goals.js?v=4';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
