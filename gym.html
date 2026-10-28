@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TrainerCycle — Gym display</title>
+<meta name="theme-color" content="#10141A">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Gym display: the logo large on a TV (Fire TV's Silk, any smart TV browser), with the time.
+     No sign-in. Click or press Select to go to TrainerStrength. ?logo=strength shows the
+     TrainerStrength logo instead. */
+  :root{ --bg:#10141A; --text:#E7ECF2; --text-dim:#8C97A6; --accent:#45D6C4; }
+  html, body{ height:100%; margin:0; background:var(--bg); color:var(--text); overflow:hidden; cursor:pointer; }
+  body{ font-family:'Inter', -apple-system, 'Segoe UI', sans-serif; display:grid; place-items:center; }
+  .wrap{ display:flex; flex-direction:column; align-items:center; gap:4vh; transition:transform 6s ease-in-out; }
+  .wrap img{ width:min(78vw, 150vh); height:auto; display:block; }
+  .clock{ font-family:'JetBrains Mono', ui-monospace, monospace; font-size:9vh; font-weight:500; letter-spacing:.02em; line-height:1; }
+  .date{ font-size:3.4vh; color:var(--text-dim); margin-top:-2vh; }
+  .hint{ position:fixed; left:0; right:0; bottom:4vh; text-align:center; font-size:2.6vh; color:var(--text-dim); transition:opacity 1.5s; }
+  .hint b{ color:var(--accent); font-weight:600; }
+  body.quiet .hint{ opacity:0; }
+  video{ position:fixed; width:1px; height:1px; opacity:0; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <img id="logo" src="wordmark.svg" alt="TrainerCycle">
+  <div class="clock" id="clock"></div>
+  <div class="date" id="date"></div>
+</div>
+<div class="hint" id="hint">Press <b>Select</b> to start a strength session</div>
+<!-- A tiny looping video keeps TV browsers from dimming or starting the screensaver where the Wake Lock API isn't honoured. -->
+<video id="awake" src="keep-awake.mp4" muted loop playsinline autoplay></video>
+<script>
+(function(){
+  var params = new URLSearchParams(location.search);
+  if (params.get('logo') === 'strength'){ document.getElementById('logo').src = 'wordmark-strength.svg'; document.getElementById('logo').alt = 'TrainerStrength'; }
+
+  var clock = document.getElementById('clock'), date = document.getElementById('date');
+  function tick(){
+    var d = new Date();
+    clock.textContent = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    date.textContent = d.toLocaleDateString([], { weekday:'long', day:'numeric', month:'long' });
+  }
+  tick(); setInterval(tick, 1000);
+
+  // Drift a little every minute so a TV left on all day doesn't burn the logo in.
+  var wrap = document.getElementById('wrap');
+  setInterval(function(){
+    wrap.style.transform = 'translate(' + (Math.random()*8-4).toFixed(2) + 'vw,' + (Math.random()*8-4).toFixed(2) + 'vh)';
+  }, 60000);
+
+  // The hint shows for a while after any press, then fades so it's just the logo.
+  var quietTimer;
+  function wake(){ document.body.classList.remove('quiet'); clearTimeout(quietTimer); quietTimer = setTimeout(function(){ document.body.classList.add('quiet'); }, 15000); }
+  wake();
+
+  var lock = null, video = document.getElementById('awake');
+  function keepAwake(){
+    try { if ('wakeLock' in navigator && !lock) navigator.wakeLock.request('screen').then(function(l){ lock = l; l.addEventListener('release', function(){ lock = null; }); }).catch(function(){}); } catch(e){}
+    var p = video.play(); if (p && p.catch) p.catch(function(){});
+  }
+  keepAwake();
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') keepAwake(); });
+
+  function go(){ location.href = 'trainerstrength.html'; }
+  document.addEventListener('click', go);
+  document.addEventListener('keydown', function(e){
+    keepAwake();
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'MediaPlayPause' || e.keyCode === 179){ e.preventDefault(); go(); }
+    else wake();
+  });
+  document.addEventListener('mousemove', wake);
+})();
+</script>
+</body>
+</html>
