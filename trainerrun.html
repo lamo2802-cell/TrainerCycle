@@ -10,7 +10,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=5">
+<link rel="stylesheet" href="app-nav.css?v=6">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -243,7 +243,7 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=20';
 import { notify, ask } from './sheet.js?v=3';
 import { isoDate, todayIso, addDays, parseIso, daysBetween, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=6';
 import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=9';
@@ -252,7 +252,7 @@ import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunP
 import { applySwaps } from './adapt.js?v=5';
 import { computeRunLevels, RUN_LEVEL_ZONES } from './run-levels.js?v=1';
 import { fmtLevel } from './levels.js?v=1';
-import { loadGoals, runGoalStatus, goalLabel, openGoalSheet } from './goals.js?v=4';
+import { loadGoals, runGoalStatus, goalLabel, openGoalSheet } from './goals.js?v=5';
 import { goalProgress, progressBarHtml, progressChartHtml, ensureProgressCss } from './goal-progress.js?v=1';
 import { openExportSheet } from './export.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';

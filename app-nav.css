@@ -100,6 +100,13 @@ html.has-appnav .tn-avatar:hover, html.has-appnav .tn-avatar.on, html.has-appnav
 .navmenu .nm-who > span:last-child{ min-width:0; }
 .navmenu .nm-avatar{ display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; overflow:hidden; background:#45D6C4; color:#08211E; font-weight:700; flex-shrink:0; }
 .navmenu .nm-avatar img{ width:100%; height:100%; object-fit:cover; }
+.navmenu a.nm-today{ background:rgba(69,214,196,.1); box-shadow:inset 0 0 0 1px rgba(69,214,196,.45); margin-bottom:4px; }
+.navmenu a.nm-today .nm-ico{ background:#45D6C4; color:#08211E; }
+.navmenu .nm-log{ display:flex; align-items:center; gap:6px; padding:10px 10px 4px; margin-top:4px; border-top:1px solid #2A323D; }
+.navmenu .nm-log span{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8C97A6; margin-right:4px; }
+.navmenu .nm-log button{ flex:1; min-height:38px; justify-content:center; padding:8px 10px; border:1px solid #2A323D; border-radius:9px; font-size:13.5px; font-weight:600; }
+/* Full screen only matters on Live Ride and TrainerStrength, which have their own button. */
+html.has-appnav #fullscreenToggle{ display:none; }
 @media (max-width:759px){
   .navmenu-backdrop{ background:rgba(5,8,12,.55); }
   .navmenu{

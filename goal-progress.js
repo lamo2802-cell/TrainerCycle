@@ -9,7 +9,7 @@
 import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { RUN_GOALS, predictTime, paceFromRuns, fmtDuration } from './run-plans.js?v=4';
 import { estimateFtp } from './ftp-estimate.js?v=1';
-import { eventMinutes, currentValue, LONG_SHARE } from './goals.js?v=4';
+import { eventMinutes, currentValue, LONG_SHARE } from './goals.js?v=5';
 
 const dayOf = r => isoDate(new Date(r.started_at));
 const hm = mins => { const m = Math.round(mins); return m >= 60 ? Math.floor(m/60)+' h'+(m%60 ? ' '+String(m%60).padStart(2,'0') : '') : m+' min'; };

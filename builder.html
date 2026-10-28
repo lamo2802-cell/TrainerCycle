@@ -10,7 +10,7 @@
 <script>if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||window.navigator.standalone===true)document.documentElement.classList.add('standalone');</script>
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="app-nav.css?v=5">
+<link rel="stylesheet" href="app-nav.css?v=6">
 <script>try{if(!/\/(index\.html)?$/.test(location.pathname)||Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)}))document.documentElement.classList.add('has-appnav');}catch(e){}</script>
 <meta name="theme-color" content="#10141A">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -243,6 +243,21 @@
   .lib-empty{ padding:36px 20px; text-align:center; border:1px dashed var(--line); border-radius:12px; color:var(--text-dim); grid-column:1/-1; }
   .link-btn{ background:none; border:none; color:var(--accent); padding:0; font-size:inherit; cursor:pointer; }
   .link-btn:hover{ text-decoration:underline; }
+  .lvl-box{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:0 16px; margin:4px 0 22px; }
+  .lvl-box summary{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 0; cursor:pointer; font-weight:600; font-size:14px; list-style:none; }
+  .lvl-box summary::-webkit-details-marker{ display:none; }
+  .lvl-box summary::after{ content:'▾'; color:var(--text-dim); margin-left:6px; }
+  .lvl-box[open] summary::after{ content:'▴'; }
+  .lvl-box summary small{ margin-left:auto; color:var(--text-dim); font-weight:500; font-size:12.5px; }
+  .lvl-box .lvl-rows{ display:flex; flex-direction:column; gap:7px; padding-bottom:4px; }
+  .lvl-box .lvl-row{ display:grid; grid-template-columns:96px minmax(0,1fr) 32px; align-items:center; gap:10px; font-size:13px; }
+  .lvl-box .zn{ display:flex; align-items:center; gap:7px; color:var(--text-dim); }
+  .lvl-box .zn i{ width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+  .lvl-box .track{ height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden; }
+  .lvl-box .track i{ display:block; height:100%; border-radius:4px; }
+  .lvl-box .lvl-row b{ font-family:var(--mono, ui-monospace, monospace); text-align:right; }
+  .lvl-box .lvl-note{ font-size:12px; color:var(--text-dim); margin:10px 0 14px; }
+  .lvl-box .lvl-note a{ color:var(--accent); }
 </style>
 </head>
 <body>
@@ -296,6 +311,8 @@
       <div class="section-sub" id="fitsSub"></div>
     </div>
     <div id="bestFits"><div class="sk-grid"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div></div>
+
+    <details class="lvl-box" id="levelsBox" hidden><summary><span>Your progression levels</span><small id="levelsSummary"></small></summary><div id="levelsBody"></div></details>
 
     <div class="block">
       <div class="section-row">
@@ -360,11 +377,11 @@
 </div>
 
 <script type="module">
-import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
+import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=20';
 import { notify, ask } from './sheet.js?v=3';
-import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, suggestRun, rideZone, RUN_TRY_KEY, loadFeel } from './suggest.js?v=9';
-import { loadGoals, guidesFor } from './goals.js?v=4';
+import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL_ZONES } from './levels.js?v=1';
+import { suggestRide, suggestRun, rideZone, RUN_TRY_KEY, loadFeel } from './suggest.js?v=10';
+import { loadGoals, guidesFor } from './goals.js?v=5';
 import { focusPoints, focusWeights } from './focus.js?v=2';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
@@ -447,6 +464,7 @@ const supabase = createSupabaseClient();
       ({ levels: riderLevels, byRide: riderByRide } = computeLevels(riderRides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp));
     } catch(e){ riderLevels = null; }
     renderFtp();
+    renderLevels();
     renderPicker();
     renderFits();
     renderLibrary();
@@ -642,6 +660,18 @@ const supabase = createSupabaseClient();
   function fmtLong(sec){
     const m = Math.round(sec/60);
     return m < 60 ? { big:String(m), unit:'min' } : { big:Math.floor(m/60)+':'+String(m%60).padStart(2,'0'), unit:'h' };
+  }
+
+  // Progression levels (moved here from Today): where the Achievable / Productive labels on each workout come from.
+  function renderLevels(){
+    const box = document.getElementById('levelsBox');
+    if (!riderLevels || !riderRides.some(r => (r.sport || 'ride') === 'ride')){ box.hidden = true; return; }
+    const top = LEVEL_ZONES.reduce((a, z) => riderLevels[z.key] > riderLevels[a.key] ? z : a, LEVEL_ZONES[0]);
+    document.getElementById('levelsSummary').textContent = 'Highest: '+top.name+' '+fmtLevel(riderLevels[top.key]);
+    document.getElementById('levelsBody').innerHTML = '<div class="lvl-rows">'+LEVEL_ZONES.map(z=>'<div class="lvl-row"><span class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</span>'
+      + '<span class="track"><i style="width:'+(riderLevels[z.key]/10*100).toFixed(1)+'%; background:'+z.color+'"></i></span><b>'+fmtLevel(riderLevels[z.key])+'</b></div>').join('')+'</div>'
+      + '<p class="lvl-note">Levels go up when you finish workouts at or above them. Pick Achievable or Productive workouts to keep moving. Run levels are on <a href="trainerrun.html">TrainerRun</a>.</p>';
+    box.hidden = false;
   }
 
   // The one ride we'd pick for today (as on Today), within the time chosen above.
