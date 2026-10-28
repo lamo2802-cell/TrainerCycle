@@ -368,6 +368,7 @@ import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=3';
+import { loadSameRoute, sameWorkout, compareHtml, COMPARE_CSS } from './compare.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
@@ -380,7 +381,7 @@ import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunn
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + COMPARE_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -525,7 +526,7 @@ const supabase = createSupabaseClient();
       + '</div>'
       + '<div id="runWorkout"></div>'
       + (r.source === 'strava' ? '<div id="runChart"></div>' : '')
-      + (hasRoute(r) ? routePanelHtml() : '')
+      + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
       + (r.source === 'strava' ? '<div id="runZones"></div><div id="runEff"></div><div id="runSplits"></div>' : '')
       + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
@@ -573,6 +574,13 @@ const supabase = createSupabaseClient();
   }
   // Splits, laps and (when it was an interval session) the workout, for runs from Strava. Fetched
   // from Strava the first time the run is opened, then kept with the run.
+  // Earlier (and later) runs or rides on the same route.
+  async function mountRouteCompare(el, r){
+    const box = el.querySelector('#routeCompare'); if (!box) return;
+    let others = [];
+    try { others = await loadSameRoute(supabase, user.id, r); } catch(_){}
+    if (box.isConnected) box.innerHTML = compareHtml('route', r, others);
+  }
   async function mountRunSplits(el, r){
     const box = el.querySelector('#runSplits'); if (!box) return;
     let detail = r.run_detail;
@@ -665,7 +673,7 @@ const supabase = createSupabaseClient();
       + (r.np ? stat(r.np,'NP (W)') + stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : r.avg_power ? stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : '')
       + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
-      + (hasRoute(r) ? routePanelHtml() : '')
+      + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
       + '<div class="panel empty-note">'+(manual ? 'Logged by hand' : 'Brought in from Strava')+'. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Rides outside Live Ride don\'t change your workout levels.</div>';
   }
   const BIKE_ICON = '<svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="3.5"/><circle cx="18" cy="16" r="3.5"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M14 5h2"/></svg>';
@@ -1085,10 +1093,10 @@ const supabase = createSupabaseClient();
       if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
-    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride); return; }
+    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride); mountRouteCompare(el, ride); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
     if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
-    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
+    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); mountRouteCompare(el, ride); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
@@ -1147,6 +1155,7 @@ const supabase = createSupabaseClient();
       + '<div class="chart-wrap"><canvas id="curveChart"></canvas><div class="tip" id="curveTip"></div></div>'
       + '<div class="bests">'+key.map(b=>'<div class="best"><b>'+b.w+'</b><span>'+durLabel(b.d)+'</span></div>').join('')+'</div></div>'
       + '<div class="panel"><div class="panel-title"><span>Time in zone</span></div>'+zoneHtml+'</div></div>';
+    html += compareHtml('workout', ride, sameWorkout(ride, rides));
     html += efficiencyPanelHtml(rideEfficiency(sec, { intensity: ride.intensity_factor, category: ride.category }), usualEf(rides, 'ride', ride.id), sessionEf(ride));
 
     // intervals: one row per workout step that lasted 10 s or more
