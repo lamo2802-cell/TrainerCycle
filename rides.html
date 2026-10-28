@@ -362,7 +362,7 @@ import { notify, ask } from './sheet.js?v=3';
 import { loadHistory as loadStrengthHistory, liftSummary, setsText, fmtLoad, VARIANTS, loadBodyLog, logBodyWeight } from './strength-kit.js?v=6';
 import { openRunLog, fmtPace, fmtKm, syncStrava, RUN_PACE_KEY } from './run.js?v=9';
 import { focusPoints, focusWeights, focusListHtml, ensureFocusCss, benchmarkDue } from './focus.js?v=2';
-import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=2';
+import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=3';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
@@ -373,7 +373,7 @@ import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
-import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=8';
+import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunner, RUN_TRY_KEY, loadFeel, loadLength } from './suggest.js?v=9';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
@@ -767,7 +767,7 @@ const supabase = createSupabaseClient();
     const feel = rodeToday ? null : loadFeel(now);
     const planned = (h.planned || []).filter(p => p.date === day && !p.skipped && p.sport !== 'race');
     const restDay = !planned.length && (h.planned || []).some(p => p.date > day && !p.skipped);
-    const rd = readiness({ rides: h.acts, today: day, feel, restDay });
+    const rd = readiness({ rides: h.acts, today: day, now, feel, restDay });
     const st = trainingStatus(rd);
     const ftpW = h.ftp || 200;
     const bike = h.acts.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual');
@@ -779,14 +779,14 @@ const supabase = createSupabaseClient();
     // Goals steer both suggestions, and with goals in both sports (or a running goal) say which to do.
     const guides = guidesFor({ goals: h.goals, rides: h.acts, byRide, byRun, today: day, runPace: h.runPace, rideZone });
     const sportPick = (guides.ride || guides.run) && (runs.length || guides.run)
-      ? pickSport({ rideGuide: guides.ride, runGuide: guides.run, rides: h.acts, byRun, band: rd.band, beginner: isNewRunner(runLevels), today: day }) : null;
+      ? pickSport({ rideGuide: guides.ride, runGuide: guides.run, rides: h.acts, byRun, band: rd.band, beginner: isNewRunner(runLevels), today: day, now }) : null;
     const runFirst = !!(sportPick && sportPick.sport === 'run');
     const focus = focusPoints({ rides: h.acts, byRide, levels, byRun, runLevels, guides, rideZone, ftpSetAt: h.ftpSetAt, runPace: h.runPace, today: day });
     const bench = benchmarkDue({ rides: h.acts, runLevels, guides, runPace: h.runPace, ftpSetAt: h.ftpSetAt, today: day });
     // The run we'd do instead, under the ride: for runners, and as a first walk/run for anyone who hasn't.
     function runRec(){
       if (!runs.length && h.runTryDismissed) return '';
-      const res = suggestRun({ rides: h.acts, runLevels, byRun, today: day, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run'), benchmark: bench.run });
+      const res = suggestRun({ rides: h.acts, runLevels, byRun, today: day, now, feel, restDay, goal: guides.run, focus: focusWeights(focus, 'run'), benchmark: bench.run });
       if (!res || res.rest) return '';
       const c = res.picks[runPick % res.picks.length], z = runZoneInfo(c.zone);
       return '<div class="'+(runFirst ? 'rd-run-first' : 'rd-run')+'"><div class="rd-kicker">'+(runFirst ? 'Recommended run'+(rodeToday ? ' for tomorrow' : ' for today') : runs.length ? 'Rather run?' : 'Would you like to try running?')+'</div>'
@@ -805,7 +805,7 @@ const supabase = createSupabaseClient();
           + (rd.rest ? ' Your form says rest: skip it or choose an easier workout.' : rd.band <= 1 ? ' You\'re a bit tired, so it\'s fine to choose an easier workout.' : '')+'</div>'
           + '<div class="rd-actions"><a class="btn-link primary" href="index.html">'+(rodeToday ? 'See Today' : 'Go to today\'s session')+'</a></div>';
       } else if (bike.length || h.acts.length){
-        const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride'), benchmark: bench.ride });
+        const res = suggestRide({ rides: h.acts, byRide, levels, library: h.library, ftp: ftpW, today: day, now, maxMin: rodeToday ? 'auto' : loadLength(now) || 'auto', feel, restDay, goal: guides.ride, focus: focusWeights(focus, 'ride'), benchmark: bench.ride });
         if (res){
           const c = res.picks[pick % res.picks.length];
           const z = zoneInfo(c.zone), tss = plannedTss(c.w.steps, ftpW);

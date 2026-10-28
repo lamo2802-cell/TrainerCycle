@@ -11,7 +11,7 @@ import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
 import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
 import { BEGINNER_RUNS, runSession, TT_5K } from './run.js?v=9';
-import { goalPull, goalReason } from './goals.js?v=2';
+import { goalPull, goalReason, relDay } from './goals.js?v=3';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
@@ -42,25 +42,34 @@ export function rideZone(r, byRide){
 const isHard = (r, byRide) => r.sport !== 'strength' && (HARD.has((byRide[r.id] || {}).zone) || Number(r.intensity_factor) >= 0.88);
 const dayOf = r => isoDate(new Date(r.started_at));
 const zoneName = z => zoneInfo(z).name.toLowerCase().replace('vo2 max', 'VO2');
+const plural = (n, w) => Math.max(1, n) + ' ' + w + (Math.max(1, n) === 1 ? '' : 's');
 const signed = n => (n > 0 ? '+' : '') + n;
+// "you rode / ran / swam hard": the sport of the hard sessions, or "trained" when they were mixed.
+const VERB = { ride:'rode', run:'ran', swim:'swam' };
+const hardVerb = list => { const s = new Set(list.map(r => r.sport || 'ride')); return s.size === 1 ? VERB[[...s][0]] || 'trained' : 'trained'; };
+// "Form is -3", or "Form tomorrow is -3" when the suggestion is for a day ahead of now.
+const formIs = (form, today, now) => 'Form ' + (today > now ? (daysBetween(now, today) === 1 ? 'tomorrow ' : 'then ') : '') + 'is ' + signed(form);
 
 // How ready the rider is going into `today`: Form and its trend, plus the band of how hard today can be
 // (0 = very easy, 1 = easy, 2 = normal, 3 = fresh) and whether to rest. Today's own rides aren't counted, so a ride this morning
 // doesn't change the advice. Shared by the suggested ride and the status on Progress → Fitness & form.
-export function readiness({ rides, byRide = {}, today, feel = null, restDay = false }){
+// now: the real date, when `today` is a day ahead (Fitness & form after training today shows tomorrow),
+// so the reasons say "today" rather than "yesterday".
+export function readiness({ rides, byRide = {}, today, now = today, feel = null, restDay = false }){
   const daily = new Map();
   rides.forEach(r => { const d = dayOf(r); if (r.tss != null && d < today) daily.set(d, (daily.get(d)||0) + r.tss); });
   const first = rides.reduce((m, r) => { const d = dayOf(r); return d < m ? d : m; }, today);
   const series = loadSeries(daily, first, today, today);
-  const now = series[series.length-1], weekAgo = series[Math.max(0, series.length-8)], twoWeeks = series[Math.max(0, series.length-15)];
-  const form = Math.round(now.ctl - now.atl);
-  const ramp = now.ctl - weekAgo.ctl;
-  const yesterdayHard = rides.some(r => dayOf(r) === addDays(today, -1) && isHard(r, byRide));
+  const cur = series[series.length-1], weekAgo = series[Math.max(0, series.length-8)], twoWeeks = series[Math.max(0, series.length-15)];
+  const form = Math.round(cur.ctl - cur.atl);
+  const ramp = cur.ctl - weekAgo.ctl;
+  const hardBefore = rides.filter(r => dayOf(r) === addDays(today, -1) && isHard(r, byRide));
+  const yesterdayHard = hardBefore.length > 0;
   const week = rides.filter(r => dayOf(r) > addDays(today, -7) && dayOf(r) < today);
   const hardCount = week.filter(r => isHard(r, byRide)).length;
   let band = form < -25 ? 0 : form < -10 ? 1 : form <= 5 ? 2 : 3;
   const why = [];
-  if (yesterdayHard){ band--; why.push('you rode hard yesterday'); }
+  if (yesterdayHard){ band--; why.push('you ' + hardVerb(hardBefore) + ' hard ' + relDay(addDays(today, -1), now)); }
   if (ramp > 7){ band--; why.push('your Fitness is rising fast'); }
   if (feel === 'tired'){ band--; why.push('you\'re feeling tired'); }
   if (feel === 'fresh'){ band++; }
@@ -72,7 +81,7 @@ export function readiness({ rides, byRide = {}, today, feel = null, restDay = fa
   const lastIn = {};
   rides.forEach(r => { const z = rideZone(r, byRide); if (z && (!lastIn[z] || dayOf(r) > lastIn[z])) lastIn[z] = dayOf(r); });
   const gap = z => lastIn[z] ? Math.min(GAP_CAP, daysBetween(lastIn[z], today)) : GAP_CAP;
-  return { form, ctl: now.ctl, atl: now.atl, ramp, trend: now.ctl - twoWeeks.ctl, days: series.length,
+  return { form, ctl: cur.ctl, atl: cur.atl, ramp, trend: cur.ctl - twoWeeks.ctl, days: series.length,
     band, rest, why, yesterdayHard, hardCount, lastIn, gap,
     sinceLast: rides.length ? daysBetween(rides.reduce((m, r) => { const d = dayOf(r); return d > m && d < today ? d : m; }, first), today) : null };
 }
@@ -131,11 +140,11 @@ export function saveLength(today, v){
 // while key sessions are owed this week, and on the long day (length on Auto, fresh enough) it's the long ride.
 // focus: { zone: weight } from focusWeights() (focus.js): what recent training is missing, added to the zone score.
 // benchmark: an FTP test is due (benchmarkDue() in focus.js): on a fresh day with the length on Auto, it's the Ramp Test.
-export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
+export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, now = today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
   if (!library || !library.length) return null;
 
   // 1. How hard today can be, and how long.
-  const rd = readiness({ rides, byRide, today, feel, restDay });
+  const rd = readiness({ rides, byRide, today, now, feel, restDay });
   const { form, band, rest, why, lastIn, gap, hardCount } = rd;
   const tooManyHard = hardCount >= 3;
   const auto = !maxMin || maxMin === 'auto';
@@ -190,13 +199,14 @@ export function suggestRide({ rides, byRide = {}, levels, library, ftp, today, m
     const t = { w: test, zone:'threshold', level: levels.threshold || 1, durationSec: durationOf(test), off:0, over:false, test:true };
     picks.unshift(t);
     return { picks: picks.slice(0, 6), band, form, rest, maxMin, auto, long, test:true,
-      reason: 'Form is ' + signed(form) + ' and your FTP hasn\'t been tested for a while, so a Ramp Test: about half an hour, and every target after it fits you better.' };
+      reason: formIs(form, today, now) + ' and your FTP hasn\'t been tested for a while, so a Ramp Test: about half an hour, and every target after it fits you better.' };
   }
   const top = picks[0];
-  const parts = ['Form is ' + signed(form)].concat(why);
+  const parts = [formIs(form, today, now)].concat(why);
+  const ahead = daysBetween(now, today);   // gaps are counted to `today`; say them as of now
   if (!why.length){
     if (tooManyHard && !HARD.has(top.zone)) parts.push('you\'ve done ' + hardCount + ' hard rides this week');
-    else if (top.zone !== 'endurance') parts.push(lastIn[top.zone] ? 'you haven\'t done ' + zoneName(top.zone) + ' work for ' + gap(top.zone) + ' days' : 'you haven\'t done any ' + zoneName(top.zone) + ' work yet');
+    else if (top.zone !== 'endurance') parts.push(lastIn[top.zone] ? 'you haven\'t done ' + zoneName(top.zone) + ' work for ' + plural(gap(top.zone) - ahead, 'day') : 'you haven\'t done any ' + zoneName(top.zone) + ' work yet');
   }
   const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length-1] : parts[0];
   // Name the ride by how hard it really is for the rider: the library may not have the exact level.
@@ -314,8 +324,8 @@ export function recommendedRunLength(rides, band, today){
 // Returns { picks:[{ id, session, zone, level, mins, over }], band, form, reason, rest, maxMin, auto, beginner }.
 // goal: the running goal's guidance from goalGuide() (goals.js), or null, used as in suggestRide(). focus: as in suggestRide().
 // benchmark: a timed 5K is due (benchmarkDue() in focus.js): on a fresh day, or a good one at the weekend, it's the 5K time trial.
-export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
-  const rd = readiness({ rides, today, feel, restDay });
+export function suggestRun({ rides, runLevels, byRun = {}, today, now = today, maxMin = 'auto', feel = null, restDay = false, goal = null, focus = null, benchmark = false }){
+  const rd = readiness({ rides, today, now, feel, restDay });
   const { form, band, rest, why } = rd;
   const levels = Object.assign({}, runLevels || Object.fromEntries(RUN_LEVEL_ZONES.map(z => [z.key, 1])));
   // A zone never run starts a little below the Easy level, so a regular runner's first threshold
@@ -372,14 +382,15 @@ export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto
     const s = runSession(TT_5K);
     picks.unshift({ id: TT_5K, session: s, zone:'interval', level: levels.threshold || 1, mins: s.mins, off:0, over:false, test:true });
     return { picks: picks.slice(0, 6), band, form, rest, maxMin, auto, beginner:false, levels, long, test:true,
-      reason: 'Form is ' + signed(form) + ', so a good day to time a 5K. It sets your threshold pace' + (goal ? ', your paces and your goal prediction.' : ' and your paces.') };
+      reason: formIs(form, today, now) + ', so a good day to time a 5K. It sets your threshold pace' + (goal ? ', your paces and your goal prediction.' : ' and your paces.') };
   }
   const top = picks[0];
   const zn = z => runZoneInfo(z).name.toLowerCase();
-  const parts = ['Form is ' + signed(form)].concat(why);
+  const parts = [formIs(form, today, now)].concat(why);
+  const ahead = daysBetween(now, today);   // gaps are counted to `today`; say them as of now
   if (!why.length){
-    if (top.zone === 'easy' && qualitySoon) parts.push('you ran hard ' + (daysBetween(lastQuality, today) === 1 ? 'yesterday' : daysBetween(lastQuality, today) + ' days ago'));
-    else if (top.zone !== 'easy') parts.push(lastIn[top.zone] ? 'you haven\'t done ' + zn(top.zone) + ' running for ' + gap(top.zone) + ' days' : 'you haven\'t done any ' + zn(top.zone) + ' running yet');
+    if (top.zone === 'easy' && qualitySoon) parts.push('you ran hard ' + relDay(lastQuality, now));
+    else if (top.zone !== 'easy') parts.push(lastIn[top.zone] ? 'you haven\'t done ' + zn(top.zone) + ' running for ' + plural(gap(top.zone) - ahead, 'day') : 'you haven\'t done any ' + zn(top.zone) + ' running yet');
   }
   const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length-1] : parts[0];
   const feelWord = difficultyLabel(top.level, levels[top.zone] || 1).label.toLowerCase().replace('recovery-ish', 'easy').replace('not recommended', 'big step up');
