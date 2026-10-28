@@ -39,6 +39,52 @@ export const RUN_SESSIONS = {
   'run-long-60':   { name:'Long run', kind:'long', blurb:'Keep it easy enough that the last 10 minutes feel as controlled as the first.', steps:[{ mins:60, zone:'easy' }] },
   'run-long-75':   { name:'Long run', kind:'long', blurb:'Keep it easy enough that the last 10 minutes feel as controlled as the first.', steps:[{ mins:75, zone:'easy' }] },
 };
+// The run library the suggested run picks from (ids rl-…), across the five pace zones and from short to
+// long, so there's a next step at every level (see run-levels.js). kind: easy | long | quality.
+const W = (m = 10) => ({ mins:m, zone:'easy' });
+const R = (n, len, zone, rec) => Object.assign({ reps:n, zone, rec }, len);
+const LIB = [
+  ['rl-easy-20', 'Easy run', 'easy', [{ mins:20, zone:'easy' }], 'Conversational pace the whole way.'],
+  ['rl-easy-45', 'Easy run', 'easy', [{ mins:45, zone:'easy' }], 'Conversational pace the whole way.'],
+  ['rl-long-90', 'Long run', 'long', [{ mins:90, zone:'easy' }], 'Keep it easy enough that the last 10 minutes feel as controlled as the first.'],
+  ['rl-strides-25', 'Easy run + strides', 'easy', [{ mins:22, zone:'easy' }, R(4, { secs:20 }, 'fast', { secs:60, kind:'walk' })], 'Strides are quick and relaxed, not sprints.'],
+  ['rl-strides-50', 'Easy run + strides', 'easy', [{ mins:44, zone:'easy' }, R(6, { secs:20 }, 'fast', { secs:60, kind:'walk' })], 'Strides are quick and relaxed, not sprints.'],
+  ['rl-steady-30', 'Steady run 15 min', 'quality', [W(10), { mins:15, zone:'steady' }, W(5)], 'Comfortably firm, around marathon effort. You could still say a sentence.'],
+  ['rl-steady-40', 'Steady run 20 min', 'quality', [W(12), { mins:20, zone:'steady' }, W(8)], 'Comfortably firm, around marathon effort. You could still say a sentence.'],
+  ['rl-steady-50', 'Steady run 30 min', 'quality', [W(12), { mins:30, zone:'steady' }, W(8)], 'Comfortably firm, around marathon effort. You could still say a sentence.'],
+  ['rl-steady-2x15', 'Steady 2 × 15 min', 'quality', [W(12), R(2, { mins:15 }, 'steady', { mins:3, kind:'jog' }), W(10)]],
+  ['rl-steady-60', 'Steady run 40 min', 'quality', [W(12), { mins:40, zone:'steady' }, W(8)], 'Comfortably firm, around marathon effort. You could still say a sentence.'],
+  ['rl-steady-75', 'Steady run 50 min', 'quality', [W(15), { mins:50, zone:'steady' }, W(10)], 'Comfortably firm, around marathon effort. Practise drinking on the move.'],
+  ['rl-thr-3x3', 'Threshold 3 × 3 min', 'quality', [W(12), R(3, { mins:3 }, 'threshold', { mins:2, kind:'jog' }), W(10)], 'A first taste of threshold: comfortably hard, never a strain.'],
+  ['rl-thr-4x4', 'Threshold 4 × 4 min', 'quality', [W(12), R(4, { mins:4 }, 'threshold', { mins:2, kind:'jog' }), W(10)]],
+  ['rl-thr-3x6', 'Threshold 3 × 6 min', 'quality', [W(12), R(3, { mins:6 }, 'threshold', { mins:2, kind:'jog' }), W(10)]],
+  ['rl-thr-2x10', 'Threshold 2 × 10 min', 'quality', [W(12), R(2, { mins:10 }, 'threshold', { mins:3, kind:'jog' }), W(10)]],
+  ['rl-thr-4x8', 'Threshold 4 × 8 min', 'quality', [W(12), R(4, { mins:8 }, 'threshold', { mins:2, kind:'jog' }), W(10)]],
+  ['rl-thr-2x15', 'Threshold 2 × 15 min', 'quality', [W(15), R(2, { mins:15 }, 'threshold', { mins:3, kind:'jog' }), W(12)]],
+  ['rl-thr-25', 'Tempo 25 min', 'quality', [W(15), { mins:25, zone:'threshold' }, W(10)], 'One steady block at threshold. Even pace, no surging.'],
+  ['rl-int-6x1', 'Intervals 6 × 1 min', 'quality', [W(12), R(6, { mins:1 }, 'interval', { mins:1, kind:'jog' }), W(10)], 'Hard but controlled: you should finish feeling you had another one in you.'],
+  ['rl-int-8x1', 'Intervals 8 × 1 min', 'quality', [W(12), R(8, { mins:1 }, 'interval', { mins:1, kind:'jog' }), W(10)]],
+  ['rl-int-6x2', 'Intervals 6 × 2 min', 'quality', [W(12), R(6, { mins:2 }, 'interval', { mins:2, kind:'jog' }), W(10)]],
+  ['rl-int-5x3', 'Intervals 5 × 3 min', 'quality', [W(15), R(5, { mins:3 }, 'interval', { mins:2, kind:'jog' }), W(10)]],
+  ['rl-int-5x4', 'Intervals 5 × 4 min', 'quality', [W(15), R(5, { mins:4 }, 'interval', { mins:3, kind:'jog' }), W(10)]],
+  ['rl-int-6x4', 'Intervals 6 × 4 min', 'quality', [W(15), R(6, { mins:4 }, 'interval', { mins:2, kind:'jog' }), W(12)]],
+  ['rl-fast-8x20', 'Speed 8 × 20 s', 'quality', [W(15), R(8, { secs:20 }, 'fast', { secs:100, kind:'jog' }), W(10)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
+  ['rl-fast-6x30', 'Speed 6 × 30 s', 'quality', [W(15), R(6, { secs:30 }, 'fast', { secs:90, kind:'jog' }), W(10)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
+  ['rl-fast-10x30', 'Speed 10 × 30 s', 'quality', [W(15), R(10, { secs:30 }, 'fast', { secs:90, kind:'jog' }), W(10)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
+  ['rl-fast-12x30', 'Speed 12 × 30 s', 'quality', [W(15), R(12, { secs:30 }, 'fast', { secs:90, kind:'jog' }), W(12)], 'Fast and relaxed: good form, quick feet, full recovery between.'],
+  ['rl-fast-8x45', 'Hill sprints 8 × 45 s', 'quality', [W(15), R(8, { secs:45 }, 'fast', { mins:2, kind:'walk' }), W(10)], 'On a short hill: drive the arms, walk back down.'],
+  // Walk/run for new runners: a little more running and a little less walking each step, up to 25 minutes non-stop.
+  ['rl-wr-1', 'Walk/run 1', 'beginner', [{ mins:5, zone:'walk' }, R(8, { mins:1 }, 'easy', { secs:90, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between. Done twice and feeling fine? Move on to the next one.'],
+  ['rl-wr-2', 'Walk/run 2', 'beginner', [{ mins:5, zone:'walk' }, R(6, { mins:2 }, 'easy', { mins:1, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between.'],
+  ['rl-wr-3', 'Walk/run 3', 'beginner', [{ mins:5, zone:'walk' }, R(5, { mins:3 }, 'easy', { secs:90, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between.'],
+  ['rl-wr-4', 'Walk/run 4', 'beginner', [{ mins:5, zone:'walk' }, R(4, { mins:5 }, 'easy', { secs:90, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between.'],
+  ['rl-wr-5', 'Walk/run 5', 'beginner', [{ mins:5, zone:'walk' }, R(3, { mins:8 }, 'easy', { secs:90, kind:'walk' }), { mins:5, zone:'walk' }], 'Run gently enough to chat, and walk briskly between.'],
+  ['rl-wr-6', 'Walk/run 6', 'beginner', [{ mins:5, zone:'walk' }, R(2, { mins:12 }, 'easy', { mins:2, kind:'walk' }), { mins:5, zone:'walk' }], 'Nearly there: two long runs with a short walk between.'],
+  ['rl-wr-7', 'First 25 minute run', 'beginner', [{ mins:5, zone:'walk' }, { mins:25, zone:'easy' }], 'Your first non-stop run. Go slower than you think you need to.'],
+];
+LIB.forEach(([id, name, kind, steps, blurb]) => { RUN_SESSIONS[id] = blurb ? { name, kind, blurb, steps } : { name, kind, steps }; });
+export const BEGINNER_RUNS = LIB.filter(x => x[2] === 'beginner').map(x => x[0]);
+
 export function registerRunSession(id, spec){ RUN_SESSIONS[id] = spec; }
 
 function stepSecs(st, T){
@@ -53,7 +99,7 @@ export function runLoad(spec, T = runPace){
   let secs = 0, tss = 0;
   for (const st of spec.steps || []){
     const { work, rec } = stepSecs(st, T);
-    const IF = st.zone === 'race' ? (st.IF || 1) : (ZONE_BY_ID[st.zone] || ZONE_BY_ID.easy).IF;
+    const IF = st.zone === 'race' ? (st.IF || 1) : st.zone === 'walk' ? RECOVERY.walk.IF : (ZONE_BY_ID[st.zone] || ZONE_BY_ID.easy).IF;
     const rIF = st.rec ? RECOVERY[st.rec.kind || 'jog'].IF : 0;
     secs += work + rec;
     tss += work/3600 * IF*IF * 100 + rec/3600 * rIF*rIF * 100;
@@ -163,7 +209,8 @@ export function addRuns(plan, cfg){
 }
 
 // Saves a run. session (optional) is a plan session to mark as done.
-export async function saveRun(supabase, userId, { name, startedAt, durationSec, distanceM, feel, thresholdPace, plan, dayIndex }){
+// workoutId: the run session it was (plan or suggested), so it counts towards the run levels.
+export async function saveRun(supabase, userId, { name, startedAt, durationSec, distanceM, feel, thresholdPace, plan, dayIndex, workoutId }){
   const record = {
     id: 'run_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8),
     user_id: userId, sport:'run', source:'manual', category:'run',
@@ -173,6 +220,7 @@ export async function saveRun(supabase, userId, { name, startedAt, durationSec, 
     intensity_factor: Math.round(runIf({ durationSec, distanceM, thresholdPace, feel })*100)/100,
     feel: feel || null, completed: true, samples: [],
     plan_id: plan || null, plan_day_index: dayIndex != null ? dayIndex : null,
+    workout_id: workoutId && RUN_SESSIONS[workoutId] ? workoutId : null,
   };
   const { error } = await supabase.from('completed_rides').insert(record);
   if (error) throw error;
@@ -249,7 +297,7 @@ export async function openRunLog(supabase, userId, { session = null, planId = nu
       const startedAt = d === today ? new Date(Date.now() - durationSec*1000).toISOString() : new Date(d+'T12:00:00').toISOString();
       try {
         saved = await saveRun(supabase, userId, { name: val('rlName').trim() || 'Run', startedAt, durationSec, distanceM, feel, thresholdPace,
-          plan: session ? planId : null, dayIndex: session ? session.dayIndex : null });
+          plan: session ? planId : null, dayIndex: session ? session.dayIndex : null, workoutId: session ? session.workoutId : null });
       } catch(e){
         await notify('Check your connection and try again.', 'Couldn\'t save that run');
         return false;
@@ -284,7 +332,9 @@ export async function linkRunsToPlan(supabase, runs, sessions, planId){
     const day = localIso(new Date(r.started_at));
     const s = sessions.find(x => (r.sport === 'swim' ? x.isSwim : x.isRun) && !x.done && x.date === day);
     if (!s) continue;
-    const { error } = await supabase.from('completed_rides').update({ plan_id: planId, plan_day_index: s.dayIndex }).eq('id', r.id);
+    const patch = { plan_id: planId, plan_day_index: s.dayIndex };
+    if (r.sport === 'run' && s.dayObj && RUN_SESSIONS[s.dayObj.workoutId]) patch.workout_id = s.dayObj.workoutId;   // counts towards the run levels
+    const { error } = await supabase.from('completed_rides').update(patch).eq('id', r.id);
     if (!error){ s.done = true; n++; }
   }
   return n;

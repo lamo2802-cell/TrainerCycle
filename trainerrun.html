@@ -23,6 +23,13 @@
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+  .lvl-rows{ display:flex; flex-direction:column; gap:7px; max-width:560px; }
+  .lvl-row{ display:grid; grid-template-columns:96px minmax(0,1fr) 32px; align-items:center; gap:10px; font-size:13px; }
+  .lvl-row .zn{ display:flex; align-items:center; gap:7px; color:var(--text-dim); }
+  .lvl-row .zn i{ width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+  .lvl-row .track{ height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden; }
+  .lvl-row .track i{ display:block; height:100%; border-radius:4px; }
+  .lvl-row b{ font-family:var(--mono); text-align:right; }
 
   .page-banner{
     height:260px; border-radius:10px; margin-bottom:20px; background-size:cover; background-position:center 40%;
@@ -227,6 +234,7 @@
       <div class="panel" id="pacePanel"></div>
       <div class="panel" id="predPanel"></div>
     </div>
+    <div class="panel" id="lvlPanel"></div>
     <div class="panel" id="runsPanel"></div>
   </div>
 </div>
@@ -235,10 +243,12 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=3';
 import { isoDate, todayIso, addDays, parseIso, daysBetween, planSessions, loadFollowState, loadDoneDays } from './plan-schedule.js?v=6';
-import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=6';
+import { RUN_PACE_KEY, PACE_ZONES, zonePaces, setRunPace, fmtPace, parsePace, parseDuration, thresholdFrom5k, runSession, openRunLog, fmtKm } from './run.js?v=7';
 import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunPlan, runPlanDates, composeFollowed, loadPlanRow, predictTime, goalPace,
   paceFromRuns, shouldSuggestPace, fmtDuration, PACE_SUGGEST_DISMISSED_KEY, DAY_NAMES, daysLabel } from './run-plans.js?v=4';
 import { applySwaps } from './adapt.js?v=5';
+import { computeRunLevels, RUN_LEVEL_ZONES } from './run-levels.js?v=1';
+import { fmtLevel } from './levels.js?v=1';
 import { openExportSheet } from './export.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 const supabase = createSupabaseClient();
@@ -261,7 +271,7 @@ const supabase = createSupabaseClient();
     const [st, setRes, rRes, hol] = await Promise.all([
       loadFollowState(supabase, user.id),
       supabase.from('settings').select('key,value').eq('user_id', user.id).in('key', [RUN_PACE_KEY, PACE_SUGGEST_DISMISSED_KEY]),
-      supabase.from('completed_rides').select('id,workout_name,started_at,duration_sec,distance_m,tss,run_bests,plan_id,plan_day_index,source')
+      supabase.from('completed_rides').select('id,workout_name,started_at,duration_sec,distance_m,tss,run_bests,plan_id,plan_day_index,source,sport,workout_id,intensity_factor,feel,completed')
         .eq('user_id', user.id).eq('sport', 'run').gte('started_at', new Date(Date.now() - 400*86400000).toISOString()).order('started_at', { ascending:false }),
       loadHolidays(supabase, user.id),
     ]);
@@ -485,7 +495,17 @@ const supabase = createSupabaseClient();
         : '<div class="panel-desc" style="margin:0">No runs yet. Log one here, or connect Strava in Settings and they come in by themselves.</div>');
     el.querySelector('#logAny').onclick = async () => { const saved = await openRunLog(supabase, user.id); if (saved){ runs.unshift(saved); renderAll(); } };
   }
-  function renderAll(){ renderPlan(); renderPace(); renderPred(); renderRuns(); }
+  // ---- run levels, like the cycling progression levels ----
+  function renderLevels(){
+    const el = document.getElementById('lvlPanel');
+    const { levels } = computeRunLevels(runs);
+    el.innerHTML = '<div class="panel-head"><div class="panel-title">Run levels</div><a class="btn-link" href="index.html"><button>Suggested run on Today</button></a></div>'
+      + '<div class="panel-desc">A level from 1 to 10 in each pace zone. It goes up when you log a run at or above it, so the suggested run on Today keeps stepping on. Runs from Strava count in Easy (and Steady, when they were quick).</div>'
+      + '<div class="lvl-rows">'+RUN_LEVEL_ZONES.map(z => '<div class="lvl-row"><span class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</span>'
+        + '<span class="track"><i style="width:'+(levels[z.key]/10*100).toFixed(1)+'%; background:'+z.color+'"></i></span><b>'+fmtLevel(levels[z.key])+'</b></div>').join('')+'</div>'
+      + (runs.length ? '' : '<div class="panel-desc" style="margin:12px 0 0">New to running? Today suggests a walk/run to start: short, easy bits of running with walking between.</div>');
+  }
+  function renderAll(){ renderPlan(); renderPace(); renderPred(); renderLevels(); renderRuns(); }
 
   try { await load(); renderAll(); }
   catch(e){ document.getElementById('planPanel').innerHTML = '<div class="panel-desc">Couldn\'t load your running. Check your connection and refresh.</div>'; }
