@@ -98,7 +98,8 @@ export function recommendedLength(rides, band, today){
   return MAX_CHOICES[Math.max(0, Math.min(MAX_CHOICES.length - 2, i))];   // two hours only when asked for
 }
 
-// Plain-language read of where the rider is: { key, title, text }.
+// Plain-language read of where the rider is: { key, title, text }. It describes the trend only; what to
+// do next is the recommendation's job (it knows about yesterday's and today's sessions), so they can't disagree.
 // key: 'new' | 'rest' | 'improving' | 'maintaining' | 'declining' | 'break'.
 export function trainingStatus(rd){
   const n = Math.round(Math.abs(rd.trend));
@@ -113,12 +114,11 @@ export function trainingStatus(rd){
   // Whole points, as the trend is shown, so '-2 in 2 wks' never reads as Maintaining.
   if (Math.round(rd.trend) >= 2){
     const tail = rd.ramp > 7 ? ' That\'s a fast climb, so keep your easy days easy.'
-      : rd.form < -10 ? ' You\'re carrying some fatigue, which is normal while you build.'
-      : rd.form > 5 ? ' You\'re fresh too, so you\'re ready for a hard session.' : '';
+      : rd.form < -10 ? ' You\'re carrying some fatigue, which is normal while you build.' : '';
     return { key:'improving', title:'Improving', text:'Your Fitness is up ' + pts + ' over the last two weeks.' + tail };
   }
   if (Math.round(rd.trend) <= -2) return { key:'declining', title:'Losing a little fitness',
-    text:'Your Fitness is down ' + pts + ' over the last two weeks' + (rd.form > 5 ? ', but you\'re fresh: a good time for a hard session or an FTP test.' : '. A little more training each week will turn it around.') };
+    text:'Your Fitness is down ' + pts + ' over the last two weeks. A little more training each week will turn it around.' };
   return { key:'maintaining', title:'Maintaining',
     text:'Your Fitness is steady over the last two weeks' + (rd.form < -10 ? ', and you\'re a bit tired.' : '.') + ' To keep improving, add a little more training each week.' };
 }
