@@ -110,16 +110,26 @@ export function trainingStatus(rd){
     text:'Your recent training has built up more fatigue than your fitness can absorb (' + formTxt + (rd.why.length ? ', and ' + rd.why.join(' and ') : '') + '). A rest day now lets your body adapt, so you come back stronger.' };
   if (rd.sinceLast != null && rd.sinceLast > 10) return { key:'break', title:'Time off',
     text:'It\'s been ' + rd.sinceLast + ' days since you last trained, so your Fitness is slipping. You\'re fresh: start back with a couple of steady sessions.' };
-  if (rd.trend >= 2){
+  // Whole points, as the trend is shown, so '-2 in 2 wks' never reads as Maintaining.
+  if (Math.round(rd.trend) >= 2){
     const tail = rd.ramp > 7 ? ' That\'s a fast climb, so keep your easy days easy.'
       : rd.form < -10 ? ' You\'re carrying some fatigue, which is normal while you build.'
       : rd.form > 5 ? ' You\'re fresh too, so you\'re ready for a hard session.' : '';
     return { key:'improving', title:'Improving', text:'Your Fitness is up ' + pts + ' over the last two weeks.' + tail };
   }
-  if (rd.trend <= -2) return { key:'declining', title:'Losing a little fitness',
+  if (Math.round(rd.trend) <= -2) return { key:'declining', title:'Losing a little fitness',
     text:'Your Fitness is down ' + pts + ' over the last two weeks' + (rd.form > 5 ? ', but you\'re fresh: a good time for a hard session or an FTP test.' : '. A little more training each week will turn it around.') };
   return { key:'maintaining', title:'Maintaining',
     text:'Your Fitness is steady over the last two weeks' + (rd.form < -10 ? ', and you\'re a bit tired.' : '.') + ' To keep improving, add a little more training each week.' };
+}
+
+// The status shown everywhere (Today's chip and trend, Progress → Fitness & form), so they always agree.
+// Counts today's training: once you've trained today it's read as of tomorrow morning.
+export function statusNow({ rides, byRide = {}, now, feel = null, restDay = false }){
+  const trainedToday = rides.some(r => dayOf(r) === now && r.sport !== 'strength');
+  const day = trainedToday ? addDays(now, 1) : now;
+  const rd = readiness({ rides, byRide, today: day, now, feel: trainedToday ? null : feel, restDay });
+  return { rd, st: trainingStatus(rd), day, trainedToday };
 }
 
 // The time picked on Today is for today only: tomorrow goes back to the recommended length.

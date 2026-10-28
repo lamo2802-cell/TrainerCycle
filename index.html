@@ -493,7 +493,7 @@ import { legHeavy } from './strength-kit.js?v=6';
 import { goalProgress } from './goal-progress.js?v=1';
 import { focusPoints, focusWeights, benchmarkDue } from './focus.js?v=2';
 import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalChipHtml } from './goals.js?v=5';
-import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, trainingStatus, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=10';
+import { suggestRide, suggestRun, rideZone, isNewRunner, readiness, trainingStatus, statusNow, shorterVersion, alternativesFor, nearestNote, MAX_CHOICES, RUN_CHOICES, RUN_TRY_KEY, loadFeel, saveFeel, loadLength, saveLength } from './suggest.js?v=11';
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { hasRoute, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 const supabase = createSupabaseClient();
@@ -963,7 +963,7 @@ const supabase = createSupabaseClient();
     const raceS = sessions.find(s => s.isRace && s.date >= today);
     const chips = [];
     if (rides.length){
-      const st = trainingStatus(readiness({ rides, byRide, today }));
+      const st = statusNow({ rides, byRide, now: today }).st;   // same read as Progress → Fitness & form
       const dot = { rest:'#E5484D', improving:'#3DBE7A', declining:'#E8B93D', break:'#E8B93D' }[st.key] || 'var(--s-form)';
       if (st.key !== 'new') chips.push('<a class="st-chip" href="rides.html?view=fitness"><i style="background:'+dot+'"></i>'+esc(st.title)+'</a>');
       chips.push('<a class="st-chip" href="rides.html?view=fitness">Form <b>'+(form>0?'+':'')+form+'</b><span>'+formLabel(form)+'</span></a>');
@@ -1008,9 +1008,11 @@ const supabase = createSupabaseClient();
       const line = span.map((p, i) => (i ? 'L' : 'M') + x(i) + ' ' + y(p.ctl)).join(' ');
       const maxTss = Math.max(1, ...span.map(p => p.tss)), bw = Math.max(2, W / span.length - 3);
       const bars = span.map((p, i) => p.tss ? '<rect x="'+(i / Math.max(1, span.length - 1) * (W - bw)).toFixed(1)+'" y="'+(H - p.tss / maxTss * 34).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+(p.tss / maxTss * 34).toFixed(1)+'" rx="1.5" fill="var(--text-dim)" opacity=".28"><title>'+p.date+': '+p.tss+' TSS</title></rect>' : '').join('');
-      const fitNow = Math.round(now.ctl), fitThen = Math.round(span[0].ctl), diff = fitNow - fitThen;
+      // The headline is the same status as the chip and Fitness & form: the change over the last two weeks.
+      const { rd: trendRd, st: trendSt } = statusNow({ rides, byRide, now: today });
+      const fitNow = Math.round(now.ctl), fitThen = Math.round(span[0].ctl), diff = Math.round(trendRd.trend);
       html += '<div class="t-grid t-more"><a class="t-panel" href="rides.html?view=fitness" style="color:inherit; text-decoration:none;"><div class="t-label"><span>Fitness, last 6 weeks</span><span style="color:var(--accent); text-transform:none; letter-spacing:0; font-size:12.5px;">Fitness &amp; form →</span></div>'
-        + '<div class="trend-nums"><span><b>'+fitNow+'</b>Fitness <span class="'+(diff > 0 ? 'up' : diff < 0 ? 'down' : '')+'">'+(diff > 0 ? '+' : '')+diff+' in '+Math.round(span.length / 7)+' wks</span></span><span><b>'+(form > 0 ? '+' : '')+form+'</b>Form · '+formLabel(form)+'</span></div>'
+        + '<div class="trend-nums"><span><b>'+fitNow+'</b>Fitness <span class="'+(trendSt.key === 'improving' ? 'up' : trendSt.key === 'declining' || trendSt.key === 'break' ? 'down' : '')+'">'+esc(trendSt.key === 'new' ? trendSt.title : trendSt.title+' · '+(diff > 0 ? '+' : '')+diff+' in 2 wks')+'</span></span><span><b>'+(form > 0 ? '+' : '')+form+'</b>Form · '+formLabel(form)+'</span></div>'
         + '<svg class="trend-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" aria-label="Fitness over the last six weeks, from '+fitThen+' to '+fitNow+'">'+bars
         + '<path d="'+line+' L'+W+' '+H+' L0 '+H+' Z" fill="var(--s-fitness)" opacity=".14"/><path d="'+line+'" fill="none" stroke="var(--s-fitness)" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>'
         + '<div class="trend-axis"><span>'+parseIso(span[0].date).toLocaleDateString('en-GB',{ day:'numeric', month:'short' })+'</span><span>Today</span></div></a>';
