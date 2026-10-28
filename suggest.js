@@ -9,6 +9,8 @@
 import { isoDate, addDays, daysBetween } from './plan-schedule.js?v=6';
 import { loadSeries } from './training-load.js?v=2';
 import { workoutLevel, zoneInfo, difficultyLabel, LEVEL_ZONES } from './levels.js?v=1';
+import { RUN_LEVEL_ZONES, runZoneInfo, runLibrary } from './run-levels.js?v=1';
+import { BEGINNER_RUNS, runSession } from './run.js?v=7';
 
 export const SUGGEST_MAX_KEY = 'suggest_max_min';
 export const MAX_CHOICES = [30, 45, 60, 75, 90, 120];
@@ -258,4 +260,97 @@ export function saveFeel(today, feel){
 }
 export async function saveMaxMin(supabase, userId, mins){
   await supabase.from('settings').upsert({ user_id: userId, key: SUGGEST_MAX_KEY, value: { v: mins }, updated_at: new Date().toISOString() }, { onConflict: 'user_id,key' });
+}
+
+// ---- Suggested run: the same idea for running, from the run levels (run-levels.js) ----
+// The length comes first (within 5 minutes), how hard from the same readiness as the ride, and which
+// zone from how long since each was run and how far behind its level is; most runs stay easy, and a
+// quality run (steady or faster) waits until three days after the last one. Someone who hasn't run
+// (or whose Easy level is still under the first 25-minute run) gets the next step of walk/run instead.
+export const RUN_CHOICES = [20, 30, 45, 60, 75, 90];
+const RUN_OFFSET = [-10, 0, 0.5, 1];       // target level above the runner's, by band
+const BEGINNER_BELOW = 3.8;                 // the level of "First 25 minute run"
+export const RUN_TRY_KEY = 'run_try_dismissed';
+
+export const isNewRunner = runLevels => !runLevels || runLevels.easy < BEGINNER_BELOW;
+
+// What they usually run (the middle of the last four weeks), a step shorter when tired, 20 min near rest.
+export function recommendedRunLength(rides, band, today){
+  if (band === 0) return 20;
+  const mins = rides.filter(r => r.sport === 'run' && r.duration_sec && dayOf(r) > addDays(today, -28) && dayOf(r) < today)
+    .map(r => r.duration_sec / 60).sort((a, b) => a - b);
+  const usual = mins.length ? mins[Math.floor(mins.length / 2)] : 30;
+  let i = RUN_CHOICES.reduce((best, m, j) => Math.abs(m - usual) < Math.abs(RUN_CHOICES[best] - usual) ? j : best, 0);
+  if (band === 1) i--;
+  return RUN_CHOICES[Math.max(0, Math.min(RUN_CHOICES.length - 2, i))];
+}
+
+// rides: completed_rides (all sports). runLevels/byRun: from computeRunLevels(). maxMin: minutes or 'auto'.
+// Returns { picks:[{ id, session, zone, level, mins, over }], band, form, reason, rest, maxMin, auto, beginner }.
+export function suggestRun({ rides, runLevels, byRun = {}, today, maxMin = 'auto', feel = null, restDay = false }){
+  const rd = readiness({ rides, today, feel, restDay });
+  const { form, band, rest, why } = rd;
+  const levels = Object.assign({}, runLevels || Object.fromEntries(RUN_LEVEL_ZONES.map(z => [z.key, 1])));
+  // A zone never run starts a little below the Easy level, so a regular runner's first threshold
+  // session isn't labelled a breakthrough.
+  const tried = new Set(Object.values(byRun).map(b => b.zone));
+  RUN_LEVEL_ZONES.forEach(z => { if (z.key !== 'easy' && !tried.has(z.key)) levels[z.key] = Math.max(levels[z.key], Math.round((levels.easy - 2.5) * 10) / 10); });
+  const auto = !maxMin || maxMin === 'auto';
+  const ran = rides.some(r => r.sport === 'run');
+
+  // New to running: the next walk/run step (or the same one again if the last felt very hard).
+  if (isNewRunner(levels)){
+    const lib = runLibrary({ beginner:true });
+    const steps = BEGINNER_RUNS.map((id, n) => ({ id, session: runSession(id), zone:'easy', level: (lib.find(x => x.id === id) || {}).level, step: n + 1, of: BEGINNER_RUNS.length }));
+    let i = steps.findIndex(x => x.level >= levels.easy);
+    if (i < 0) i = steps.length - 1;
+    const picks = [steps[i]].concat(i > 0 ? [steps[i-1]] : [], i + 1 < steps.length ? [steps[i+1]] : []).map(x => Object.assign({ mins: x.session.mins, over:false }, x));
+    const reason = rest ? 'Based on your recent fitness and form (Form ' + signed(form) + '), we recommend a rest day. Save your first steps of running for a fresher day.'
+      : !ran ? 'Walk/run is the gentle way in: short, easy bits of running with brisk walking between. When one feels comfortable, the next one runs a little longer, building to 25 minutes non-stop.'
+      : 'The next step of walk/run. If the last one felt very hard, repeat it before moving on.';
+    return { picks, band, form, reason, rest, maxMin: picks[0].mins, auto, beginner: true, levels };
+  }
+
+  if (auto) maxMin = recommendedRunLength(rides, band, today);
+  const maxSec = maxMin * 60;
+  const lastIn = {};
+  rides.forEach(r => { const b = byRun[r.id]; if (b && (!lastIn[b.zone] || dayOf(r) > lastIn[b.zone])) lastIn[b.zone] = dayOf(r); });
+  const gap = z => lastIn[z] ? Math.min(GAP_CAP, daysBetween(lastIn[z], today)) : GAP_CAP;
+  const lastQuality = Object.entries(lastIn).filter(([z]) => z !== 'easy').map(([, d]) => d).sort().pop();
+  const qualitySoon = lastQuality && daysBetween(lastQuality, today) < 3;
+  let zones = band === 0 || rest || qualitySoon ? ['easy'] : band === 1 || rd.hardCount >= 3 ? ['easy', 'steady'] : RUN_LEVEL_ZONES.map(z => z.key);
+  const lv = RUN_LEVEL_ZONES.map(z => levels[z.key] || 1), hi = Math.max(...lv), lo = Math.min(...lv);
+  const zoneScore = z => gap(z) / GAP_CAP + 0.5 * (hi - (levels[z] || 1)) / ((hi - lo) || 1)
+    + (z === 'easy' ? 0.3 : 0) + (band === 3 && z !== 'easy' && z !== 'steady' ? 0.5 : 0) + (z === 'fast' ? -0.2 : 0);
+  const recent = new Set(rides.filter(r => r.sport === 'run' && r.workout_id && dayOf(r) > addDays(today, -RECENT_DAYS)).map(r => r.workout_id));
+  const cands = runLibrary().filter(c => zones.includes(c.zone)).map(c => {
+    const target = Math.max(1, (levels[c.zone] || 1) + RUN_OFFSET[band]);
+    const off = Math.abs(c.mins * 60 - maxSec);
+    return Object.assign({}, c, { off, over: off > CLOSE_SEC,
+      // an easy run's level is mostly its length, so the time picked decides it, not the level
+      score: Math.abs(c.level - target) * (c.zone === 'easy' ? 0.3 : 1) + off / 600 + (recent.has(c.id) ? 2 : 0) - zoneScore(c.zone)
+        + (rest && c.session.kind !== 'easy' ? 3 : 0) });
+  });
+  if (!cands.length) return null;
+  const bucket = c => c.over ? Math.round(c.off / CLOSE_SEC) : 0;
+  cands.sort((a, b) => (bucket(a) - bucket(b)) || (a.score - b.score));
+  const picks = [], seen = new Set();
+  for (const c of cands){ if (bucket(c) === bucket(cands[0]) && !seen.has(c.zone)){ seen.add(c.zone); picks.push(c); } }
+  cands.forEach(c => { if (!picks.includes(c)) picks.push(c); });
+
+  const top = picks[0];
+  const zn = z => runZoneInfo(z).name.toLowerCase();
+  const parts = ['Form is ' + signed(form)].concat(why);
+  if (!why.length){
+    if (top.zone === 'easy' && qualitySoon) parts.push('you ran hard ' + (daysBetween(lastQuality, today) === 1 ? 'yesterday' : daysBetween(lastQuality, today) + ' days ago'));
+    else if (top.zone !== 'easy') parts.push(lastIn[top.zone] ? 'you haven\'t done ' + zn(top.zone) + ' running for ' + gap(top.zone) + ' days' : 'you haven\'t done any ' + zn(top.zone) + ' running yet');
+  }
+  const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length-1] : parts[0];
+  const feelWord = difficultyLabel(top.level, levels[top.zone] || 1).label.toLowerCase().replace('recovery-ish', 'easy').replace('not recommended', 'big step up');
+  // An easy run's level is its length, so it's just an easy run (the length is said below).
+  let reason = list + ', so ' + (top.zone === 'easy' ? (top.session.kind === 'long' ? 'a long easy run.' : 'an easy run.') : (/^[aeiou]/.test(feelWord) ? 'an ' : 'a ') + feelWord + ' ' + zn(top.zone) + ' run.');
+  if (rest) reason = 'Based on your recent fitness and form (' + list + '), we recommend a rest day. If you\'d still like to run, keep it short and easy.';
+  else if (auto) reason += ' ' + maxMin + ' min suits your recent running' + (band === 1 ? ', a little shorter while you\'re tired.' : '.');
+  if (top.over) reason += ' The nearest run to ' + maxMin + ' min is ' + top.mins + ' min.';
+  return { picks: picks.slice(0, 6), band, form, reason, rest, maxMin, auto, beginner: false, levels };
 }

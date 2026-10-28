@@ -236,6 +236,8 @@
   @media (min-width:760px){ #suggestCard .fit-ride{ align-self:flex-start; padding:11px 28px; } }
   .sg-kicker{ font-size:11.5px; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
   .sg-why{ font-size:13.5px; color:var(--text-dim); line-height:1.45; }
+  #suggestCard .run-sg{ margin:-8px 0 22px; cursor:default; }
+  .run-sg-btns{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
   .fit-ride.primary-fill{ background:var(--accent); color:#08211E; }
   .fits-empty{ grid-column:1/-1; padding:36px 20px; text-align:center; border:1px dashed var(--line); border-radius:12px; color:var(--text-dim); }
   .lib-empty{ padding:36px 20px; text-align:center; border:1px dashed var(--line); border-radius:12px; color:var(--text-dim); grid-column:1/-1; }
@@ -361,11 +363,12 @@
 import { createSupabaseClient, requireAuth, renderSidebarUserBadge, requireSubscription } from './auth.js?v=19';
 import { notify, ask } from './sheet.js?v=3';
 import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel } from './levels.js?v=1';
-import { suggestRide, loadFeel } from './suggest.js?v=4';
+import { suggestRide, suggestRun, RUN_TRY_KEY, loadFeel } from './suggest.js?v=5';
+import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns } from './run.js?v=6';
+import { addRuns, openRunLog } from './run.js?v=7';
 import { openExportSheet } from './export.js?v=3';
 const supabase = createSupabaseClient();
 (async function(){
@@ -433,6 +436,8 @@ const supabase = createSupabaseClient();
       const byId = {}, byName = {};
       library.forEach(w=>{ byId[w.id] = w; if (!byName[w.name]) byName[w.name] = w; });
       riderRides = data || [];
+      runLv = computeRunLevels(riderRides);
+      try { const { data: t } = await supabase.from('settings').select('value').eq('key', RUN_TRY_KEY).eq('user_id', user.id).maybeSingle(); runTryDismissed = !!t; } catch(_){}
       ({ levels: riderLevels, byRide: riderByRide } = computeLevels(riderRides.filter(r => (r.sport || 'ride') === 'ride' && r.source !== 'strava' && r.source !== 'manual'), r => byId[r.workout_id] || byName[r.workout_name] || null, ftp));
     } catch(e){ riderLevels = null; }
     renderFtp();
@@ -441,7 +446,7 @@ const supabase = createSupabaseClient();
     renderLibrary();
     renderPlanNudge();
   }
-  let riderLevels = null, riderByRide = {}, riderRides = [];
+  let riderLevels = null, riderByRide = {}, riderRides = [], runLv = null, runTryDismissed = false, runPick = 0;
   function levelChip(w){
     const wl = workoutLevel(w, ftp);
     if (!wl) return '';
@@ -647,9 +652,38 @@ const supabase = createSupabaseClient();
       + '<div class="fit-stats"><div><span class="big">'+d.big+'</span><span class="u">'+d.unit+'</span></div>'
       + (stats.IF!=null ? '<div><span class="v">'+stats.IF.toFixed(2)+'</span><span class="u">IF</span></div>' : '')
       + (stats.tss!=null ? '<div><span class="v">'+stats.tss+'</span><span class="u">TSS</span></div>' : '')+'</div>'
-      + '<button class="fit-ride primary-fill" data-ride="'+c.w.id+'">Ride this</button></div></div>';
+      + '<button class="fit-ride primary-fill" data-ride="'+c.w.id+'">Ride this</button></div></div>'
+      + runCard(today);
   }
-  document.getElementById('suggestCard').addEventListener('click', e=>{
+  // A run for today as well, for runners (or a first walk/run for anyone who hasn't run yet).
+  function runCard(today){
+    if (!runLv || (!runLv.runs.length && runTryDismissed)) return '';
+    const res = suggestRun({ rides: riderRides, runLevels: runLv.levels, byRun: runLv.byRun, today, feel: loadFeel(today) });
+    if (!res || res.rest) return '';
+    const c = res.picks[runPick % res.picks.length], z = runZoneInfo(c.zone);
+    return '<div class="fit-card run-sg"><div class="fit-body"><div class="sg-kicker">'+(runLv.runs.length ? 'Or a run for today' : 'Would you like to try running?')+'</div>'
+      + '<div><div class="fit-name">'+escapeHtml(c.session.name)+'</div><div class="fit-meta"><span class="cat-dot" style="background:'+z.color+'"></span>Run · '+z.name
+      + ' '+(c.step ? '<span class="lvl-chip" style="--zc:'+z.color+'">Step '+c.step+' of '+c.of+'</span>' : '<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+'</span>'+(c.zone === 'easy' ? '' : '<span class="lvl-diff '+difficultyLabel(c.level, res.levels[c.zone] || 1).key+'">'+difficultyLabel(c.level, res.levels[c.zone] || 1).label+'</span>'))+'</div></div>'
+      + '<div class="sg-why">'+escapeHtml(runPick % res.picks.length === 0 ? res.reason : c.session.text)+'</div>'
+      + (runPick % res.picks.length === 0 ? '<div class="sg-why">'+escapeHtml(c.session.text)+'</div>' : '')
+      + '<div class="fit-stats"><div><span class="big">'+c.mins+'</span><span class="u">min</span></div>'+(c.session.tss ? '<div><span class="v">'+c.session.tss+'</span><span class="u">TSS</span></div>' : '')+'</div>'
+      + '<div class="run-sg-btns"><button class="fit-ride" data-log-run="'+escapeHtml(c.id)+'">Log run</button>'
+      + (res.picks.length > 1 ? '<button class="link-btn" data-run-next>Something else</button>' : '')
+      + (runLv.runs.length ? '' : '<button class="link-btn" data-run-no>No thanks</button>')+'</div></div></div>';
+  }
+  document.getElementById('suggestCard').addEventListener('click', async e=>{
+    if (e.target.closest('[data-run-next]')){ runPick++; renderSuggest(); return; }
+    if (e.target.closest('[data-run-no]')){
+      runTryDismissed = true; renderSuggest();
+      try { await supabase.from('settings').upsert({ user_id:user.id, key:RUN_TRY_KEY, value:{ v:true }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' }); } catch(_){}
+      return;
+    }
+    const log = e.target.closest('[data-log-run]');
+    if (log){
+      const saved = await openRunLog(supabase, user.id, { session: { dayIndex:null, date: todayIso(), workoutId: log.dataset.logRun }, planId:null });
+      if (saved){ riderRides.push(saved); runLv = computeRunLevels(riderRides); runPick = 0; renderSuggest(); }
+      return;
+    }
     const ride = e.target.closest('[data-ride]');
     if (ride){ window.location.href = 'live.html?load=' + encodeURIComponent(ride.dataset.ride); return; }
     const card = e.target.closest('[data-preview]');
