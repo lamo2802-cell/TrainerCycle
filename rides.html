@@ -151,6 +151,8 @@
   .week-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:18px 2px 8px; }
   .week-head .t{ font-size:12px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
   .week-head .s{ font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+  .more-btn{ display:block; width:100%; margin:14px 0 4px; padding:12px; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; font-size:14px; cursor:pointer; }
+  .more-btn:hover{ border-color:var(--accent); }
   .ride-row{ display:grid; grid-template-columns:4px minmax(0,1fr) 150px auto; align-items:center; gap:14px; width:100%; text-align:left;
     background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px 10px 0; margin-bottom:6px; color:var(--text); cursor:pointer; font:inherit; overflow:hidden; }
   .ride-row:hover{ border-color:#3A4452; }
@@ -404,6 +406,8 @@ const supabase = createSupabaseClient();
   let rides = [];        // list rows (no samples - those load per ride)
   const workoutsById = {}, workoutsByName = {};
   let filter = '';
+  const LIST_PAGE = 150;
+  let listShown = LIST_PAGE;
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
     return h>0 ? (h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')) : (m+':'+String(s).padStart(2,'0'));
@@ -446,13 +450,18 @@ const supabase = createSupabaseClient();
 
   async function loadRides(){
     try {
-      const [rRes, wRes] = await Promise.all([
-        supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,run_bests,sport,distance_m,elevation_m,source,external_id')
-          .order('started_at',{ascending:false}).limit(200),
-        supabase.from('workouts').select('id,name,steps,category')
-      ]);
+      // All of it, not just the latest: records and PBs compare against the whole history (a
+      // Garmin import can bring in years). Pages of 1000, the most the API returns at once.
+      const page = from => supabase.from('completed_rides').select('id,workout_name,category,started_at,duration_sec,avg_power,np,intensity_factor,avg_hr,max_hr,avg_cadence,completed,tss,workout_id,plan_id,plan_day_index,strava_uploaded_at,feel,power_bests,run_bests,sport,distance_m,elevation_m,source,external_id')
+        .order('started_at',{ascending:false}).range(from, from + 999);
+      const [rRes, wRes] = await Promise.all([page(0), supabase.from('workouts').select('id,name,steps,category')]);
       if (rRes.error) throw rRes.error;
       rides = rRes.data || [];
+      for (let from = 1000; rides.length === from && from < 20000; from += 1000){
+        const more = await page(from);
+        if (more.error) throw more.error;
+        rides = rides.concat(more.data || []);
+      }
       (wRes.data||[]).forEach(w=>{ workoutsById[w.id] = w; if (!workoutsByName[w.name]) workoutsByName[w.name] = w; });
     } catch(e){
       rides = [];
@@ -741,6 +750,12 @@ const supabase = createSupabaseClient();
     if (filter==='strength') items = items.filter(isStrength);
     if (filter==='partial') items = items.filter(r=>!r.completed);
     if (!items.length){ el.innerHTML = '<div class="empty-note">No rides match this filter.</div>'; return; }
+    // Long histories show a page at a time, ending on a whole week.
+    const more = items.length > listShown;
+    if (more){
+      const cut = localIso(mondayOf(new Date(items[listShown - 1].started_at)));
+      items = items.filter((r, i) => i < listShown || localIso(mondayOf(new Date(r.started_at))) === cut);
+    }
 
     const thisMon = mondayOf(new Date());
     const groups = [];
@@ -770,7 +785,7 @@ const supabase = createSupabaseClient();
             + '<span class="st"><span><b>'+fmtHm(r.duration_sec)+'</b>time</span><span><b>'+(r.tss ?? '—')+'</b>TSS</span><span><b>'+(r.intensity_factor!=null ? Number(r.intensity_factor).toFixed(2) : '—')+'</b>IF</span></span>'
             + '</button>';
         }).join('');
-    }).join('');
+    }).join('') + (more ? '<button class="more-btn" data-more>Show older activities</button>' : '');
   }
   document.getElementById('logRunBtn').addEventListener('click', async ()=>{
     const saved = await openRunLog(supabase, user.id);
@@ -807,11 +822,12 @@ const supabase = createSupabaseClient();
   });
   document.getElementById('filterSeg').addEventListener('click', e=>{
     const b = e.target.closest('[data-f]'); if (!b) return;
-    filter = b.dataset.f;
+    filter = b.dataset.f; listShown = LIST_PAGE;
     document.querySelectorAll('#filterSeg button').forEach(x=> x.classList.toggle('on', x === b));
     renderList();
   });
   document.getElementById('ridesList').addEventListener('click', e=>{
+    if (e.target.closest('[data-more]')){ listShown += LIST_PAGE; renderList(); return; }
     const row = e.target.closest('[data-ride]'); if (!row) return;
     history.pushState({ ride: row.dataset.ride }, '', '?ride='+encodeURIComponent(row.dataset.ride));
     showDetail(row.dataset.ride);
@@ -1030,7 +1046,7 @@ const supabase = createSupabaseClient();
     const recent = bestsOver(ridesOnly.filter(r => r.started_at >= since), 'power_bests', REC_DURS, (a,b)=>a>b);
     const runs = bestsOver(rides.filter(isRun), 'run_bests', RUN_RECS.map(x=>x[0]), (a,b)=>a<b);
     const shortDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' }); };
-    let html = '<p class="hub-sub">Your best power, run times and lifts, from TrainerCycle and Strava.</p>';
+    let html = '<p class="hub-sub">Your best power, run times and lifts, from TrainerCycle, Strava and Garmin.</p>';
     html += '<div class="panel"><div class="panel-title"><span>Power bests</span><span class="rec-legend"><span><i style="background:#45D6C4"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span></div>';
     if (!Object.keys(all).length){
       html += '<div class="empty-note">Ride with a power meter and your best efforts will show here.</div>';

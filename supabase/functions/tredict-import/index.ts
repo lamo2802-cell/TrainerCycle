@@ -32,6 +32,14 @@ const json = (body: unknown, status = 200) =>
 
 class TokenError extends Error {}
 
+// Garmin activities usually have no title: name them by time of day, as Strava does ("Morning run").
+export function nameFor(sport: string, iso: string, tz?: string) {
+  let h = new Date(iso).getUTCHours();
+  try { h = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz || "UTC" }).format(new Date(iso))); } catch (_) { /* unknown zone: UTC */ }
+  const part = h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night";
+  return part + " " + (sport === "run" ? "run" : sport === "swim" ? "swim" : "ride");
+}
+
 // deno-lint-ignore no-explicit-any
 async function tredict(token: string, path: string): Promise<any> {
   const url = path.startsWith("http") ? path : API + path.replace(/^\/?(api\/oauth\/v2\/)?/, "");
@@ -190,7 +198,7 @@ Deno.serve(async (req) => {
       rows.push({
         id: "tredict_" + a.id, user_id: user.id, sport, source: "garmin", external_id: "tredict:" + a.id,
         category: sport === "run" ? "run" : sport === "swim" ? (fit ? (fit.poolSwim ? "pool" : "open_water") : sum.positionLat ? "open_water" : "pool") : indoor ? "indoor" : "outdoor",
-        workout_name: a.title || (sport === "run" ? "Run" : sport === "swim" ? "Swim" : "Ride"),
+        workout_name: a.title || nameFor(sport, fit?.start ?? a.date, a.timezone),
         started_at: fit?.start ?? new Date(a.date).toISOString(), duration_sec: dur,
         distance_m: dist || null, elevation_m: fit?.ascent ?? (sum.altitude?.ascent != null ? Math.round(sum.altitude.ascent) : null),
         avg_hr: hr, max_hr: fit?.maxHr ?? (sum.heartrateMax ? Math.round(sum.heartrateMax) : null),
