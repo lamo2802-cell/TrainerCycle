@@ -102,7 +102,7 @@ function fromLaps(laps){
 }
 
 // Grade adjusted: uphill running costs more than its pace shows, downhill a little less.
-const gradeFactor = g => g == null ? 1 : (g = Math.max(-15, Math.min(15, g)), g > 0 ? 1 + 0.033 * g : 1 + 0.018 * g);
+export const gradeFactor = g => g == null ? 1 : (g = Math.max(-15, Math.min(15, g)), g > 0 ? 1 + 0.033 * g : 1 + 0.018 * g);
 
 function fromTrace(s){
   if (!s || !s.v || s.v.length < 120) return null;   // under 10 minutes

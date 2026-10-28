@@ -367,7 +367,8 @@ import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCa
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
-import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml } from './run-analysis.js?v=2';
+import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=3';
+import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
@@ -379,7 +380,7 @@ import { readiness, trainingStatus, suggestRide, suggestRun, rideZone, isNewRunn
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -525,7 +526,7 @@ const supabase = createSupabaseClient();
       + '<div id="runWorkout"></div>'
       + (r.source === 'strava' ? '<div id="runChart"></div>' : '')
       + (hasRoute(r) ? routePanelHtml() : '')
-      + (r.source === 'strava' ? '<div id="runZones"></div><div id="runSplits"></div>' : '')
+      + (r.source === 'strava' ? '<div id="runZones"></div><div id="runEff"></div><div id="runSplits"></div>' : '')
       + runBestsHtml(r)
       + '<div class="panel empty-note">Runs count towards your Fitness, Fatigue and Form'+(r.intensity_factor!=null ? ', using your threshold pace when there\'s a distance, or how it felt when there isn\'t' : '')+'.</div>';
   }
@@ -603,6 +604,8 @@ const supabase = createSupabaseClient();
     const paceNote = cfg.pace ? '' : 'Add your threshold pace in <a href="settings.html">Settings</a> to see time in each pace zone.';
     const hrNote = cfg.lthrHow ? 'Zones from ' + cfg.lthrHow + '. Set your own in <a href="settings.html">Settings</a>.' : '';
     zb.innerHTML = detail.s ? zonesPanelHtml(zones, { verdict, paceNote, hrNote }) : '';
+    const eb = el.querySelector('#runEff');
+    if (eb) eb.innerHTML = efficiencyPanelHtml(runEfficiency(detail.s, { intensity: r.intensity_factor, workout: a.workout, gradeFactor }), usualEf(rides, 'run', r.id), sessionEf(r));
   }
   // Threshold pace and threshold heart rate for run zones, loaded once. Without a threshold heart rate
   // set, it's estimated from the highest heart rate seen on a run (running sits higher than riding).
@@ -780,7 +783,7 @@ const supabase = createSupabaseClient();
     if (trainHist) return trainHist;
     const since = new Date(Date.now() - 400*86400000).toISOString();
     const [aRes, fRes, wRes, tRes, pRes, goals] = await Promise.all([
-      supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,run_bests,intensity_factor,np,plan_id,category,source,completed,workout_name,workout_id,feel')
+      supabase.from('completed_rides').select('id,started_at,duration_sec,tss,sport,distance_m,power_bests,run_bests,intensity_factor,np,plan_id,category,source,completed,workout_name,workout_id,feel,avg_hr,elevation_m')
         .eq('user_id', user.id).gte('started_at', since).order('started_at', { ascending:true }),
       supabase.from('settings').select('value,updated_at').eq('key','ftp').eq('user_id', user.id).maybeSingle(),
       supabase.from('workouts').select('id,name,category,steps,duration_sec'),
@@ -814,7 +817,8 @@ const supabase = createSupabaseClient();
     try { h = await loadHistory(); }
     catch(e){ hub.innerHTML = '<div class="empty-note">Couldn\'t load your training. Check your connection and refresh.</div>'; return; }
     if (new URLSearchParams(location.search).get('view') !== view) return; // moved on while loading
-    if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h); }
+    if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div><div id="engineRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h);
+      document.getElementById('engineRoot').innerHTML = engineCardHtml(['ride', 'run'].map(sp => efficiencyTrend(h.acts, sp))); }
     else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); }
   }
   // ---- Fitness & form: where you are in plain words, and the ride we'd do next ----
@@ -1143,6 +1147,7 @@ const supabase = createSupabaseClient();
       + '<div class="chart-wrap"><canvas id="curveChart"></canvas><div class="tip" id="curveTip"></div></div>'
       + '<div class="bests">'+key.map(b=>'<div class="best"><b>'+b.w+'</b><span>'+durLabel(b.d)+'</span></div>').join('')+'</div></div>'
       + '<div class="panel"><div class="panel-title"><span>Time in zone</span></div>'+zoneHtml+'</div></div>';
+    html += efficiencyPanelHtml(rideEfficiency(sec, { intensity: ride.intensity_factor, category: ride.category }), usualEf(rides, 'ride', ride.id), sessionEf(ride));
 
     // intervals: one row per workout step that lasted 10 s or more
     const laps = [];
