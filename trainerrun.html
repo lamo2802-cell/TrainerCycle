@@ -252,7 +252,8 @@ import { RUN_GOALS, RUN_LEVELS, RUN_BUILDS, RUN_PLAN_KEY, RUN_PLAN_ID, buildRunP
 import { applySwaps } from './adapt.js?v=5';
 import { computeRunLevels, RUN_LEVEL_ZONES } from './run-levels.js?v=1';
 import { fmtLevel } from './levels.js?v=1';
-import { loadGoals, runGoalStatus, goalLabel, openGoalSheet } from './goals.js?v=3';
+import { loadGoals, runGoalStatus, goalLabel, openGoalSheet } from './goals.js?v=4';
+import { goalProgress, progressBarHtml, progressChartHtml, ensureProgressCss } from './goal-progress.js?v=1';
 import { openExportSheet } from './export.js?v=3';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 const supabase = createSupabaseClient();
@@ -494,9 +495,12 @@ const supabase = createSupabaseClient();
     const gst = goals.run ? runGoalStatus(goals.run, pace) : null;
     const goalHtml = '<div class="goal-line">'+(goals.run ? '<div><b>Your goal: '+esc(goalLabel('run', goals.run))+'</b><span>'+esc(gst.text)+'</span></div><button id="goalBtn">Change</button>'
       : '<div><b>Got a time in mind?</b><span>Set a target and your suggested runs on Today work towards it.</span></div><button id="goalBtn">Set a target time</button>')+'</div>';
+    const gp = goals.run ? goalProgress('run', goals.run, { rides: runs, runPace: pace }) : null;
+    if (gp) ensureProgressCss();
+    const progHtml = gp ? '<div class="goal-prog">'+progressBarHtml(gp)+progressChartHtml(gp, goals.run, esc)+'</div>' : '';
     el.innerHTML = '<div class="panel-title">Predicted race times</div><div class="panel-desc">'+(pace ? 'From your threshold pace of '+fmtPace(pace)+' /km, if you\'re trained for the distance.' : 'Set your threshold pace to see these.')+'</div>'
-      + '<div class="preds">'+Object.entries(RUN_GOALS).map(([k, g]) => '<div class="pred'+(k === goal ? ' goal' : '')+'"><div class="k">'+g.label+'</div><div class="v">'+(pace ? fmtDuration(predictTime(k, pace)) : '—')+'</div><div class="s">'+(pace ? fmtPace(goalPace(k, pace))+' /km' : '')+'</div></div>').join('')+'</div>' + goalHtml;
-    el.querySelector('#goalBtn').onclick = async () => { const next = await openGoalSheet(supabase, user.id, goals, 'run', { runPace: pace }); if (next){ goals = next; renderPred(); } };
+      + '<div class="preds">'+Object.entries(RUN_GOALS).map(([k, g]) => '<div class="pred'+(k === goal ? ' goal' : '')+'"><div class="k">'+g.label+'</div><div class="v">'+(pace ? fmtDuration(predictTime(k, pace)) : '—')+'</div><div class="s">'+(pace ? fmtPace(goalPace(k, pace))+' /km' : '')+'</div></div>').join('')+'</div>' + goalHtml + progHtml;
+    el.querySelector('#goalBtn').onclick = async () => { const next = await openGoalSheet(supabase, user.id, goals, 'run', { runPace: pace, rides: runs }); if (next){ goals = next; renderPred(); } };
   }
   function renderRuns(){
     const el = document.getElementById('runsPanel');
