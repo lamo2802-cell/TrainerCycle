@@ -1,6 +1,7 @@
 // Route map for outdoor activities imported from Strava (completed_rides.route_polyline, Google's
 // encoded polyline format). Leaflet and the map tiles load only when a route is shown.
-// Tiles are OpenStreetMap's own (free, no key), darkened with a CSS filter to suit the app.
+// Tiles are OpenStreetMap's own (free, no key), shown in their normal light style, with the
+// trace in green on a white casing so it reads clearly over roads and parks.
 const LEAFLET = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
 let leaflet = null;
 function loadLeaflet(){
@@ -41,7 +42,7 @@ export function routePanelHtml(){
   return '<div class="panel route-panel"><div class="panel-title"><span>Route</span></div><div class="route-map" role="img" aria-label="Map of the route"></div></div>';
 }
 
-export async function mountRouteMap(root, encoded, color = '#45D6C4'){
+export async function mountRouteMap(root, encoded, color = '#0E9F5B'){
   const box = root && root.querySelector('.route-map');
   if (!box || !encoded) return;
   const pts = decodePolyline(encoded);
@@ -54,9 +55,10 @@ export async function mountRouteMap(root, encoded, color = '#45D6C4'){
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
-    const line = L.polyline(pts, { color, weight:4, opacity:.95, lineJoin:'round' }).addTo(map);
-    L.circleMarker(pts[0], { radius:6, color:'#10141A', weight:2, fillColor:'#3DBE7A', fillOpacity:1 }).addTo(map).bindTooltip('Start');
-    L.circleMarker(pts[pts.length-1], { radius:6, color:'#10141A', weight:2, fillColor:'#E5484D', fillOpacity:1 }).addTo(map).bindTooltip('Finish');
+    L.polyline(pts, { color:'#FFFFFF', weight:8, opacity:.9, lineJoin:'round', interactive:false }).addTo(map);
+    const line = L.polyline(pts, { color, weight:4, opacity:1, lineJoin:'round' }).addTo(map);
+    L.circleMarker(pts[0], { radius:7, color:'#FFFFFF', weight:3, fillColor:color, fillOpacity:1 }).addTo(map).bindTooltip('Start');
+    L.circleMarker(pts[pts.length-1], { radius:7, color:'#FFFFFF', weight:3, fillColor:'#E5484D', fillOpacity:1 }).addTo(map).bindTooltip('Finish');
     map.fitBounds(line.getBounds(), { padding:[18, 18] });
   } catch(_){
     box.innerHTML = '<div class="empty-note" style="padding:16px">The map couldn\'t load. Check your connection.</div>';
@@ -64,12 +66,12 @@ export async function mountRouteMap(root, encoded, color = '#45D6C4'){
 }
 
 export const ROUTE_CSS = `
-  .route-map{ height:340px; border-radius:10px; overflow:hidden; background:#0d1116; }
+  .route-map{ height:340px; border-radius:10px; overflow:hidden; background:#EEF1F3; }
   @media (max-width:600px){ .route-map{ height:260px; } }
-  /* light OpenStreetMap tiles turned dark: invert, then rotate the hues back so water stays blue */
-  .route-map .leaflet-tile-pane{ filter:invert(1) hue-rotate(180deg) brightness(.9) saturate(.4); }
-  .route-map.leaflet-container{ background:#0d1116; }
-  .route-map.leaflet-container .leaflet-control-attribution{ background:rgba(16,20,26,.8); color:#8C97A6; font-size:10px; }
-  .route-map.leaflet-container .leaflet-control-attribution a{ color:#B4BDC9; }
-  .route-map .leaflet-bar a{ background:#1D242D; color:#E7ECF2; border-color:#2A323D; }
+  /* light OpenStreetMap tiles, softened a touch so the green trace stands out */
+  .route-map .leaflet-tile-pane{ filter:saturate(.75) brightness(1.03); }
+  .route-map.leaflet-container{ background:#EEF1F3; }
+  .route-map.leaflet-container .leaflet-control-attribution{ background:rgba(255,255,255,.85); color:#5B6573; font-size:10px; }
+  .route-map.leaflet-container .leaflet-control-attribution a{ color:#0E7A47; }
+  .route-map .leaflet-bar a{ background:#FFFFFF; color:#1D242D; border-color:#D5DAE0; }
 `;

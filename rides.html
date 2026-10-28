@@ -365,7 +365,7 @@ import { focusPoints, focusWeights, focusListHtml, ensureFocusCss, benchmarkDue 
 import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCardHtml, openGoalSheet, ensureGoalsCss } from './goals.js?v=2';
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
-import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=2';
+import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=2';
 import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
@@ -1018,7 +1018,7 @@ const supabase = createSupabaseClient();
       if (!ride){ el.innerHTML = '<button class="back" data-back>‹ Activities</button><div class="empty-note">That ride couldn\'t be loaded.</div>'; return; }
       detailCache[id] = ride;
     }
-    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline, '#C084FC'); return; }
+    if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
     if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
     if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); return; }
