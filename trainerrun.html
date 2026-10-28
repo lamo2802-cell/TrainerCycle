@@ -301,6 +301,14 @@ const supabase = createSupabaseClient();
   }
 
   // ---- plan panel ----
+  // The race day in the followed plan, when that plan already has its own runs (triathlon, duathlon, builder plans)
+  function planRace(){
+    if (!cyclingRow || !follow.startedAt) return null;
+    const ownRuns = (cyclingRow.weeks || []).some(w => (w.days || []).some(d => d && (d.workoutType === 'run' || d.workoutType === 'brick')));
+    if (!ownRuns) return null;
+    const plan = applyHolidays(applySwaps(composeFollowed(cyclingRow, follow, null).plan, follow.swaps), follow.startedAt, follow.moves, holidays);
+    return planSessions(plan, follow.startedAt, follow.moves).find(s => s.dayObj.workoutType === 'race') || null;
+  }
   function followedSessions(){
     const base = composeFollowed(cyclingRow, follow, follow.runPlan).plan;
     if (!base) return [];
@@ -320,6 +328,16 @@ const supabase = createSupabaseClient();
     const el = document.getElementById('planPanel');
     if (editing){ renderBuilder(el); return; }
     const cfg = follow.runPlan, plan = cfg ? buildRunPlan(cfg) : null;
+    const race = !plan && planRace();
+    if (race){
+      // the followed plan already has its own runs and a race, so a second run plan would double up
+      const toGo = daysBetween(todayIso(), race.date);
+      el.innerHTML = '<div class="panel-head"><div class="kicker">Your race</div><div class="row-btns"><a href="plans.html"><button>Your plan</button></a></div></div>'
+        + '<div class="plan-top"><div class="countdown"><b>'+(toGo > 0 ? toGo : toGo === 0 ? '0' : '✓')+'</b><span>'+(toGo > 1 ? 'days to go' : toGo === 1 ? 'day to go' : toGo === 0 ? 'race day' : 'raced')+'</span></div>'
+        + '<div class="pt-body"><div class="pt-name">'+esc(cyclingRow.name)+' · '+longDate(race.date)+'</div>'
+        + '<div class="pt-sub">Your runs come from this plan, so they show on Today and the Calendar. Your paces and run levels below still apply.</div></div></div>';
+      return;
+    }
     if (!plan){
       el.innerHTML = '<div class="kicker">Race plan</div><div class="panel-title">Train for a race</div>'
         + '<div class="panel-desc">Pick a 5K, 10K, half or marathon and its date. You get a plan that builds week by week: easy runs, one or two key sessions with your own paces, a long run, lighter weeks, and a taper into race day.'

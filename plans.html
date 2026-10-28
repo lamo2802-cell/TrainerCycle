@@ -174,6 +174,14 @@
   .rpb-text{ flex:1; min-width:0; color:var(--text-dim); } .rpb-text b{ color:var(--text); }
   .rpb-go{ color:#C084FC; font-weight:600; font-size:13px; white-space:nowrap; }
   @media (max-width:560px){ .run-plan-banner{ flex-wrap:wrap; } .rpb-go{ width:100%; } }
+  .not-following{ color:var(--text-dim); font-size:13.5px; background:var(--panel); border:1px dashed var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; }
+  .not-following[hidden]{ display:none; }
+  .choose-h2{ font-size:19px; margin:26px 0 12px; }
+  .plan-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  .plan-tabs button, .plan-tabs a{ font:inherit; font-size:13.5px; font-weight:600; padding:8px 14px; border-radius:999px; border:1px solid var(--border); background:var(--panel); color:var(--text-dim); text-decoration:none; cursor:pointer; width:auto; }
+  .plan-tabs button.on{ background:var(--accent); border-color:var(--accent); color:#0B0F14; }
+  .plan-tabs a:hover, .plan-tabs button:hover:not(.on){ color:var(--text); border-color:var(--accent); }
+  @media (max-width:560px){ .plan-tabs{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } .plan-tabs::-webkit-scrollbar{ display:none; } .plan-tabs > *{ flex:0 0 auto; } }
   .run-plan-banner.pb{ background:linear-gradient(100deg, rgba(56,189,248,.12), transparent 65%), var(--panel); border-color:rgba(56,189,248,.4); }
   .run-plan-banner.pb:hover{ border-color:#38BDF8; } .run-plan-banner.pb .rpb-tag, .run-plan-banner.pb .rpb-go{ color:#38BDF8; }
   .run-plan-banner.sp{ background:linear-gradient(100deg, rgba(69,214,196,.12), transparent 65%), var(--panel); border-color:rgba(69,214,196,.4); }
@@ -215,7 +223,7 @@
 
   <div class="main">
     <div class="page-banner" style="background-image:url('banner-plans.jpg?v=2');"></div>
-    <h1 class="plans-h1">Training plans</h1>
+    <h1 class="plans-h1">Your plan</h1>
     <div class="ftp-prompt" id="ftpPrompt" style="display:none;">
       <div class="ftp-prompt-text">
         <b>New here or not sure of your current FTP?</b>
@@ -224,10 +232,19 @@
       <a href="live.html?load=prebuilt-ramp-test-25"><button class="primary">Start Ramp Test</button></a>
     </div>
 
-    <a class="run-plan-banner sp" href="trainerstrength.html#programmes"><span class="rpb-tag">Strength</span><span class="rpb-text"><b>Strength programmes</b> that fit around your riding: Cyclist Strength, In-season Maintenance, Home Dumbbells and more.</span><span class="rpb-go">Choose one →</span></a>
-    <a class="run-plan-banner pb" href="plan-builder.html"><span class="rpb-tag">Plan builder</span><span class="rpb-text"><b>Build your own plan</b> from rides, runs, swims and strength, or get a triathlon or duathlon plan for your race.</span><span class="rpb-go">Build a plan →</span></a>
-    <div id="runPlanBanner"></div>
     <div id="followingBanner" style="display:none;"></div>
+    <div id="runPlanBanner"></div>
+    <div id="strengthRow"></div>
+    <div id="notFollowing" class="not-following" hidden>You're not following a plan yet. Choose one below and it fills your Calendar and Today.</div>
+
+    <h2 class="choose-h2">Choose a plan</h2>
+    <div class="plan-tabs" id="planTabs" role="tablist">
+      <button type="button" role="tab" data-tab="ride" class="on" aria-selected="true">Cycling</button>
+      <button type="button" role="tab" data-tab="multi" aria-selected="false">Triathlon &amp; duathlon</button>
+      <a href="trainerrun.html">Running →</a>
+      <a href="trainerstrength.html#programmes">Strength →</a>
+      <a href="plan-builder.html">Build your own →</a>
+    </div>
 
     <details class="phase-roadmap" id="phaseRoadmap" open>
       <summary class="phase-roadmap-title">How the plans fit together</summary>
@@ -255,13 +272,13 @@
       <div class="phase-roadmap-note">Finish a plan and, where there's a natural next step, we'll suggest it directly. Or use the filter below to jump in wherever fits.</div>
     </details>
 
-    <div class="plan-filters">
+    <div class="plan-filters" id="planFilters">
       <label for="filterSessions" class="pf-label">Show</label>
       <select id="filterSessions">
         <option value="">All plans</option>
       </select>
     </div>
-    <div style="font-size:11.5px; color:var(--text-dim); margin-bottom:16px; margin-top:-8px;">Click a plan to see its week-by-week breakdown, then click any day's ride or strength session to load it straight in.</div>
+    <div id="plansHint" style="font-size:11.5px; color:var(--text-dim); margin-bottom:16px; margin-top:-8px;">Click a plan to see its week-by-week breakdown, then click any day's ride or strength session to load it straight in.</div>
 
     <div id="plansList"><div class="sk-stack" aria-label="Loading"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div></div>
   </div>
@@ -277,6 +294,7 @@ import { addRuns, runSession, openRunLog, RUN_PLAN_KEY } from './run.js?v=9';
 import { showSheet } from './sheet.js?v=3';
 import { sessionInfo, registerPlanSessions, isBikeDay } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY } from './swim.js?v=2';
+import { programmeStatus, PHASES } from './strength-programmes.js?v=2';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -348,6 +366,7 @@ const supabase = createSupabaseClient();
   let activePlanRuns = null; // { days:[0..6] } run days the rider added to the followed plan
   let activePlanSwaps = {}; // day-index -> workout id for adaptive swaps the rider accepted on Today
   let sessionsFilter = '';
+  let planTab = 'ride'; // Choose a plan: 'ride' (cycling) or 'multi' (triathlon & duathlon)
   let doneDays = new Map(); // day-index -> ride ({tss}) for the followed plan, from rides linked to it
 
   function ridesPerWeek(plan){
@@ -367,6 +386,8 @@ const supabase = createSupabaseClient();
     });
     return best || { ride:0, run:0, swim:0, strength:0 };
   }
+  // Triathlon & duathlon tab: plans with runs or swims
+  function isMulti(plan){ const n = sportsPerWeek(plan); return n.run > 0 || n.swim > 0; }
   function strengthPerWeek(plan){
     const week = (plan.weeks||[])[0];
     if (!week) return 0;
@@ -486,6 +507,9 @@ const supabase = createSupabaseClient();
         const { data: f } = await supabase.from('settings').select('value').eq('key','ftp').eq('user_id', user.id).maybeSingle();
         if (!(f && f.value && typeof f.value.v === 'number')) document.getElementById('ftpPrompt').style.display = '';
       } catch(_){}
+      // open the tab that matches the plan you follow
+      const cur = activePlanId && plans.find(p => p.id === activePlanId);
+      if (cur && isMulti(cur)) document.querySelector('#planTabs [data-tab="multi"]').click();
       populateFilter();
       render();
     } catch(e){
@@ -494,7 +518,7 @@ const supabase = createSupabaseClient();
   }
 
   function populateFilter(){
-    const counts = [...new Set(plans.map(ridesPerWeek))].sort((a,b)=>a-b);
+    const counts = [...new Set(plans.filter(p => !isMulti(p)).map(ridesPerWeek))].sort((a,b)=>a-b);
     const sel = document.getElementById('filterSessions');
     sel.innerHTML = '<option value="">All plans</option>' +
       counts.map(c=>'<option value="'+c+'">'+c+' ride'+(c===1?'':'s')+'/week</option>').join('');
@@ -531,14 +555,24 @@ const supabase = createSupabaseClient();
   function renderRunPlanBanner(){
     const el = document.getElementById('runPlanBanner');
     const rp = activeRunPlan, g = rp && RUN_GOALS[rp.goal];
-    el.innerHTML = '<a class="run-plan-banner" href="trainerrun.html"><span class="rpb-tag">TrainerRun</span><span class="rpb-text">'
-      + (g ? '<b>'+escapeHtml(g.label)+' plan</b> · race '+new Date(rp.raceDate+'T12:00:00').toLocaleDateString('en-GB',{ day:'numeric', month:'short' })+' · runs on '+daysLabel(rp.days)+(activePlanId ? ', on this plan\'s rest days' : '')
-        : '<b>Training for a race?</b> Build a 5K, 10K, half or marathon plan, on its own or alongside a cycling plan.')
-      + '</span><span class="rpb-go">'+(g ? 'Open' : 'Build a run plan')+' →</span></a>';
+    // only a run plan you follow shows here; new ones are under Choose a plan → Running
+    el.innerHTML = g ? '<a class="run-plan-banner" href="trainerrun.html"><span class="rpb-tag">Run plan</span><span class="rpb-text">'
+      + '<b>'+escapeHtml(g.label)+'</b> · race '+new Date(rp.raceDate+'T12:00:00').toLocaleDateString('en-GB',{ day:'numeric', month:'short' })+' · runs on '+daysLabel(rp.days)+(activePlanId ? ', on this plan\'s rest days' : '')
+      + '</span><span class="rpb-go">Open →</span></a>' : '';
+    renderStrengthRow();
+  }
+  function renderStrengthRow(){
+    const el = document.getElementById('strengthRow');
+    const s = activeStrengthPlan && programmeStatus(activeStrengthPlan);
+    el.innerHTML = s ? '<a class="run-plan-banner sp" href="trainerstrength.html"><span class="rpb-tag">Strength</span><span class="rpb-text">'
+      + '<b>'+escapeHtml(s.programme.name)+'</b> · '+(s.done ? 'finished' : s.notStarted ? 'starts '+shortDate(activeStrengthPlan.start) : 'week '+(s.week+1)+' of '+s.programme.weeks+((PHASES[s.phase]||{}).label ? ', '+PHASES[s.phase].label : ''))
+      + '</span><span class="rpb-go">Open →</span></a>' : '';
+    document.getElementById('notFollowing').hidden = !!(activePlanId || activeRunPlan || s);
   }
   function renderFollowingBanner(){
     const el = document.getElementById('followingBanner');
     document.getElementById('phaseRoadmap').open = !activePlanId; // tucked away once you're following a plan
+    renderStrengthRow();
     if (!activePlanId){ el.style.display = 'none'; return; }
     const plan = plans.find(p=>p.id===activePlanId);
     if (!plan){ el.style.display = 'none'; return; }
@@ -636,8 +670,10 @@ const supabase = createSupabaseClient();
   function render(){
     renderFollowingBanner();
     const el = document.getElementById('plansList');
-    const visible = plans.filter(p => !sessionsFilter || String(ridesPerWeek(p)) === sessionsFilter);
-    if (!visible.length){ el.innerHTML = '<div class="empty-note">No plans match that filter.</div>'; return; }
+    const ride = planTab === 'ride';
+    ['phaseRoadmap','planFilters'].forEach(id => { document.getElementById(id).style.display = ride ? '' : 'none'; });
+    const visible = plans.filter(p => ride ? !isMulti(p) && (!sessionsFilter || String(ridesPerWeek(p)) === sessionsFilter) : isMulti(p));
+    if (!visible.length){ el.innerHTML = '<div class="empty-note">'+(ride ? 'No plans match that filter.' : 'No triathlon or duathlon plans yet. <a href="plan-builder.html">Build one for your race</a>.')+'</div>'; return; }
 
     function cardHtml(p){
       const weekCount = (p.weeks||[]).length;
@@ -675,7 +711,7 @@ const supabase = createSupabaseClient();
     let html = yours.length ? '<div class="phase-group-title">Your plans</div>' + yours.map(cardHtml).join('') : '';
     PHASE_ORDER.forEach(phase=>{
       if (byPhase[phase] && byPhase[phase].length){
-        html += '<div class="phase-group-title">'+PHASE_LABELS[phase]+'</div>' + byPhase[phase].map(cardHtml).join('');
+        html += (ride ? '<div class="phase-group-title">'+PHASE_LABELS[phase]+'</div>' : '') + byPhase[phase].map(cardHtml).join('');
       }
     });
     if (noPhase.length) html += noPhase.map(cardHtml).join('');
@@ -738,6 +774,12 @@ const supabase = createSupabaseClient();
     if (plan) renderWeeks(plan);
   });
 
+  document.getElementById('planTabs').addEventListener('click', (e)=>{
+    const b = e.target.closest('button[data-tab]'); if (!b || b.dataset.tab === planTab) return;
+    planTab = b.dataset.tab;
+    document.querySelectorAll('#planTabs button').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-selected', on); });
+    render();
+  });
   document.getElementById('filterSessions').addEventListener('change', (e)=>{
     sessionsFilter = e.target.value;
     render();
