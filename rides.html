@@ -631,7 +631,7 @@ const supabase = createSupabaseClient();
       } catch(_){ fresh = null; }
       if (!box.isConnected) return;
       detail = fresh || detail;
-      if (!detail){ box.innerHTML = '<div class="panel empty-note">Splits couldn\'t be loaded from Strava right now. Try again later.</div>'; return; }
+      if (!detail){ box.innerHTML = '<div class="panel empty-note">' + await stravaMissing('Splits') + '</div>'; return; }
       r.run_detail = detail;
     }
     const a = analyseRun(detail);
@@ -1135,7 +1135,14 @@ const supabase = createSupabaseClient();
     ].filter(Boolean);
     return stackHtml({ dt, n, dist, channels });
   }
-  // Strava rides keep only totals when synced; the trace is fetched the first time the ride is opened.
+  // Why a Strava activity's details couldn't be fetched: Strava not connected any more, or just not right now.
+  async function stravaMissing(what){
+    let conn = true;
+    try { const { data } = await supabase.from('strava_connections').select('connected_at').eq('user_id', user.id).maybeSingle(); conn = !!data; } catch(_){}
+    return conn ? what + ' couldn\'t be loaded from Strava right now. Try again later.'
+      : 'Reconnect Strava in <a href="settings.html">Settings</a> to load the ' + what.toLowerCase() + ' for this one.';
+  }
+  // A Strava ride's trace is saved by the sync in the background, or fetched the first time the ride is opened.
   async function mountRideTrace(el, r){
     const box = el.querySelector('#rideTrace'); if (!box) return;
     let detail = r.run_detail;
@@ -1147,7 +1154,7 @@ const supabase = createSupabaseClient();
         detail = data && data.detail;
       } catch(_){ detail = null; }
       if (!box.isConnected) return;
-      if (!detail){ box.innerHTML = '<div class="panel empty-note">Charts couldn\'t be loaded from Strava right now. Try again later.</div>'; return; }
+      if (!detail){ box.innerHTML = '<div class="panel empty-note">' + await stravaMissing('Charts') + '</div>'; return; }
       r.run_detail = detail;
     }
     const html = detail.s && detail.s.v && detail.s.v.length >= 24 ? importedRideCharts(detail.s) : '';
