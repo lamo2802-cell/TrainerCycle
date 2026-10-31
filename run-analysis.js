@@ -5,6 +5,7 @@
 // borderline (a hilly easy run, a fartlek with no pattern, a few strides) shows splits only.
 // Every run with a trace also gets a pace / heart rate / elevation chart and time in zones.
 import { fmtPace, fmtKm, PACE_ZONES } from './run.js?v=9';
+import { stackHtml } from './activity-charts.js?v=1';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 const sum = a => a.reduce((x, y) => x + y, 0);
@@ -292,75 +293,34 @@ export function runSummary(detail){
   return { gapPace, cad, moving };
 }
 
-const CHARTS = new Map();   // chart id -> series, for reading values under a finger
-let chartSeq = 0;
-
-// Pace (faster is higher) with heart rate over it and an elevation strip underneath.
+// Stacked pace, heart rate, cadence and elevation charts with one crosshair (activity-charts.js).
 export function runChartHtml(detail, summary){
   const z = series(detail);
   if (!z) return '';
-  const id = 'rc' + (++chartSeq);
-  const W = 1000, H = 170, EH = 46, total = z.n * z.dt;
-  const x = i => ((i + 0.5) * z.dt / total * W).toFixed(1);
-  const sp = smoothed(z.sp, 4);
-  const sorted = sp.filter(v => v != null).sort((a, b) => a - b);
-  const hi = Math.max(sorted[Math.floor(sorted.length * 0.995)] * 1.05, 3);
-  const lo = Math.max(0, Math.min(sorted[Math.floor(sorted.length * 0.05)] * 0.92, hi * 0.5));
-  const yP = v => (H - Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * (H - 10) - 5).toFixed(1);
-  const paceLine = sp.map((v, i) => x(i) + ',' + yP(v)).join(' ');
-  let hrLine = '', hrLabs = '';
-  if (z.hr){
-    const hr = smoothed(z.hr, 2), hs = hr.filter(v => v != null).sort((a, b) => a - b);
-    const hlo = hs[Math.floor(hs.length * 0.02)] - 5, hhi = hs[hs.length - 1] + 3;
-    const yH = v => H - (v - hlo) / (hhi - hlo) * (H - 10) - 5;
-    // Break the line where there's no heart rate rather than drawing across the gap.
-    let seg = [];
-    const segs = [];
-    hr.forEach((v, i) => { if (v == null){ if (seg.length) segs.push(seg); seg = []; } else seg.push(x(i) + ',' + yH(v).toFixed(1)); });
-    if (seg.length) segs.push(seg);
-    hrLine = segs.map(p => '<polyline points="' + p.join(' ') + '" class="ra-hr" vector-effect="non-scaling-stroke"/>').join('');
-    const t1 = Math.round(hhi - (hhi - hlo) * 0.15), t2 = Math.round(hlo + (hhi - hlo) * 0.25);
-    hrLabs = [t1, t2].map(v => '<span class="ra-tick r" style="top:' + (yH(v) / H * 100).toFixed(1) + '%">' + v + '</span>').join('');
-  }
-  // Pace ticks at two round-ish paces inside the range.
-  const pTicks = [hi - (hi - lo) * 0.15, lo + (hi - lo) * 0.3].map(v => '<span class="ra-tick" style="top:' + (yP(v) / H * 100).toFixed(1) + '%">' + fmtPace(Math.round(1000 / v / 5) * 5) + '</span>').join('');
-  let elev = '';
+  const pace = v => v >= STANDING ? fmtPace(1000 / v) : 'Stopped';
+  const moving = z.sp.filter(v => v >= STANDING);
+  const avgV = moving.length ? sum(moving) / moving.length : null;
+  const channels = [
+    { label: 'Pace', unit: '/km', color: '#C084FC', vals: z.sp, fmt: pace, win: 3, smooth: 3, avg: avgV, minSpan: 0.6,
+      summary: avgV ? 'Avg <b>' + pace(avgV) + '</b>' : '',
+      readFmt: (v, i) => { const g = z.gap[i] != null ? avgAround(z.gap, i, 3) : null; return '<b>' + pace(v) + '</b>' + (v >= STANDING ? ' /km' : '') + (v >= STANDING && g && Math.abs(g - v) / v > 0.02 ? ' · GAP ' + pace(g) : ''); } },
+    { label: 'Heart rate', unit: 'bpm', color: '#E5484D', vals: z.hr, fmt: v => String(Math.round(v)), win: 1, minSpan: 20 },
+    { label: 'Cadence', unit: 'spm', color: '#F5A524', vals: z.cad, fmt: v => String(Math.round(v)), win: 1, smooth: 2, minSpan: 20 },
+  ];
   if (z.alt){
-    const al = smoothed(z.alt, 2), amin = Math.min(...al), amax = Math.max(...al), span = Math.max(amax - amin, 10);
-    const yA = v => (EH - 3 - (v - amin) / span * (EH - 8)).toFixed(1);
-    const pts = al.map((v, i) => x(i) + ',' + yA(v)).join(' ');
-    elev = '<div class="ra-elev"><svg viewBox="0 0 ' + W + ' ' + EH + '" preserveAspectRatio="none" aria-hidden="true">'
-      + '<polygon points="0,' + EH + ' ' + pts + ' ' + W + ',' + EH + '" class="ra-alt"/></svg>'
-      + '<span class="ra-tick">' + Math.round(amax) + ' m</span><span class="ra-tick b">' + Math.round(amin) + ' m</span><div class="ra-cur" data-ra-cur></div></div>';
+    const al = smoothed(z.alt, 2);
+    let gain = 0; for (let i = 1; i < al.length; i++) if (al[i] > al[i - 1]) gain += al[i] - al[i - 1];
+    channels.push({ label: 'Elevation', unit: 'm', color: '#8C97A6', vals: al, signed: true, fmt: v => Math.round(v) + '', noAvgLine: true, minSpan: 10,
+      summary: 'Gain <b>' + Math.round(gain) + ' m</b> · Max <b>' + Math.round(Math.max(...al)) + ' m</b>' });
   }
-  CHARTS.set(id, z);
   const stat = (v, l) => '<div class="d-stat"><div class="val">' + v + '</div><div class="lbl">' + l + '</div></div>';
   const sm = summary || {};
   const stats = [sm.gapPace ? stat(fmtPace(sm.gapPace), 'Grade-adjusted pace') : '', sm.cad ? stat(sm.cad, 'Cadence (spm)') : '', sm.moving ? stat(fmtTime(sm.moving), 'Moving time') : ''].filter(Boolean);
-  const legend = '<span class="chart-legend"><span><i style="background:#C084FC"></i>Pace</span>' + (z.hr ? '<span><i style="background:#E5484D"></i>Heart rate</span>' : '')
-    + (z.alt ? '<span><i style="background:#8C97A6"></i>Elevation</span>' : '') + '</span>';
-  return '<div class="panel ra-panel ra-run"><div class="panel-title"><span>Your run</span>' + legend + '</div>'
+  return '<div class="panel ra-panel ra-run"><div class="panel-title"><span>Your run</span></div>'
     + (stats.length ? '<div class="d-stats ra-stats ra-stats-' + stats.length + '">' + stats.join('') + '</div>' : '')
-    + '<div class="ra-read" data-ra-read>Drag across the chart to see your pace, heart rate and hills at any point.</div>'
-    + '<div class="ra-scrub" data-ra-chart="' + id + '">'
-    + '<div class="ra-chart ra-main"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + hrLine
-    + '<polyline points="' + paceLine + '" class="ra-line" vector-effect="non-scaling-stroke"/></svg>' + pTicks + hrLabs + '<div class="ra-cur" data-ra-cur></div></div>'
-    + elev
-    + '<div class="ra-xlab"><span>0:00</span><span>' + fmtTime(total / 2) + '</span><span>' + fmtTime(total) + '</span></div></div></div>';
+    + stackHtml({ dt: z.dt, n: z.n, dist: z.dist, channels }) + '</div>';
 }
-
-function readAt(z, i){
-  const bits = [fmtTime((i + 1) * z.dt), (z.dist[i] / 1000).toFixed(2) + ' km'];
-  // Pace over ~30 s so one GPS jump doesn't show as a sprint.
-  const win = (a, k) => { let t = 0, c = 0; for (let j = Math.max(0, i - k); j <= Math.min(z.n - 1, i + k); j++) if (a[j] != null){ t += a[j]; c++; } return c ? t / c : null; };
-  const v = win(z.sp, 3), g = win(z.gap, 3);
-  bits.push(v >= STANDING ? '<b>' + fmtPace(1000 / v) + '</b> /km' : '<b>Stopped</b>');
-  if (v >= STANDING && Math.abs(g - v) / v > 0.02) bits.push('GAP ' + fmtPace(1000 / g));
-  if (z.hr && z.hr[i] != null) bits.push('<b>' + z.hr[i] + '</b> bpm');
-  if (z.cad && z.cad[i]) bits.push(z.cad[i] + ' spm');
-  if (z.alt) bits.push(Math.round(z.alt[i]) + ' m');
-  return bits.join(' · ');
-}
+function avgAround(a, i, k){ let t = 0, c = 0; for (let j = Math.max(0, i - k); j <= Math.min(a.length - 1, i + k); j++) if (a[j] != null){ t += a[j]; c++; } return c ? t / c : null; }
 
 // Pace zones by grade-adjusted pace against threshold pace, edges halfway between the session paces
 // in run.js, plus a Recovery band for anything slower than Easy.
@@ -442,7 +402,7 @@ export function zonesPanelHtml(zones, { verdict, paceNote, hrNote } = {}){
     + '</div>';
 }
 
-// Splits/Laps and Pace/Heart rate switches inside a panel, and reading the run chart under a finger.
+// Splits/Laps and Pace/Heart rate switches inside a panel.
 export function wireRunAnalysis(root){
   root.addEventListener('click', e => {
     const b = e.target.closest('[data-ra-tab]'); if (!b) return;
@@ -450,16 +410,6 @@ export function wireRunAnalysis(root){
     panel.querySelectorAll('[data-ra-tab]').forEach(x => x.classList.toggle('on', x === b));
     panel.querySelectorAll('[data-ra-pane]').forEach(x => { x.hidden = x.dataset.raPane !== b.dataset.raTab; });
   });
-  const move = e => {
-    const el = e.target.closest && e.target.closest('[data-ra-chart]'); if (!el) return;
-    const z = CHARTS.get(el.dataset.raChart); if (!z) return;
-    const box = el.getBoundingClientRect(), f = Math.max(0, Math.min(0.9999, (e.clientX - box.left) / box.width));
-    const i = Math.floor(f * z.n);
-    el.querySelectorAll('[data-ra-cur]').forEach(c => { c.style.left = (f * 100).toFixed(2) + '%'; c.hidden = false; });
-    const read = el.parentNode.querySelector('[data-ra-read]'); if (read){ read.innerHTML = readAt(z, i); read.classList.add('on'); }
-  };
-  root.addEventListener('pointermove', move);
-  root.addEventListener('pointerdown', move);
 }
 
 export const RUN_ANALYSIS_CSS = `
@@ -487,18 +437,6 @@ export const RUN_ANALYSIS_CSS = `
   .ra-stats-1{ grid-template-columns:1fr !important; } .ra-stats-2{ grid-template-columns:repeat(2, minmax(0,1fr)) !important; }
   @media (min-width:700px){ .ra-stats-3{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
   @media (max-width:699px){ .ra-stats-3{ grid-template-columns:repeat(3, minmax(0,1fr)); } .ra-stats-3 .val{ font-size:15px; } }
-  .ra-scrub{ position:relative; touch-action:pan-y; cursor:crosshair; user-select:none; -webkit-user-select:none; }
-  .ra-main{ height:170px; margin:0; } .ra-main svg{ height:170px; border-radius:8px 8px 0 0; }
-  .ra-hr{ fill:none; stroke:#E5484D; stroke-width:1.2; stroke-linejoin:round; opacity:.8; }
-  .ra-tick{ position:absolute; left:6px; transform:translateY(-50%); font:11px var(--mono); color:var(--text-dim); pointer-events:none; }
-  .ra-tick.r{ left:auto; right:6px; color:#F08A8D; }
-  .ra-elev{ position:relative; height:46px; } .ra-elev svg{ width:100%; height:46px; display:block; background:var(--panel-2); border-radius:0 0 8px 8px; border-top:1px solid var(--line); }
-  .ra-elev .ra-tick{ top:10px; } .ra-elev .ra-tick.b{ top:auto; bottom:-2px; }
-  .ra-alt{ fill:rgba(140,151,166,.45); stroke:none; }
-  .ra-cur{ position:absolute; top:0; bottom:0; width:0; border-left:1px solid var(--text); opacity:.7; pointer-events:none; }
-  .ra-cur:not([style]){ display:none; }
-  .ra-read{ font:12.5px var(--mono); color:var(--text-dim); min-height:20px; margin-bottom:8px; }
-  .ra-read.on{ color:var(--text); } .ra-read b{ font-weight:600; }
   .ra-verdict{ font-size:13.5px; padding:9px 12px; border-radius:8px; background:var(--panel-2); margin-bottom:12px; }
   .ra-verdict.good{ background:rgba(61,190,122,.12); color:#7FDCAA; } .ra-verdict.warn{ background:rgba(232,185,61,.12); color:#F0CC6E; }
   .ra-zones{ display:grid; gap:9px; }
