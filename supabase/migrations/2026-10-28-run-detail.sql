@@ -2,4 +2,5 @@
 -- strava-import ({ detail: id }) the first time the run is opened. null = not fetched yet.
 -- Shape: { v:2, splits:[{d,t,hr,el,gap(cm/s)}], laps:[{d,t,e,hr,mx}], s:{ dt:5, v:[cm/s], h:[bpm], g:[grade %], c:[spm], a:[m] } | null, cad }
 -- (v1 had no gap, c, a or cad; strava-import fetches those again when the run is next opened.)
+-- Strava rides use the same column for their charts: s also has p:[W], and c is rpm.
 alter table public.completed_rides add column if not exists run_detail jsonb;

@@ -255,7 +255,6 @@
   .chart-legend span{ display:flex; align-items:center; gap:5px; }
   .chart-legend i{ display:inline-block; width:12px; height:3px; border-radius:2px; }
   .chart-wrap{ position:relative; }
-  #rideChart{ width:100%; height:220px; display:block; touch-action:pan-y; }
   #curveChart{ width:100%; height:200px; display:block; touch-action:pan-y; }
   .tip{ position:absolute; top:0; pointer-events:none; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12px; font-family:var(--mono); white-space:nowrap; display:none; z-index:5; }
   .tip .d{ color:var(--text-dim); font-family:var(--sans); margin-bottom:3px; }
@@ -382,7 +381,8 @@ import { loadGoals, guidesFor, pickSport, runGoalStatus, rideGoalStatus, goalsCa
 import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
-import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=3';
+import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=4';
+import { stackHtml, wireCharts, bandsFrom, CHARTS_CSS } from './activity-charts.js?v=1';
 import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } from './compare.js?v=3';
 import { summaryHtml, SUMMARY_CSS } from './summary.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
@@ -397,7 +397,7 @@ import { readiness, trainingStatus, statusNow, suggestRide, suggestRun, rideZone
 import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
 import { isoDate, addDays, todayIso, plannedTss } from './plan-schedule.js?v=6';
 const supabase = createSupabaseClient();
-{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + COMPARE_CSS + SUMMARY_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
+{ const st = document.createElement('style'); st.textContent = ROUTE_CSS + CHARTS_CSS + RUN_ANALYSIS_CSS + EFFICIENCY_CSS + COMPARE_CSS + SUMMARY_CSS + FITNESS_CSS + PERFORMANCE_CSS + STRENGTH_PROGRESS_CSS; document.head.appendChild(st); }
 
 (async function(){
   const user = await requireAuth(supabase);
@@ -720,6 +720,7 @@ const supabase = createSupabaseClient();
       + (r.np ? stat(r.np,'NP (W)') + stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : r.avg_power ? stat(r.avg_power,'Avg power') + stat(kj,'Work (kJ)') : '')
       + stat(r.avg_hr,'Avg HR') + stat(r.max_hr,'Max HR') + (r.avg_cadence ? stat(r.avg_cadence,'Cadence') : '') + stat(r.elevation_m,'Climb (m)')
       + '</div>'
+      + (r.source === 'strava' ? '<div id="rideTrace"></div>' : '')
       + (hasRoute(r) ? routePanelHtml() + '<div id="routeCompare"></div>' : '')
       + '<div class="panel empty-note">'+(manual ? 'Logged by hand' : 'Brought in from '+fromName(r))+'. It counts towards your Fitness, Fatigue and Form, with TSS worked out '+how+'. Rides outside Live Ride don\'t change your workout levels.</div>';
   }
@@ -801,6 +802,7 @@ const supabase = createSupabaseClient();
     if (saved){ rides.unshift(saved); rides.sort((a,b)=> a.started_at < b.started_at ? 1 : -1); renderList(); }
   });
   wireRunAnalysis(document.getElementById('detailView'));
+  wireCharts(document.getElementById('detailView'));
   document.getElementById('detailView').addEventListener('click', async e=>{
     const b = e.target.closest('[data-del-run]'); if (!b) return;
     const what = b.dataset.what || 'run';
@@ -1100,6 +1102,58 @@ const supabase = createSupabaseClient();
     showDetail(row.dataset.ride);
   });
 
+  // ---- activity charts (activity-charts.js) ----
+  const num = v => v == null ? null : Number(v);
+  const r0 = v => String(Math.round(v));
+  // A Live Ride's power over the zone-coloured workout targets, heart rate and cadence, one second apart.
+  function liveRideCharts(sec, ftp){
+    const power = sec.map(x => x.power || 0), target = sec.map(x => x.target || null);
+    return stackHtml({ dt: 1, n: sec.length, channels: [
+      { label: 'Power', unit: 'W', color: '#45D6C4', vals: power, zeros: true, min: 0, win: 1, fmt: r0, minSpan: 50,
+        bands: ftp ? bandsFrom(target, t => zoneRGBA(t / ftp * 100, .3)) : null,
+        readFmt: (v, i) => '<b>' + Math.round(v) + '</b> W' + (target[i] ? ' · target ' + target[i] : '') },
+      { label: 'Heart rate', unit: 'bpm', color: '#E5484D', vals: sec.map(x => x.hr || null), fmt: r0, minSpan: 20 },
+      { label: 'Cadence', unit: 'rpm', color: '#F5A524', vals: sec.map(x => x.cadence || null), win: 1, smooth: 1, fmt: r0, minSpan: 20 },
+    ] });
+  }
+  // A Strava ride's 5-second trace: power, heart rate, speed, cadence and elevation.
+  function importedRideCharts(s){
+    const n = s.v.length, dt = s.dt || 5, dist = [];
+    let d = 0; s.v.forEach(v => { d += v / 100 * dt; dist.push(d); });
+    const kmh = s.v.map(v => v / 100 * 3.6);
+    const moving = kmh.filter(v => v >= 3);
+    const al = s.a ? s.a.map(num) : null;
+    let gain = 0; if (al) for (let i = 1; i < n; i++) if (al[i] != null && al[i-1] != null && al[i] > al[i-1]) gain += al[i] - al[i-1];
+    const channels = [
+      s.p ? { label: 'Power', unit: 'W', color: '#45D6C4', vals: s.p.map(num), zeros: true, min: 0, fmt: r0, minSpan: 50 } : null,
+      s.h ? { label: 'Heart rate', unit: 'bpm', color: '#E5484D', vals: s.h.map(num), fmt: r0, minSpan: 20 } : null,
+      { label: 'Speed', unit: 'km/h', color: '#4C8BF5', vals: kmh, min: 0, win: 1, smooth: 1, fmt: v => v.toFixed(1), minSpan: 10,
+        avg: moving.length ? moving.reduce((a, c) => a + c, 0) / moving.length : null },
+      s.c ? { label: 'Cadence', unit: 'rpm', color: '#F5A524', vals: s.c.map(num), smooth: 1, fmt: r0, minSpan: 20 } : null,
+      al ? { label: 'Elevation', unit: 'm', color: '#8C97A6', vals: al, signed: true, noAvgLine: true, fmt: r0, minSpan: 10,
+        summary: 'Gain <b>' + Math.round(gain) + ' m</b> · Max <b>' + Math.round(Math.max(...al.filter(v => v != null))) + ' m</b>' } : null,
+    ].filter(Boolean);
+    return stackHtml({ dt, n, dist, channels });
+  }
+  // Strava rides keep only totals when synced; the trace is fetched the first time the ride is opened.
+  async function mountRideTrace(el, r){
+    const box = el.querySelector('#rideTrace'); if (!box) return;
+    let detail = r.run_detail;
+    if (detail === undefined) return;
+    if (!detail){
+      box.innerHTML = '<div class="panel empty-note">Loading charts from Strava…</div>';
+      try {
+        const { data } = await supabase.functions.invoke('strava-import', { body: { detail: r.id } });
+        detail = data && data.detail;
+      } catch(_){ detail = null; }
+      if (!box.isConnected) return;
+      if (!detail){ box.innerHTML = '<div class="panel empty-note">Charts couldn\'t be loaded from Strava right now. Try again later.</div>'; return; }
+      r.run_detail = detail;
+    }
+    const html = detail.s && detail.s.v && detail.s.v.length >= 24 ? importedRideCharts(detail.s) : '';
+    box.innerHTML = html ? '<div class="panel"><div class="panel-title"><span>Ride</span></div>' + html + '</div>' : '';
+  }
+
   // ---- ride detail ----
   let current = null; // { ride, sec: per-second series, ftp }
   const detailCache = {};
@@ -1160,7 +1214,7 @@ const supabase = createSupabaseClient();
     if (isRun(ride)){ el.innerHTML = runDetailHtml(ride); mountRouteMap(el, ride.route_polyline); mountRunSplits(el, ride, mountRouteCompare(el, ride)); return; }
     if (isSwim(ride)){ el.innerHTML = swimDetailHtml(ride); return; }
     if (isStrength(ride)){ el.innerHTML = strengthDetailHtml(ride); mountStrengthSets(el, ride); return; }
-    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRouteMap(el, ride.route_polyline); mountRouteCompare(el, ride); return; }
+    if (isImported(ride)){ el.innerHTML = importedRideHtml(ride); mountRideTrace(el, ride); mountRouteMap(el, ride.route_polyline); mountRouteCompare(el, ride); return; }
     const sec = perSecond(ride.samples || []);
     // FTP at the time of the ride, backed out from NP/IF, so zones reflect what was true then.
     const ftp = (ride.np && ride.intensity_factor) ? ride.np / ride.intensity_factor : null;
@@ -1208,8 +1262,7 @@ const supabase = createSupabaseClient();
       html += '<div class="panel empty-note">No second-by-second data was recorded for this ride.</div>';
       el.innerHTML = html; return;
     }
-    html += '<div class="panel"><div class="panel-title"><span>Ride</span><span class="chart-legend"><span><i style="background:#45D6C4"></i>Power</span><span><i style="background:#E5484D"></i>Heart rate</span><span><i style="background:var(--z-threshold); opacity:.7"></i>Target (zone colour)</span></span></div>'
-      + '<div class="chart-wrap"><canvas id="rideChart"></canvas><div class="tip" id="rideTip"></div></div></div>';
+    html += '<div class="panel"><div class="panel-title"><span>Ride</span></div>' + liveRideCharts(sec, ftp) + '</div>';
 
     // power curve + time in zone
     const bests = bestEfforts(sec);
@@ -1251,7 +1304,6 @@ const supabase = createSupabaseClient();
     }
     el.innerHTML = html;
     countUp(el);
-    drawRideChart();
     drawCurve(bests);
     if (opts.justSaved) offerNewFtp(ride);
     if (opts.justSaved){
@@ -1353,36 +1405,6 @@ const supabase = createSupabaseClient();
     return { ctx, W, H };
   }
 
-  // Power (and HR) over the zone-coloured target profile, with a hover/tap readout.
-  function drawRideChart(hover){
-    const canvas = document.getElementById('rideChart');
-    if (!canvas || !current) return;
-    const { ctx, W, H } = setupCanvas(canvas);
-    const { sec, ftp } = current, n = sec.length;
-    const maxP = Math.max(100, ...sec.map(x=>Math.max(x.power||0, x.target||0))) * 1.12;
-    const maxHr = Math.max(60, ...sec.map(x=>x.hr||0)) * 1.1;
-    const xAt = i => i/Math.max(1,n-1)*W;
-    // smooth the power line a little (5 s) so it reads as a trace, not noise; the stats use raw data
-    const sm = sec.map((x,i)=>{ let a=0,c=0; for (let j=Math.max(0,i-2); j<=Math.min(n-1,i+2); j++){ a+=sec[j].power||0; c++; } return a/c; });
-    if (ftp){
-      const bw = W/Math.max(1,n-1)+1;
-      sec.forEach((x,i)=>{ if (!x.target) return; const h = Math.min(H, x.target/maxP*H);
-        ctx.fillStyle = zoneRGBA(x.target/ftp*100, .38); ctx.fillRect(xAt(i), H-h, bw, h); });
-    }
-    function path(vals, max, color, lw){
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round';
-      let started = false;
-      vals.forEach((v,i)=>{ if (v==null){ started = false; return; } const y = H - v/max*H; if (!started){ ctx.moveTo(xAt(i), y); started = true; } else ctx.lineTo(xAt(i), y); });
-      ctx.stroke();
-    }
-    if (sec.some(x=>x.hr)) path(sec.map(x=>x.hr||null), maxHr, '#E5484D', 1.5);
-    path(sm, maxP, '#45D6C4', 2);
-    if (hover != null){
-      const x = xAt(hover);
-      ctx.strokeStyle = 'rgba(231,236,242,.6)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(Math.round(x)+.5, 0); ctx.lineTo(Math.round(x)+.5, H); ctx.stroke();
-    }
-  }
   function attachTip(canvasId, tipId, onIndex, count){
     const canvas = document.getElementById(canvasId), tip = document.getElementById(tipId);
     if (!canvas) return;
@@ -1433,11 +1455,6 @@ const supabase = createSupabaseClient();
   // tooltips are wired once; they read whatever ride is current
   const detailObserver = new MutationObserver(()=>{
     if (!current) return;
-    attachTip('rideChart', 'rideTip', i=>{
-      if (i==null){ drawRideChart(); return ''; }
-      const x = current.sec[i]; drawRideChart(i);
-      return '<div class="d">'+fmtDur(i)+'</div>'+Math.round(x.power||0)+' W'+(x.target ? ' / '+x.target+' target' : '')+(x.hr ? '<br>'+Math.round(x.hr)+' bpm' : '')+(x.cadence ? '<br>'+Math.round(x.cadence)+' rpm' : '');
-    }, ()=>current.sec.length);
     attachTip('curveChart', 'curveTip', i=>{
       if (i==null){ drawCurve(null); return ''; }
       const p = curvePts[i]; drawCurve(null, i);
@@ -1446,7 +1463,7 @@ const supabase = createSupabaseClient();
   });
   detailObserver.observe(document.getElementById('detailView'), { childList:true });
   let resizeTimer = null;
-  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ if (current){ drawRideChart(); drawCurve(null); } }, 150); });
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ if (current) drawCurve(null); }, 150); });
 
   // ---- TCX export ----
   function buildTcx(ride){

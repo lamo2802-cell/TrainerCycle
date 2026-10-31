@@ -10,8 +10,9 @@ import { intensityOf, LTHR_FROM_MAX, lthrFromPower, powerBests, runDetail, tssOf
 // Needs the activity:read_all scope; connections made before imports were supported only have
 // activity:write and get { needsReconnect: true }.
 // POST {} -> { imported: [rows], needsReconnect?: true }
-// POST { detail: id } -> { detail } for one imported run: its 1 km splits, laps and a 5-second pace,
-// heart rate and gradient trace, saved to completed_rides.run_detail so it's only fetched once.
+// POST { detail: id } -> { detail } for one imported run or ride: its 1 km splits, laps and a 5-second speed,
+// heart rate, gradient, cadence, altitude (and power for rides) trace, saved to completed_rides.run_detail
+// so it's only fetched once.
 
 const CLIENT_ID = Deno.env.get("STRAVA_CLIENT_ID") ?? "";
 const CLIENT_SECRET = Deno.env.get("STRAVA_CLIENT_SECRET") ?? "";
@@ -75,19 +76,19 @@ Deno.serve(async (req) => {
     if (body && typeof body.detail === "string") {
       const { data: row } = await admin.from("completed_rides").select("id,external_id,sport,run_detail")
         .eq("user_id", user.id).eq("id", body.detail).eq("source", "strava").maybeSingle();
-      if (!row || row.sport !== "run") return json({ error: "Not an imported run" }, 404);
+      if (!row || (row.sport !== "run" && row.sport !== "ride")) return json({ error: "Not an imported run or ride" }, 404);
       // v1 (before cadence, altitude and grade-adjusted pace) is fetched once more.
       if (row.run_detail && row.run_detail.v >= 2) return json({ detail: row.run_detail });
       const sid = String(row.external_id).replace("strava:", "");
       const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
       const [dResp, sResp] = await Promise.all([
         fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth),
-        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth,cadence,altitude&key_by_type=true`, auth),
+        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth,cadence,altitude${row.sport === "ride" ? ",watts" : ""}&key_by_type=true`, auth),
       ]);
       if (dResp.status === 401 || dResp.status === 403) return json({ detail: null, needsReconnect: true });
       // Gone from Strava: remember there's nothing to show rather than asking again every time.
       const detail = dResp.status === 404 ? { v: 2, splits: [], laps: [], s: null }
-        : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null) : null;
+        : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null, row.sport === "ride") : null;
       if (!detail) return json({ detail: null }, 502);
       await admin.from("completed_rides").update({ run_detail: detail }).eq("id", row.id);
       return json({ detail });
