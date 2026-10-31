@@ -12,7 +12,8 @@ import { intensityOf, LTHR_FROM_MAX, lthrFromPower, powerBests, runDetail, tssOf
 // POST {} -> { imported: [rows], needsReconnect?: true }
 // POST { detail: id } -> { detail } for one imported run or ride: its 1 km splits, laps and a 5-second speed,
 // heart rate, gradient, cadence, altitude (and power for rides) trace, saved to completed_rides.run_detail
-// so it's only fetched once.
+// so it's only fetched once. Each sync also saves it for a few runs and rides not opened yet, so every
+// activity keeps its charts and splits even if Strava is disconnected later.
 
 const CLIENT_ID = Deno.env.get("STRAVA_CLIENT_ID") ?? "";
 const CLIENT_SECRET = Deno.env.get("STRAVA_CLIENT_SECRET") ?? "";
@@ -22,6 +23,7 @@ const RIDE_TYPES = new Set(["Ride", "VirtualRide", "GravelRide", "MountainBikeRi
 // Strava's best efforts within a run, by name -> metres. Stored as completed_rides.run_bests.
 const RUN_EFFORTS: Record<string, number> = { "400m": 400, "1/2 mile": 805, "1K": 1000, "1 mile": 1609, "2 mile": 3219, "5K": 5000, "10K": 10000, "15K": 15000, "10 mile": 16093, "20K": 20000, "Half-Marathon": 21097, "30K": 30000, "Marathon": 42195 };
 const DETAIL_CALLS = 25;      // extra Strava requests per sync (power streams, run best efforts), well inside rate limits
+const TRACES_PER_SYNC = 8;    // runs and rides whose charts are saved per sync (2 requests each), newest first
 const SINCE_KEY = "strava_import_since";
 const IGNORED_KEY = "strava_import_ignored"; // imports the rider deleted, so they don't come back
 
@@ -72,6 +74,24 @@ Deno.serve(async (req) => {
 
     const fresh = await refreshTokenIfNeeded(admin, user.id, conn);
 
+    // A run's or ride's splits, laps and 5-second trace from Strava, saved with the activity.
+    // deno-lint-ignore no-explicit-any
+    const fetchTrace = async (row: any) => {
+      const sid = String(row.external_id).replace("strava:", "");
+      const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
+      const [dResp, sResp] = await Promise.all([
+        fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth),
+        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth,cadence,altitude${row.sport === "ride" ? ",watts" : ""}&key_by_type=true`, auth),
+      ]);
+      if (dResp.status === 401 || dResp.status === 403) return "reconnect";
+      // Gone from Strava: remember there's nothing to show rather than asking again every time.
+      const detail = dResp.status === 404 ? { v: 2, splits: [], laps: [], s: null }
+        : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null, row.sport === "ride") : null;
+      if (!detail) return null;
+      await admin.from("completed_rides").update({ run_detail: detail }).eq("id", row.id);
+      return detail;
+    };
+
     const body = await req.json().catch(() => ({}));
     if (body && typeof body.detail === "string") {
       const { data: row } = await admin.from("completed_rides").select("id,external_id,sport,run_detail")
@@ -79,19 +99,10 @@ Deno.serve(async (req) => {
       if (!row || (row.sport !== "run" && row.sport !== "ride")) return json({ error: "Not an imported run or ride" }, 404);
       // v1 (before cadence, altitude and grade-adjusted pace) is fetched once more.
       if (row.run_detail && row.run_detail.v >= 2) return json({ detail: row.run_detail });
-      const sid = String(row.external_id).replace("strava:", "");
-      const auth = { headers: { Authorization: `Bearer ${fresh.access_token}` } };
-      const [dResp, sResp] = await Promise.all([
-        fetch(`https://www.strava.com/api/v3/activities/${sid}`, auth),
-        fetch(`https://www.strava.com/api/v3/activities/${sid}/streams?keys=time,distance,heartrate,grade_smooth,cadence,altitude${row.sport === "ride" ? ",watts" : ""}&key_by_type=true`, auth),
-      ]);
-      if (dResp.status === 401 || dResp.status === 403) return json({ detail: null, needsReconnect: true });
-      // Gone from Strava: remember there's nothing to show rather than asking again every time.
-      const detail = dResp.status === 404 ? { v: 2, splits: [], laps: [], s: null }
-        : dResp.ok ? runDetail(await dResp.json(), sResp.ok ? await sResp.json() : null, row.sport === "ride") : null;
-      if (!detail) return json({ detail: null }, 502);
-      await admin.from("completed_rides").update({ run_detail: detail }).eq("id", row.id);
-      return json({ detail });
+      const got = await fetchTrace(row);
+      if (got === "reconnect") return json({ detail: null, needsReconnect: true });
+      if (!got) return json({ detail: null }, 502);
+      return json({ detail: got });
     }
 
     // Extra lookups for the power curve of a ride or the best times within a run.
@@ -142,6 +153,20 @@ Deno.serve(async (req) => {
       }
     };
 
+    // Charts and splits for runs and rides that haven't been opened yet, newest first, a few per sync.
+    const traceBackfill = async () => {
+      const { data: todo } = await admin.from("completed_rides").select("id,external_id,sport")
+        .eq("user_id", user.id).eq("source", "strava").in("sport", ["run", "ride"]).is("run_detail", null)
+        .order("started_at", { ascending: false }).limit(TRACES_PER_SYNC);
+      for (const r of todo ?? []) {
+        try {
+          const got = await fetchTrace(r);
+          if (!got || got === "reconnect") break;   // rate limited or access gone: try again next sync
+        } catch (_) { break; }
+      }
+    };
+    const finish = async () => { await backfill(); await traceBackfill(); await saveSince(); };
+
     // Look back two days before the last sync (activities can be uploaded late), or 60 days the first time.
     const syncedAt = Date.parse(setting(SINCE_KEY) ?? "");
     const since = syncedAt ? syncedAt - 2 * 86400000 : Date.now() - 60 * 86400000;
@@ -165,7 +190,7 @@ Deno.serve(async (req) => {
     };
     const wanted = activities.filter((a) => sportOf(a) && (a.moving_time || a.elapsed_time));
     const saveSince = () => admin.from("settings").upsert({ user_id: user.id, key: SINCE_KEY, value: { v: startedSync }, updated_at: startedSync }, { onConflict: "user_id,key" });
-    if (!wanted.length) { await backfill(); await saveSince(); return json({ imported: [] }); }
+    if (!wanted.length) { await finish(); return json({ imported: [] }); }
 
     // Everything already in TrainerCycle around these dates, to spot imports and overlaps.
     const earliest = Math.min(...wanted.map((a) => Date.parse(a.start_date))) - 86400000;
@@ -228,7 +253,7 @@ Deno.serve(async (req) => {
         route_polyline: sport === "swim" ? null : (a.map?.summary_polyline ?? ""),
       };
     }).filter((r) => r.duration_sec > 0);
-    if (!rows.length) { await backfill(); await saveSince(); return json({ imported: [] }); }
+    if (!rows.length) { await finish(); return json({ imported: [] }); }
 
     // Power curve for rides with a power meter, and best times within runs, newest first.
     const needsBests = (r: { sport: string; np: number | null }) => r.sport === "run" || !!r.np;
@@ -240,8 +265,7 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.from("completed_rides").insert(rows);
     if (error) throw error;
-    await backfill();
-    await saveSince();
+    await finish();
     return json({ imported: rows });
   } catch (err) {
     console.error("strava-import error:", err);
