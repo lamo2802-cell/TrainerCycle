@@ -124,7 +124,11 @@
   .positions-row{ display:flex; justify-content:center; margin-bottom:14px; }
   .positions-row:empty{ display:none; }
   .position-box.single{ flex:1; max-width:280px; margin:0 auto; }
-  .exercise-demo{ width:100%; aspect-ratio:1; object-fit:contain; display:block; border-radius:8px; background:#fff; }
+  .exercise-demo{ position:relative; width:220px; height:220px; max-width:100%; margin:0 auto; }
+  .exercise-demo i{ position:absolute; inset:0; background:var(--text); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center; opacity:0; transition:opacity .2s; }
+  .exercise-demo i.on{ opacity:1; }
+  .demo-credit{ font-size:10px; color:var(--text-dim); margin-top:2px; }
+  .demo-credit a{ color:inherit; }
   .stage-name{ font-size:clamp(20px, 6vw, 32px); font-weight:600; margin-bottom:6px; }
   .stage-target{ font-family:var(--mono); font-size:clamp(15px, 4vw, 22px); color:var(--accent); margin-bottom:6px; }
   .stage-notes{ font-size:14px; color:var(--text-dim); margin-bottom:16px; }
@@ -511,27 +515,40 @@ const supabase = createSupabaseClient();
   }
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Optional exercise demos: map an exercise key to a file in strength-media/ (.gif, .webp, .mp4
-  // or .webm) and it shows above the exercise name. Exercises without one just show the text.
-  const EXERCISE_MEDIA = {};
-  function renderPositions(key, container){
-    const media = EXERCISE_MEDIA[key];
-    if (!media){ container.innerHTML = ''; return; }
-    container.innerHTML = '<div class="position-box single"><div></div></div>';
-    const host = container.querySelector('.position-box.single > div');
-    const isVideo = /\.(mp4|webm)$/i.test(media);
-    const el = document.createElement(isVideo ? 'video' : 'img');
-    el.className = 'exercise-demo';
-    if (isVideo){
-      el.muted = true; el.loop = true; el.playsInline = true;
-      el.autoplay = !reduceMotion; el.controls = reduceMotion;
-      el.setAttribute('aria-label', key.replace(/_/g,' ') + ' demonstration');
-    } else {
-      el.alt = key.replace(/_/g,' ') + ' demonstration';
-    }
-    el.addEventListener('error', ()=>{ container.innerHTML = ''; });
-    el.src = 'strength-media/' + media;
-    host.appendChild(el);
+  // Exercise drawings: 3-frame line art per variation from Workout Guide / Everkinetic (CC BY-SA 4.0,
+  // see strength-media/CREDITS.md). Each SVG is used as a mask so it takes the theme's text colour,
+  // and the frames play 1-2-3-2 as a simple animation. Keys are variation ids, then base keys.
+  const EXERCISE_MEDIA = {
+    back_squat:'squat', bw_squat:'bodyweight-squat', goblet_squat:'goblet-squat', db_squat:'goblet-squat',
+    db_rdl:'dumbbell-romanian-deadlift', kb_deadlift:'kettlebell-romanian-deadlift', bb_rdl:'romanian-deadlift', bb_deadlift:'deadlift',
+    knee_pushup:'knee-push-up', pushup:'push-up', feet_up_pushup:'decline-push-up', db_bench:'dumbbell-bench-press',
+    db_row:'one-arm-dumbbell-row', band_row:'banded-row', cable_row:'seated-row', bb_row:'barbell-row', row:'one-arm-dumbbell-row',
+    db_press:'standing-dumbbell-press', kb_press:'standing-dumbbell-press', bb_press:'overhead-press', shoulder_press:'standing-dumbbell-press',
+    db_curl:'bicep-curl', band_curl:'bicep-curl', cable_curl:'cable-curl', bicep_curl:'bicep-curl',
+    bw_lunge:'forward-lunge', db_lunge:'reverse-lunge', split_squat:'bulgarian-split-squat', lunge:'forward-lunge',
+    glute_bridge:'glute-bridge', sl_glute_bridge:'single-leg-glute-bridge', hip_thrust:'hip-thrust',
+    calf_raise:'calf-raise', db_calf_raise:'standing-calf-raise',
+    plank:'plank', side_plank:'side-plank', mountain_climber:'mountain-climber', situp:'crunch', clamshell:'clamshell',
+    hip_abduction:'banded-standing-hip-abduction', standing_hip_abduction:'banded-standing-hip-abduction', cable_abduction:'cable-standing-hip-abduction',
+    straight_leg_raise:'lying-leg-raise', squat:'bodyweight-squat', deadlift:'dumbbell-romanian-deadlift'
+  };
+  let demoTimer = null, demoShown = '';
+  function renderPositions(key, container, base){
+    const slug = EXERCISE_MEDIA[key] || EXERCISE_MEDIA[base] || '';
+    if (slug === demoShown && container.firstChild) return;
+    clearInterval(demoTimer); demoTimer = null; demoShown = slug;
+    if (!slug){ container.innerHTML = ''; return; }
+    const name = ((VARIANTS[key] && VARIANTS[key].name) || String(base || key).replace(/_/g,' '));
+    container.innerHTML = '<div class="position-box single"><div class="exercise-demo" role="img" aria-label="'+esc(name)+' demonstration">'
+      + [1,2,3].map(n => '<i style="-webkit-mask-image:url(strength-media/'+slug+'/frame-'+n+'.svg);mask-image:url(strength-media/'+slug+'/frame-'+n+'.svg)"></i>').join('')
+      + '</div><div class="demo-credit">Drawing: <a href="strength-media/CREDITS.md" target="_blank" rel="noopener">Workout Guide / Everkinetic</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a></div></div>';
+    const frames = container.querySelectorAll('.exercise-demo i');
+    const order = [0,1,2,1];
+    let step = 0;
+    const show = i => frames.forEach((f, j) => f.classList.toggle('on', j === i));
+    if (reduceMotion){ show(1); return; }
+    show(0);
+    demoTimer = setInterval(() => { step = (step + 1) % order.length; show(order[step]); }, 750);
   }
 
   function fmtDur(sec){ sec=Math.max(0,Math.round(sec)); const m=Math.floor(sec/60), s=sec%60; return m+':'+String(s).padStart(2,'0'); }
@@ -1191,7 +1208,7 @@ const supabase = createSupabaseClient();
       if (!form || form.idx !== idx || force){
         if (!form || form.idx !== idx) newForm(entry);
         const v = vinfo(form.vid, entry.ex);
-        renderPositions(entry.ex.key, document.getElementById('positionsRow'));
+        renderPositions(form.vid, document.getElementById('positionsRow'), entry.ex.key);
         document.getElementById('stageName').textContent = v.name;
         const dots = Array.from({ length: entry.totalSets }, (_, i) => '<i class="'+(i < entry.setNum - 1 ? 'f' : '')+'"></i>').join('');
         document.getElementById('stageTarget').innerHTML = '<div class="set-dots" aria-hidden="true">'+dots+'<span>Set ' + entry.setNum + ' of ' + entry.totalSets + '</span></div>'
