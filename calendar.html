@@ -124,6 +124,9 @@
   .chip.planned[draggable=true]{ cursor:grab; }
   .chip.done{ border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:color-mix(in srgb, var(--accent) 10%, var(--panel)); }
   .chip.done .tick{ color:var(--accent); }
+  .chip .match{ display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:1px; }
+  .chip .match i{ width:7px; height:7px; border-radius:50%; background:var(--tone); flex-shrink:0; }
+  .wk-match{ color:var(--tone); font-weight:600; white-space:nowrap; }
   .run-desc{ font-size:13.5px; color:var(--text-dim); line-height:1.5; margin:10px 0 0; }
   .chip.missed{ opacity:.6; }
   .chip.missed .nm span{ text-decoration:line-through; }
@@ -258,6 +261,7 @@ import { sessionInfo, SPORT_COLOR } from './plan-kit.js?v=4';
 import { openSwimLog, setSwimCss, SWIM_CSS_KEY, fmtMetres } from './swim.js?v=2';
 import { feedEvents, syncCalendarFeed } from './calfeed.js?v=5';
 import { loadDiary, diarySessions, diaryHref, notesOn, openDayAdd, openNoteSheet, openPlanSheet, openActivityLog, saveDiary } from './diary.js?v=2';
+import { matchScore, weekMatch, TONE_COLOURS } from './compliance.js?v=1';
 const supabase = createSupabaseClient();
 
 (async function(){
@@ -349,6 +353,7 @@ const supabase = createSupabaseClient();
         tss: isRun ? plannedRunTss(s.dayObj.workoutId) : (isSwim || isBrick || isRace || isStrength) ? info.tss : plannedTss(wk.steps, ftp),
         done: doneDays.has(s.dayIndex), skipped: isSkipped(follow, s),
       });
+      if (item.done) item.doneRide = rides.find(r => r.plan_id === plan.id && r.plan_day_index === s.dayIndex) || null;
       item.missed = !item.done && (item.date < today || item.skipped);
       add(item);
     });
@@ -364,10 +369,11 @@ const supabase = createSupabaseClient();
 
   function chipHtml(item){
     if (item.kind === 'ride'){
-      const r = item.ride;
+      const r = item.ride, sc = scores.get(r.id);
       return '<button class="chip done" data-ride="'+r.id+'">'
         + '<div class="nm"><span class="tick">✓</span><span>'+escapeHtml(r.workout_name)+'</span></div>'
-        + '<div class="mt">'+fmtMins(r.duration_sec)+(r.sport === 'run' && r.distance_m ? ' · '+fmtKm(r.distance_m)+' km' : r.sport === 'swim' && r.distance_m ? ' · '+fmtMetres(r.distance_m) : '')+(r.tss!=null ? ' · '+r.tss+' TSS' : '')+'</div></button>';
+        + '<div class="mt">'+fmtMins(r.duration_sec)+(r.sport === 'run' && r.distance_m ? ' · '+fmtKm(r.distance_m)+' km' : r.sport === 'swim' && r.distance_m ? ' · '+fmtMetres(r.distance_m) : '')+(r.tss!=null ? ' · '+r.tss+' TSS' : '')+'</div>'
+        + (sc ? '<div class="match" style="--tone:'+TONE_COLOURS[sc.tone]+'" title="'+escapeHtml(sc.label+': '+sc.pct+'% of the planned '+(sc.name || 'session'))+'"><i></i>'+sc.pct+'% of plan</div>' : '')+'</button>';
     }
     if (item.kind === 'note') return '<button class="note-pill" data-note="'+item.note.id+'" title="'+escapeHtml(item.note.text)+'">'+escapeHtml(item.note.text)+'</button>';
     const s = item.session;
@@ -400,8 +406,23 @@ const supabase = createSupabaseClient();
     const first = d === h.start || weekStart;
     return '<button class="hol-pill'+(first ? '' : ' cont')+'" data-hol="'+h.id+'" title="'+escapeHtml(holidayLabel(h))+'">'+(first ? escapeHtml(h.name || 'Holiday') : '&nbsp;')+'</button>';
   }
+  // ride id -> how closely it matched the session it ticked off
+  let scores = new Map();
+  function scoreRides(byDate){
+    scores = new Map();
+    byDate.forEach(list => list.forEach(s => { if (s.done && s.doneRide){ const m = matchScore(s, s.doneRide); if (m) scores.set(s.doneRide.id, Object.assign({ name:s.name }, m)); } }));
+  }
+  function matchHtml(mon, byDate){
+    const today = todayIso(), due = [];
+    for (let i=0;i<7;i++){ const d = addDays(mon, i); (byDate.get(d)||[]).forEach(s => { if (!s.isRace && (d < today || (d === today && s.done))) due.push(s); }); }
+    const p = weekMatch(due);
+    if (p == null) return '';
+    const tone = p >= 80 ? 'good' : p >= 50 ? 'near' : 'off';
+    return '<span class="wk-match" title="Planned load done so far this week" style="--tone:'+TONE_COLOURS[tone]+'">'+p+'% of plan</span>';
+  }
   function render(){
     const byDate = sessionsByDate();
+    scoreRides(byDate);
     const today = todayIso();
     document.getElementById('viewWeek').classList.toggle('on', view === 'week');
     document.getElementById('viewMonth').classList.toggle('on', view === 'month');
@@ -425,7 +446,7 @@ const supabase = createSupabaseClient();
             + itemsFor(d, byDate).map(chipHtml).join('') + '</div>';
         }
         const t = weekTotals(mon, byDate);
-        html += '<div class="wk-total"><b>'+t.done+'</b>'+(t.planned ? 'of '+t.planned+' TSS' : 'TSS')+'<span>'+fmtMins(t.mins*60)+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span></div>';
+        html += '<div class="wk-total"><b>'+t.done+'</b>'+(t.planned ? 'of '+t.planned+' TSS' : 'TSS')+'<span>'+fmtMins(t.mins*60)+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span>'+matchHtml(mon, byDate)+'</div>';
       }
       body.innerHTML = html + '</div>';
     } else {
@@ -433,7 +454,7 @@ const supabase = createSupabaseClient();
       const sun = addDays(mon, 6);
       document.getElementById('calTitle').textContent = longDate(mon) + ' – ' + longDate(sun);
       const t = weekTotals(mon, byDate);
-      let html = '<div class="week-sum"><span>Done <b>'+t.done+'</b> TSS</span>'+(t.planned ? '<span>Planned <b>'+t.planned+'</b> TSS</span>' : '')+'<span>Time <b>'+fmtMins(t.mins*60)+'</b>'+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span></div><div class="week-list">';
+      let html = '<div class="week-sum"><span>Done <b>'+t.done+'</b> TSS</span>'+(t.planned ? '<span>Planned <b>'+t.planned+'</b> TSS</span>' : '')+'<span>Time <b>'+fmtMins(t.mins*60)+'</b>'+(t.plannedMins ? ' of '+fmtMins(t.plannedMins*60) : '')+'</span>'+matchHtml(mon, byDate)+'</div><div class="week-list">';
       for (let i=0;i<7;i++){
         const d = addDays(mon, i);
         const items = itemsFor(d, byDate);
