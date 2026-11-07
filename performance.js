@@ -4,6 +4,7 @@ import { todayIso, addDays, isoDate, parseIso } from './plan-schedule.js?v=6';
 import { fmtPace } from './run.js?v=9';
 import { fmtSwimPace } from './swim.js?v=2';
 import { fitCp } from './power-profile.js?v=1';
+import { BANDS3, sessionZones, distribution } from './zone-time.js?v=1';
 
 // Sport colours for charts: validated for colour-blind separation on the panel colour (#171D25).
 // (The app's sport dots elsewhere are brighter; these are stepped for charts.)
@@ -12,13 +13,6 @@ const SPORTS = [
   { id:'run', label:'Run', color:'#d95926' },
   { id:'swim', label:'Swim', color:'#199e70' },
   { id:'strength', label:'Strength', color:'#c98500' },
-];
-const BANDS = [
-  { label:'Recovery', max:0.55, color:'var(--z-recovery)' },
-  { label:'Endurance', max:0.75, color:'var(--z-endurance)' },
-  { label:'Tempo', max:0.88, color:'var(--z-tempo)' },
-  { label:'Sweet spot & threshold', max:1.05, color:'var(--z-threshold)' },
-  { label:'Above threshold', max:9, color:'var(--z-vo2)' },
 ];
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -144,16 +138,43 @@ function paceHtml(acts, today, W, sport){
   return lineHtml({ W, points, fmt: v => f(v), invert:true, color: sport === 'run' ? '#d95926' : '#199e70', label:'Average '+sport+' pace by month' });
 }
 
-// ---- intensity mix: time in each band by each session's intensity ----
-function mixHtml(acts, today, days){
-  const from = addDays(today, -(days-1));
-  const secs = BANDS.map(() => 0);
-  acts.filter(r => dayOf(r) >= from && r.intensity_factor != null && r.sport !== 'strength').forEach(r => {
-    const i = BANDS.findIndex(b => Number(r.intensity_factor) < b.max); secs[i < 0 ? BANDS.length-1 : i] += r.duration_sec || 0; });
-  const total = secs.reduce((a, b) => a + b, 0);
-  if (!total) return '<div class="empty-note">No sessions with an intensity in this time.</div>';
-  return '<div class="pf-mix">'+BANDS.map((b, i) => '<div class="row" data-tip="'+esc(b.label+': '+fmtHrs(secs[i])+' ('+Math.round(secs[i]/total*100)+'%)')+'"><span class="nm"><i style="background:'+b.color+'"></i>'+b.label+'</span>'
-    + '<span class="track"><i style="width:'+(secs[i]/total*100).toFixed(1)+'%; background:'+b.color+'"></i></span><b>'+Math.round(secs[i]/total*100)+'%</b><span class="h">'+fmtHrs(secs[i])+'</span></div>').join('')+'</div>';
+// ---- time in zone: easy / moderate / hard by week, from steps, traces or session IF (zone-time.js) ----
+function zoneHtml(acts, today, W, days, ctx){
+  const byId = {}; (ctx.library || []).forEach(w => { byId[w.id] = w; });
+  const mon = mondayOf(today), first = addDays(mon, -7*11);
+  const weeks = []; for (let i = 11; i >= 0; i--) weeks.push({ mon: addDays(mon, -7*i), z:[0,0,0] });
+  const from = addDays(today, -(days-1)), tot = [0,0,0]; let n = 0, est = 0;
+  acts.forEach(r => {
+    const d = dayOf(r); if (d < first && d < from) return;
+    const sz = sessionZones(r, { workout: r.workout_id && byId[r.workout_id], detail: ctx.details && ctx.details[r.id], ftp: ctx.ftp, runPace: ctx.runPace });
+    if (!sz) return;
+    const w = weeks.find(x => d >= x.mon && d <= addDays(x.mon, 6)); if (w) sz.z.forEach((v, k) => { w.z[k] += v; });
+    if (d >= from){ sz.z.forEach((v, k) => { tot[k] += v; }); n++; if (sz.src === 'session') est++; }
+  });
+  const all = tot[0] + tot[1] + tot[2];
+  if (!all) return '<div class="empty-note">No sessions with power, pace or an intensity in this time.</div>';
+  const dist = distribution(tot);
+  const pct = k => Math.round(tot[k] / all * 100);
+  let html = '<div class="zt-bar">'+BANDS3.map((b, k) => tot[k] ? '<i style="width:'+(tot[k]/all*100).toFixed(1)+'%; background:'+b.color+'" data-tip="'+esc(b.label+' ('+b.note+'): '+fmtHrs(tot[k])+', '+pct(k)+'%')+'"></i>' : '').join('')+'</div>'
+    + '<div class="pf-legend zt-leg">'+BANDS3.map((b, k) => '<span><i style="background:'+b.color+'"></i>'+b.label+' <b>'+pct(k)+'%</b></span>').join('')+'</div>'
+    + (dist ? '<div class="zt-dist"><b>'+dist.label+'.</b> '+dist.note+'</div>' : '');
+  // weekly stacked columns (hours)
+  const H = 150, pad = { l:30, r:6, t:8, b:20 };
+  const max = niceMax(Math.max(0.5, ...weeks.map(w => (w.z[0]+w.z[1]+w.z[2]) / 3600)));
+  const slot = (W - pad.l - pad.r) / weeks.length, bw = Math.min(26, slot * 0.62);
+  const Y = v => pad.t + (1 - v / max) * (H - pad.t - pad.b);
+  let g = '';
+  [0, max/2, max].forEach(v => { g += '<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+Y(v).toFixed(1)+'" y2="'+Y(v).toFixed(1)+'" stroke="var(--line)"/><text x="'+(pad.l-5)+'" y="'+(Y(v)+4).toFixed(1)+'" text-anchor="end">'+(Math.round(v*10)/10)+'h</text>'; });
+  weeks.forEach((w, i) => {
+    const cx = pad.l + slot * (i + 0.5); let y0 = 0;
+    w.z.forEach((v, k) => { if (!v) return; const h = v / 3600; g += '<rect x="'+(cx-bw/2).toFixed(1)+'" y="'+Y(y0+h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+(Y(y0)-Y(y0+h)).toFixed(1)+'" fill="'+BANDS3[k].color+'"/>'; y0 += h; });
+    const t = w.z[0]+w.z[1]+w.z[2];
+    g += '<rect x="'+(cx-slot/2).toFixed(1)+'" y="'+pad.t+'" width="'+slot.toFixed(1)+'" height="'+(H-pad.t-pad.b)+'" fill="transparent" data-tip="'+esc(shortDay(w.mon)+' week'+(t ? '\n'+BANDS3.map((b, k) => b.label+' '+fmtHrs(w.z[k])+' ('+Math.round(w.z[k]/t*100)+'%)').join('\n') : ': nothing logged'))+'"/>';
+    if ((weeks.length - 1 - i) % Math.ceil(48 / slot) === 0) g += '<text x="'+cx.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+shortDay(w.mon)+'</text>';
+  });
+  html += '<svg class="pf-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Easy, moderate and hard hours each week, last 12 weeks">'+g+'</svg>';
+  html += '<div class="zt-src">'+(ctx.details ? '' : 'Loading recorded power and pace… ')+'From workout steps and recorded power or pace'+(est ? '; '+est+' of '+n+' sessions without those count whole by their average intensity' : '')+'.</div>';
+  return html;
 }
 
 // ---- did the planned sessions get done ----
@@ -184,7 +205,8 @@ function adherenceHtml(planned, today, W){
 }
 
 // el: container; acts: completed_rides rows for the last year or so; planned: loadPlanned(); ftp: current FTP.
-export function renderPerformance(el, { acts, planned, ftp }){
+export function renderPerformance(el, ctx){
+  const { acts, planned, ftp } = ctx;
   const today = todayIso();
   let metric = 'hours', mixDays = 28;
   function draw(){
@@ -195,7 +217,7 @@ export function renderPerformance(el, { acts, planned, ftp }){
       + '<div class="panel"><div class="panel-title"><span>Weekly training</span><div class="seg pf-seg" data-seg="metric"><button data-v="hours"'+(metric === 'hours' ? ' class="on"' : '')+'>Hours</button><button data-v="tss"'+(metric === 'tss' ? ' class="on"' : '')+'>TSS</button></div></div>'+weeklyHtml(acts, today, W, metric)+'</div>'
       + '<div class="pf-two">'
       + '<div class="panel"><div class="panel-title"><span>Estimated FTP by month</span></div><div class="pf-sub">Fitted to your best 3 to 20 minute efforts each month, or 95% of the best 20 minutes</div>'+powerHtml(acts, today, half, ftp)+'</div>'
-      + '<div class="panel"><div class="panel-title"><span>Intensity mix</span><div class="seg pf-seg" data-seg="mix"><button data-v="28"'+(mixDays === 28 ? ' class="on"' : '')+'>4 wks</button><button data-v="84"'+(mixDays === 84 ? ' class="on"' : '')+'>12 wks</button></div></div><div class="pf-sub">Time by each session\'s average intensity (IF)</div>'+mixHtml(acts, today, mixDays)+'</div>'
+      + '<div class="panel"><div class="panel-title"><span>Time in zone</span><div class="seg pf-seg" data-seg="mix"><button data-v="28"'+(mixDays === 28 ? ' class="on"' : '')+'>4 wks</button><button data-v="84"'+(mixDays === 84 ? ' class="on"' : '')+'>12 wks</button></div></div><div class="pf-sub">Easy, moderate and hard time, rides and runs together</div>'+zoneHtml(acts, today, half, mixDays, ctx)+'</div>'
       + '</div><div class="pf-two">'
       + '<div class="panel"><div class="panel-title"><span>Run pace by month</span></div><div class="pf-sub">Average pace of runs with a distance</div>'+(paceHtml(acts, today, half, 'run') || '<div class="empty-note">Runs with a distance in at least two months show a trend here.</div>')+'</div>'
       + (swims ? '<div class="panel"><div class="panel-title"><span>Swim pace by month</span></div><div class="pf-sub">Average pace per 100 m</div>'+(paceHtml(acts, today, half, 'swim') || '<div class="empty-note">Swims in at least two months show a trend here.</div>')+'</div>'
@@ -205,6 +227,7 @@ export function renderPerformance(el, { acts, planned, ftp }){
       + '<div class="pf-tip" role="status"></div>';
   }
   draw();
+  ctx.redraw = () => { if (el.isConnected) draw(); };
   el.onclick = e => {
     const b = e.target.closest('.pf-seg [data-v]'); if (!b) return;
     if (b.closest('[data-seg]').dataset.seg === 'metric') metric = b.dataset.v; else mixDays = Number(b.dataset.v);
@@ -254,5 +277,10 @@ export const PERFORMANCE_CSS = `
   .pf-mix .h{ font-family:var(--mono); color:var(--text-dim); font-size:12px; text-align:right; }
   @media (max-width:600px){ .pf-mix .row{ grid-template-columns:minmax(0,1fr) 70px 38px; } .pf-mix .h{ display:none; } }
   #hubView{ position:relative; }
+  .zt-bar{ display:flex; height:14px; border-radius:7px; overflow:hidden; gap:2px; margin-bottom:8px; }
+  .zt-bar i{ display:block; height:100%; }
+  .zt-leg b{ color:var(--text); font-family:var(--mono); }
+  .zt-dist{ font-size:13.5px; margin-bottom:10px; }
+  .zt-src{ font-size:11.5px; color:var(--text-dim); margin-top:6px; }
   .pf-tip{ position:absolute; display:none; pointer-events:none; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12px; white-space:pre-line; font-family:var(--mono); z-index:5; max-width:260px; }
 `;
