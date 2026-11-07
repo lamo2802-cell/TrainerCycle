@@ -397,7 +397,7 @@ import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } fro
 import { summaryHtml, SUMMARY_CSS } from './summary.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=3';
-import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=2';
+import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=3';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { powerProfile, wBalance, matches, modelPower } from './power-profile.js?v=1';
@@ -894,7 +894,19 @@ const supabase = createSupabaseClient();
     if (new URLSearchParams(location.search).get('view') !== view) return; // moved on while loading
     if (view === 'fitness'){ hub.innerHTML = '<div id="readyRoot"></div><div id="fitRoot"></div><div id="goalsRoot"></div><div id="engineRoot"></div>'; mountFitness(document.getElementById('fitRoot'), { rides: h.acts, planned: h.planned }); renderReady(document.getElementById('readyRoot'), h, document.getElementById('goalsRoot'));
       document.getElementById('engineRoot').innerHTML = engineCardHtml(['ride', 'run'].map(sp => efficiencyTrend(h.acts, sp))); }
-    else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); }
+    else { hub.innerHTML = '<div class="pf-root" id="pfRoot"></div>'; renderPerformance(document.getElementById('pfRoot'), h); loadZoneDetails(h); }
+  }
+  // Saved Strava/Garmin traces for the last 12 weeks, so Time in zone can use recorded power and pace.
+  async function loadZoneDetails(h){
+    if (h.details) return;
+    try {
+      const since = new Date(Date.now() - 90*86400000).toISOString();
+      const { data, error } = await supabase.from('completed_rides').select('id,run_detail').eq('user_id', user.id).gte('started_at', since).in('source', ['strava', 'garmin']).not('run_detail', 'is', null);
+      if (error) throw error;
+      const map = {}; (data || []).forEach(r => { map[r.id] = r.run_detail; });
+      h.details = map;
+    } catch(e){ console.error('zone details', e); h.details = {}; }
+    if (h.redraw) h.redraw();
   }
   // ---- Fitness & form: where you are in plain words, and the ride we'd do next ----
   // The status and what to do next sit above the chart; goals (with their charts) and focus below it.
