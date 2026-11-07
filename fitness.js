@@ -1,7 +1,7 @@
 // Fitness & form chart (Progress → Fitness) and the planned sessions it projects forward with.
 // The tiles alone also show on Calendar and Today, from training-load.js.
 import { isoDate, parseIso, addDays, daysBetween, todayIso, planSessions, loadFollowState, loadDoneDays, isSkipped } from './plan-schedule.js?v=6';
-import { loadSeries, formLabel } from './training-load.js?v=2';
+import { loadSeries, formLabel, formZone, FORM_ZONES, rampRate, rampNote, RAMP_FAST } from './training-load.js?v=3';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
 import { composeFollowed, loadPlanRow } from './run-plans.js?v=4';
@@ -48,7 +48,7 @@ export async function loadPlanned(supabase, userId, rides){
 const CHART_BACK = 90, CHART_AHEAD_MAX = 42;
 const PANEL = `
 <div class="fit-tiles">
-  <div class="fit-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-t="fitness">—</div><div class="note">42-day load</div></div>
+  <div class="fit-tile"><div class="lbl"><i style="background:var(--s-fitness)"></i>Fitness</div><div class="val" data-t="fitness">—</div><div class="note" data-t="rampNote">42-day load</div></div>
   <div class="fit-tile"><div class="lbl"><i style="background:var(--s-fatigue)"></i>Fatigue</div><div class="val" data-t="fatigue">—</div><div class="note">7-day load</div></div>
   <div class="fit-tile"><div class="lbl"><i style="background:var(--s-form)"></i>Form</div><div class="val" data-t="form">—</div><div class="note" data-t="formNote">&nbsp;</div></div>
   <div class="fit-tile"><div class="lbl">This week</div><div class="val" data-t="week">—</div><div class="note" data-t="weekNote">TSS done</div></div>
@@ -59,12 +59,13 @@ const PANEL = `
       <span class="series"><i style="background:var(--s-fitness)"></i>Fitness</span>
       <span class="series"><i style="background:var(--s-fatigue)"></i>Fatigue</span>
       <span class="series"><i style="background:var(--s-form)"></i>Form</span>
+      <span class="fz-key" title="Shaded bands behind the chart show which form zone you were in">Form zones: <i style="background:#2fb36d"></i>building <i style="background:#3b8fd9"></i>fresh <i style="background:#e0564a"></i>very tired</span>
       <span data-t="legendPlanned" style="display:none;"><i class="dash"></i>If you do the plan</span>
     </div>
   </div>
   <div class="seg fit-range" role="group" aria-label="Time range"><button data-back="42">6 wks</button><button data-back="90" class="on">3 mths</button><button data-back="180">6 mths</button><button data-back="365">1 year</button></div>
   <div class="chart-wrap"><canvas class="fit-chart"></canvas><div class="chart-tip"></div></div>
-  <div class="fit-explain">Fitness is your average daily TSS over the last six weeks, Fatigue over the last week, and Form is Fitness minus Fatigue. Hard weeks push Form negative; a rest week lets it bounce back before a test or event. The dashed lines show where your plan takes you if you do every session.</div>
+  <div class="fit-explain">Fitness is your average daily TSS over the last six weeks, Fatigue over the last week, and Form is Fitness minus Fatigue. Hard weeks push Form negative; a rest week lets it bounce back before a test or event. The dashed lines show where your plan takes you if you do every session. The shaded bands are form zones: green (−10 to −30) is where training makes you fitter, red (below −30) means ease off, blue (+5 to +25) is fresh for a test or race. Ramp rate is how much Fitness rose this week; more than 7 a week is hard to keep up.</div>
 </div>`;
 
 // el: an empty container. rides: activities with started_at and tss. planned: from loadPlanned().
@@ -89,7 +90,13 @@ export function mountFitness(el, { rides, planned }){
   q('fitness').textContent = Math.round(now.ctl);
   q('fatigue').textContent = Math.round(now.atl);
   q('form').textContent = (form > 0 ? '+' : '') + form;
-  q('formNote').textContent = formLabel(form);
+  const fz = formZone(form);
+  q('formNote').innerHTML = '<i class="fz-dot" style="background:'+fz.color+'"></i>'+formLabel(form);
+  q('formNote').title = fz.note;
+  const ramp = rampRate(all, all.indexOf(now));
+  const rr = Math.round(ramp*10)/10;
+  q('rampNote').innerHTML = '<span'+(ramp > RAMP_FAST ? ' class="ramp-hot"' : '')+'>Ramp '+(rr > 0 ? '+' : '')+rr.toFixed(1)+' this week</span>';
+  q('rampNote').title = 'Ramp rate: '+rampNote(ramp)+'. Fitness rising more than '+RAMP_FAST+' a week is hard to sustain.';
   const mon = addDays(today, -((parseIso(today).getDay()+6)%7));
   let wkDone = 0, wkPlanned = 0;
   for (let i = 0; i < 7; i++){
@@ -128,6 +135,15 @@ export function mountFitness(el, { rides, planned }){
       ctx.beginPath(); ctx.moveTo(pad.l, Math.round(y(v))+.5); ctx.lineTo(W - pad.r, Math.round(y(v))+.5); ctx.stroke();
       ctx.globalAlpha = 1; ctx.fillText(String(v), pad.l - 6, y(v));
     }
+    // form zones as faint bands, from the lowest form shown up to the 'very fresh' line
+    FORM_ZONES.forEach(z => {
+      if (z.key === 'transition') return; // above +25 the chart is fitness and fatigue, leave it clear
+      const top = Math.min(hi, z.max), bot = Math.max(lo, z.min);
+      if (top <= bot) return;
+      ctx.fillStyle = z.color; ctx.globalAlpha = z.key === 'grey' ? .06 : .09;
+      ctx.fillRect(pad.l, y(top), W - pad.l - pad.r, y(bot) - y(top));
+    });
+    ctx.globalAlpha = 1;
     // daily TSS as faint bars at the base
     const maxT = Math.max(1, ...pts.map(p => p.tss));
     const bw = Math.max(1, (W - pad.l - pad.r) / pts.length - 1);
@@ -178,7 +194,8 @@ export function mountFitness(el, { rides, planned }){
     tip.innerHTML = '<div class="d">'+longDate(p.date)+(p.future ? ' · planned' : '')+'</div>'
       + '<div class="r"><i style="background:var(--s-fitness)"></i>Fitness '+Math.round(p.ctl)+'</div>'
       + '<div class="r"><i style="background:var(--s-fatigue)"></i>Fatigue '+Math.round(p.atl)+'</div>'
-      + '<div class="r"><i style="background:var(--s-form)"></i>Form '+Math.round(p.tsb)+'</div>'
+      + '<div class="r"><i style="background:var(--s-form)"></i>Form '+Math.round(p.tsb)+' · <span style="color:'+formZone(p.tsb).color+'">'+formZone(p.tsb).label+'</span></div>'
+      + (() => { const rr = rampRate(all, all.indexOf(p)); return '<div class="r" style="color:var(--text-dim)">Ramp '+(rr > 0 ? '+' : '')+rr.toFixed(1)+' a week</div>'; })()
       + '<div class="r" style="color:var(--text-dim)">TSS '+Math.round(p.tss)+'</div>';
     tip.style.display = 'block';
     const tx = geom.x(i);
@@ -212,6 +229,9 @@ export const FITNESS_CSS = `
   .fit-legend i{ width:14px; height:3px; border-radius:2px; display:inline-block; }
   .fit-legend i.dash{ background:repeating-linear-gradient(90deg, var(--text-dim) 0 4px, transparent 4px 7px) !important; }
   .fit-range{ margin-bottom:10px; }
+  .fz-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:0; }
+  .ramp-hot{ color:#e0564a; font-weight:600; }
+  .fit-legend .fz-key i{ width:8px; height:8px; border-radius:50%; margin-left:4px; }
   .chart-wrap{ position:relative; }
   .fit-chart{ width:100%; height:260px; display:block; touch-action:pan-y; }
   .chart-tip{ position:absolute; top:0; pointer-events:none; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12px; white-space:nowrap; display:none; z-index:5; }
