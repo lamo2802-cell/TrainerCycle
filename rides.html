@@ -127,6 +127,16 @@
   .rec .s{ font-size:11.5px; color:var(--text-dim); }
   .rec .s b{ color:var(--text); font-weight:600; }
   .rec-curve{ width:100%; height:auto; display:block; }
+  .pp-tiles{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; }
+  .pp{ background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-width:0; }
+  .pp .k{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+  .pp .v{ font-family:var(--mono); font-size:24px; font-weight:600; margin-top:2px; }
+  .pp .v small{ font-size:12px; color:var(--text-dim); margin-left:3px; font-weight:500; }
+  .pp .s{ font-size:12px; color:var(--text-dim); }
+  .pp-type{ margin-top:12px; font-size:14px; }
+  .pp-key{ font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; margin:4px 0 8px; }
+  .pp-key i{ width:16px; height:0; border-top:2px dotted #A78BFA; }
+  @media (max-width:600px){ .pp-tiles{ grid-template-columns:repeat(2, minmax(0,1fr)); } .pp .v{ font-size:20px; } }
   .rec-legend{ display:flex; gap:14px; font-size:11.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; }
   .rec-legend i{ display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:5px; }
   .run-recs{ width:100%; border-collapse:collapse; font-size:13.5px; }
@@ -382,14 +392,15 @@ import { openSwimLog, fmtSwimPace, fmtMetres } from './swim.js?v=2';
 import { openRideLog } from './diary.js?v=2';
 import { hasRoute, routePanelHtml, mountRouteMap, ROUTE_CSS } from './route-map.js?v=3';
 import { analyseRun, splitsPanelHtml, workoutPanelHtml, wireRunAnalysis, RUN_ANALYSIS_CSS, runSummary, runChartHtml, runZones, zoneVerdict, zonesPanelHtml, gradeFactor } from './run-analysis.js?v=4';
-import { stackHtml, wireCharts, bandsFrom, CHARTS_CSS } from './activity-charts.js?v=1';
+import { stackHtml, wireCharts, bandsFrom, fmtClock, CHARTS_CSS } from './activity-charts.js?v=1';
 import { loadSameRoute, sameWorkout, compareHtml, compareNote, COMPARE_CSS } from './compare.js?v=3';
 import { summaryHtml, SUMMARY_CSS } from './summary.js?v=1';
 import { rideEfficiency, runEfficiency, efficiencyPanelHtml, usualEf, sessionEf, efficiencyTrend, engineCardHtml, EFFICIENCY_CSS } from './efficiency.js?v=1';
 import { loadPlanned, mountFitness, FITNESS_CSS } from './fitness.js?v=3';
-import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=1';
+import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=2';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
+import { powerProfile, wBalance, matches, modelPower } from './power-profile.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
@@ -1025,7 +1036,7 @@ const supabase = createSupabaseClient();
     }
     return out;
   }
-  function curveSvg(all, recent, width){
+  function curveSvg(all, recent, width, prof){
     const pts = m => REC_DURS.filter(d => m[d]).map(d => ({ d, w:m[d].v }));
     const a = pts(all), b = pts(recent);
     if (a.length < 2) return '';
@@ -1039,7 +1050,11 @@ const supabase = createSupabaseClient();
     REC_KEY.forEach(d => { g += '<text x="'+X(d).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+pbLabel(d).replace(' ','')+'</text>'; });
     const line = (p, col, dash) => p.length < 2 ? '' : '<polyline fill="none" stroke="'+col+'" stroke-width="2.2" stroke-linejoin="round"'+(dash ? ' stroke-dasharray="5 4"' : '')+' points="'+p.map(q=>X(q.d).toFixed(1)+','+Y(q.w).toFixed(1)).join(' ')+'"/>';
     const dots = p => p.map(q=>'<circle cx="'+X(q.d).toFixed(1)+'" cy="'+Y(q.w).toFixed(1)+'" r="3" fill="#45D6C4" stroke="#171D25" stroke-width="2"/>').join('');
-    return '<svg class="rec-curve" viewBox="0 0 '+W+' '+H+'" style="font:11px var(--mono); fill:#8C97A6;">'+g+line(b, 'rgba(232,185,61,.85)', true)+line(a, '#45D6C4')+dots(a)+'</svg>';
+    // the fitted CP model from 2 minutes up: where your best efforts sit against it
+    const model = prof && prof.fitted ? REC_DURS.filter(d => d >= 120).flatMap((d, i, arr) => { const out = [d]; if (arr[i+1]) for (let k = 1; k < 4; k++) out.push(d * Math.pow(arr[i+1]/d, k/4)); return out; })
+      .map(d => ({ d, w: Math.min(maxW, modelPower(d, prof.cp, prof.wPrime)) })) : [];
+    const modelLine = model.length ? '<polyline fill="none" stroke="#A78BFA" stroke-width="1.6" stroke-dasharray="2 3" points="'+model.map(q=>X(q.d).toFixed(1)+','+Y(q.w).toFixed(1)).join(' ')+'"/>' : '';
+    return '<svg class="rec-curve" viewBox="0 0 '+W+' '+H+'" style="font:11px var(--mono); fill:#8C97A6;">'+g+modelLine+line(b, 'rgba(232,185,61,.85)', true)+line(a, '#45D6C4')+dots(a)+'</svg>';
   }
   function recordsHtml(width){
     const ridesOnly = rides.filter(isBike);
@@ -1049,11 +1064,25 @@ const supabase = createSupabaseClient();
     const runs = bestsOver(rides.filter(isRun), 'run_bests', RUN_RECS.map(x=>x[0]), (a,b)=>a<b);
     const shortDate = iso => { const d = new Date(iso); return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { day:'numeric', month:'short' } : { day:'numeric', month:'short', year:'numeric' }); };
     let html = '<p class="hub-sub">Your best power, run times and lifts, from TrainerCycle, Strava and Garmin.</p>';
+    const prof = powerProfile(ridesOnly, { days: 90 });
+    if (prof){
+      html += '<div class="panel"><div class="panel-title"><span>Power profile</span><span class="rec-legend">Last 90 days</span></div>'
+        + '<div class="pp-tiles">'
+        + '<div class="pp"><div class="k">eFTP</div><div class="v">'+prof.eftp+'<small>W</small></div><div class="s">'+(weightKg ? (prof.eftp/weightKg).toFixed(1)+' W/kg' : 'Estimated FTP')+'</div></div>'
+        + '<div class="pp"><div class="k">Critical power</div><div class="v">'+prof.cp+'<small>W</small></div><div class="s">What you can hold for about 30 to 40 min</div></div>'
+        + '<div class="pp"><div class="k">W′</div><div class="v">'+(prof.wPrime/1000).toFixed(1)+'<small>kJ</small></div><div class="s">Your tank for efforts above CP</div></div>'
+        + '<div class="pp"><div class="k">Max power</div><div class="v">'+(prof.pmax || '—')+(prof.pmax ? '<small>W</small>' : '')+'</div><div class="s">Best 5 seconds'+(prof.pmax && weightKg ? ' · '+(prof.pmax/weightKg).toFixed(1)+' W/kg' : '')+'</div></div>'
+        + '</div>'
+        + (prof.type ? '<div class="pp-type"><b>'+prof.type.name+'.</b> '+prof.type.note+'</div>' : '')
+        + '</div>';
+    } else if (Object.keys(all).length){
+      html += '<div class="panel"><div class="panel-title"><span>Power profile</span></div><div class="empty-note">Your eFTP, critical power, W′ and rider type show here once you\'ve done some hard efforts of 3 to 20 minutes in the last 90 days (a ramp test, an FTP test or a hard interval session).</div></div>';
+    }
     html += '<div class="panel"><div class="panel-title"><span>Power bests</span><span class="rec-legend"><span><i style="background:#45D6C4"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span></div>';
     if (!Object.keys(all).length){
       html += '<div class="empty-note">Ride with a power meter and your best efforts will show here.</div>';
     } else {
-      html += curveSvg(all, recent, width) + '<div class="rec-grid">' + REC_KEY.map(d=>{
+      html += curveSvg(all, recent, width, prof) + (prof ? '<div class="pp-key"><i></i>Dashed purple: what your CP and W′ say you can hold</div>' : '') + '<div class="rec-grid">' + REC_KEY.map(d=>{
         const a = all[d], n = recent[d];
         if (!a) return '<div class="rec" style="cursor:default"><div class="k">'+pbLabel(d)+'</div><div class="v">—</div></div>';
         return '<button class="rec" data-ride="'+a.r.id+'"><div class="k">'+pbLabel(d)+'</div><div class="v">'+a.v+'<small>W</small></div>'
@@ -1106,7 +1135,24 @@ const supabase = createSupabaseClient();
   const num = v => v == null ? null : Number(v);
   const r0 = v => String(Math.round(v));
   // A Live Ride's power over the zone-coloured workout targets, heart rate and cadence, one second apart.
-  function liveRideCharts(sec, ftp){
+  // CP and W' for a ride: fitted to the 90 days of efforts up to it, or from FTP with a typical W'.
+  function profileAt(ride, ftp){
+    const upTo = ride.started_at;
+    return powerProfile(rides.filter(r => isBike(r) && r.started_at <= upTo), { days: 90, now: new Date(upTo), ftp });
+  }
+  // W' balance chart row: how much of the tank above CP was left at each moment.
+  function wbalChannel(power, dt, prof){
+    if (!prof || !prof.cp || !power.some(p => p > prof.cp)) return null;
+    const wb = wBalance(power, dt, prof.cp, prof.wPrime);
+    const low = Math.min(...wb), lowI = wb.indexOf(low), m = matches(power, dt, prof.cp, prof.wPrime, wb);
+    const pct = v => Math.round(v / prof.wPrime * 100);
+    return { wb, wPrime: prof.wPrime, cp: prof.cp, channel: { label: 'W′ balance', unit: 'kJ', color: '#A78BFA', vals: wb.map(v => v / 1000), signed: true, zeros: true, min: 0, noAvgLine: true, minSpan: prof.wPrime / 1000,
+      fmt: v => v.toFixed(1),
+      readFmt: v => '<b>' + v.toFixed(1) + '</b> kJ · ' + pct(v * 1000) + '% left',
+      summary: 'Lowest <b>' + pct(low) + '%</b> at ' + fmtClock(lowI * dt) + ' · <b>' + m.length + '</b> hard effort' + (m.length === 1 ? '' : 's')
+        + '<span class="ac-unit" title="' + (prof.fitted ? 'Fitted to your best efforts in the 90 days up to this ride' : 'From your FTP, with a typical W′ until your own hard efforts give one') + '"> · CP ' + prof.cp + ' W, W′ ' + (prof.wPrime / 1000).toFixed(1) + ' kJ' + (prof.fitted ? '' : ' (est.)') + '</span>' } };
+  }
+  function liveRideCharts(sec, ftp, wbc){
     const power = sec.map(x => x.power || 0), target = sec.map(x => x.target || null);
     return stackHtml({ dt: 1, n: sec.length, channels: [
       { label: 'Power', unit: 'W', color: '#45D6C4', vals: power, zeros: true, min: 0, win: 1, fmt: r0, minSpan: 50,
@@ -1114,10 +1160,11 @@ const supabase = createSupabaseClient();
         readFmt: (v, i) => '<b>' + Math.round(v) + '</b> W' + (target[i] ? ' · target ' + target[i] : '') },
       { label: 'Heart rate', unit: 'bpm', color: '#E5484D', vals: sec.map(x => x.hr || null), fmt: r0, minSpan: 20 },
       { label: 'Cadence', unit: 'rpm', color: '#F5A524', vals: sec.map(x => x.cadence || null), win: 1, smooth: 1, fmt: r0, minSpan: 20 },
-    ] });
+      wbc ? wbc.channel : null,
+    ].filter(Boolean) });
   }
   // A Strava ride's 5-second trace: power, heart rate, speed, cadence and elevation.
-  function importedRideCharts(s){
+  function importedRideCharts(s, prof){
     const n = s.v.length, dt = s.dt || 5, dist = [];
     let d = 0; s.v.forEach(v => { d += v / 100 * dt; dist.push(d); });
     const kmh = s.v.map(v => v / 100 * 3.6);
@@ -1130,6 +1177,7 @@ const supabase = createSupabaseClient();
       { label: 'Speed', unit: 'km/h', color: '#4C8BF5', vals: kmh, min: 0, win: 1, smooth: 1, fmt: v => v.toFixed(1), minSpan: 10,
         avg: moving.length ? moving.reduce((a, c) => a + c, 0) / moving.length : null },
       s.c ? { label: 'Cadence', unit: 'rpm', color: '#F5A524', vals: s.c.map(num), smooth: 1, fmt: r0, minSpan: 20 } : null,
+      s.p ? (wbalChannel(s.p.map(v => Number(v) || 0), dt, prof) || {}).channel : null,
       al ? { label: 'Elevation', unit: 'm', color: '#8C97A6', vals: al, signed: true, noAvgLine: true, fmt: r0, minSpan: 10,
         summary: 'Gain <b>' + Math.round(gain) + ' m</b> · Max <b>' + Math.round(Math.max(...al.filter(v => v != null))) + ' m</b>' } : null,
     ].filter(Boolean);
@@ -1157,7 +1205,7 @@ const supabase = createSupabaseClient();
       if (!detail){ box.innerHTML = '<div class="panel empty-note">' + await stravaMissing('Charts') + '</div>'; return; }
       r.run_detail = detail;
     }
-    const html = detail.s && detail.s.v && detail.s.v.length >= 24 ? importedRideCharts(detail.s) : '';
+    const html = detail.s && detail.s.v && detail.s.v.length >= 24 ? importedRideCharts(detail.s, profileAt(r, r.np && r.intensity_factor ? r.np / r.intensity_factor : null)) : '';
     box.innerHTML = html ? '<div class="panel"><div class="panel-title"><span>Ride</span></div>' + html + '</div>' : '';
   }
 
@@ -1269,7 +1317,9 @@ const supabase = createSupabaseClient();
       html += '<div class="panel empty-note">No second-by-second data was recorded for this ride.</div>';
       el.innerHTML = html; return;
     }
-    html += '<div class="panel"><div class="panel-title"><span>Ride</span></div>' + liveRideCharts(sec, ftp) + '</div>';
+    const wbc = wbalChannel(sec.map(x => x.power || 0), 1, profileAt(ride, ftp));
+    if (wbc) sec.forEach((x, i) => { x._wb = wbc.wb[i]; });
+    html += '<div class="panel"><div class="panel-title"><span>Ride</span></div>' + liveRideCharts(sec, ftp, wbc) + '</div>';
 
     // power curve + time in zone
     const bests = bestEfforts(sec);
@@ -1302,11 +1352,12 @@ const supabase = createSupabaseClient();
       const pw = avg('power'), tg = avg('target'), hr = avg('hr'), cad = avg('cadence');
       const name = (steps[l.stepIdx] && steps[l.stepIdx].note) || (l.stepIdx!=null && l.stepIdx>=0 ? 'Step '+(l.stepIdx+1) : 'Free ride');
       const hitPct = (pw && tg) ? Math.round(pw/tg*100) : null;
+      const wPct = wbc && pw > wbc.cp ? Math.round(Math.min(...l.pts.map(x => x._wb)) / wbc.wPrime * 100) : null;
       return '<tr><td><i style="background:'+(tg && ftp ? zoneColor(tg/ftp*100) : 'var(--text-dim)')+'"></i>'+escapeHtml(name)+'</td><td>'+fmtDur(l.pts.length)+'</td><td>'+(tg ?? '—')+'</td><td>'+(pw ?? '—')+'</td>'
-        + '<td class="'+(hitPct==null ? '' : Math.abs(hitPct-100) <= 5 ? 'hit' : 'miss')+'">'+(hitPct!=null ? hitPct+'%' : '—')+'</td><td class="opt">'+(hr ?? '—')+'</td><td class="opt">'+(cad ?? '—')+'</td></tr>';
+        + '<td class="'+(hitPct==null ? '' : Math.abs(hitPct-100) <= 5 ? 'hit' : 'miss')+'">'+(hitPct!=null ? hitPct+'%' : '—')+'</td>'+(wbc ? '<td class="opt'+(wPct < 25 ? ' miss' : '')+'">'+(wPct != null ? wPct+'%' : '—')+'</td>' : '')+'<td class="opt">'+(hr ?? '—')+'</td><td class="opt">'+(cad ?? '—')+'</td></tr>';
     });
     if (rows.length > 1){
-      html += '<div class="panel"><div class="panel-title"><span>Intervals</span></div><div class="laps-wrap"><table class="laps"><thead><tr><th>Step</th><th>Time</th><th>Target W</th><th>Avg W</th><th>Of target</th><th class="opt">HR</th><th class="opt">Cad</th></tr></thead><tbody>'
+      html += '<div class="panel"><div class="panel-title"><span>Intervals</span></div><div class="laps-wrap"><table class="laps"><thead><tr><th>Step</th><th>Time</th><th>Target W</th><th>Avg W</th><th>Of target</th>'+(wbc ? '<th class="opt" title="Lowest W′ balance during each interval above critical power">W′ left</th>' : '')+'<th class="opt">HR</th><th class="opt">Cad</th></tr></thead><tbody>'
         + rows.join('') + '</tbody></table></div></div>';
     }
     el.innerHTML = html;
