@@ -135,6 +135,9 @@
   .pp .s{ font-size:12px; color:var(--text-dim); }
   .pp-type{ margin-top:12px; font-size:14px; }
   .pp-key{ font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; margin:4px 0 8px; }
+  .pp-run{ grid-template-columns:repeat(2, minmax(0,1fr)); margin-bottom:12px; max-width:520px; }
+  .cs-offer{ margin:0 0 14px; }
+  .link-btn{ background:none; border:0; padding:0; margin:0 0 0 6px; width:auto; min-height:0; color:var(--accent); font:inherit; font-weight:600; cursor:pointer; text-decoration:underline; }
   .pp-key i{ width:16px; height:0; border-top:2px dotted #A78BFA; }
   @media (max-width:600px){ .pp-tiles{ grid-template-columns:repeat(2, minmax(0,1fr)); } .pp .v{ font-size:20px; } }
   .rec-legend{ display:flex; gap:14px; font-size:11.5px; color:var(--text-dim); text-transform:none; letter-spacing:0; }
@@ -401,6 +404,7 @@ import { renderPerformance, PERFORMANCE_CSS } from './performance.js?v=3';
 import { renderStrength, STRENGTH_PROGRESS_CSS } from './strength-progress.js?v=1';
 import { estimateFtp, shouldSuggest } from './ftp-estimate.js?v=1';
 import { powerProfile, wBalance, matches, modelPower } from './power-profile.js?v=1';
+import { fitCs, bestTimes, paceCurveSvg } from './run-curve.js?v=1';
 import { countUp, newBests, pbLabel } from './motion.js?v=1';
 import { shareRideImage } from './ride-image.js?v=2';
 import { computeLevels, workoutLevel, zoneInfo, difficultyLabel, FEEL_OPTIONS, fmtLevel } from './levels.js?v=1';
@@ -1038,7 +1042,7 @@ const supabase = createSupabaseClient();
   const REC_DURS = [5, 60, 180, 300, 480, 720, 1200, 1800, 3600];
   const REC_KEY = [5, 60, 300, 1200, 3600];
   const RUN_RECS = [[400,'400 m'],[1000,'1K'],[1609,'1 mile'],[5000,'5K'],[10000,'10K'],[21097,'Half marathon'],[42195,'Marathon']];
-  let weightKg = null;
+  let weightKg = null, runPaceSet = undefined;
   let strengthLifts = [];
   function bestsOver(list, key, durs, better){
     const out = {};
@@ -1102,8 +1106,22 @@ const supabase = createSupabaseClient();
           + '<div class="s">90 days: <b>'+(n ? n.v+' W' : '—')+'</b></div></button>';
       }).join('') + '</div>';
     }
-    html += '</div><div class="panel"><div class="panel-title"><span>Running bests</span></div>';
+    html += '</div><div class="panel"><div class="panel-title"><span>Running bests</span>'+(Object.keys(runs).length >= 2 ? '<span class="rec-legend"><span><i style="background:#d95926"></i>All time</span><span><i style="background:#E8B93D"></i>Last 90 days</span></span>' : '')+'</div>';
     const runRows = RUN_RECS.filter(([m]) => runs[m]);
+    if (runRows.length >= 2){
+      const runList = rides.filter(isRun);
+      const recentT = bestTimes(runList, since), fit = fitCs(recentT);
+      const allT = {}; runRows.forEach(([m]) => { allT[m] = runs[m].v; });
+      html += paceCurveSvg({ all: allT, recent: recentT, fit, width, dists: RUN_RECS.map(x => x[0]), labels: Object.fromEntries(RUN_RECS.map(([m, l]) => [m, l.replace('Half marathon', 'Half').replace('Marathon', 'Mara').replace(' mile', 'mi')])), fmtPace });
+      if (fit){
+        const diff = runPaceSet ? (fit.thresholdPace - runPaceSet) / runPaceSet : null;
+        html += '<div class="pp-key"><i></i>Dashed purple: what your critical speed says you can hold</div>'
+          + '<div class="pp-tiles pp-run"><div class="pp"><div class="k">Critical speed</div><div class="v">'+fmtPace(fit.csPace)+'<small>/km</small></div><div class="s">A pace you can hold for 30 to 40 min</div></div>'
+          + '<div class="pp"><div class="k">D′</div><div class="v">'+fit.dPrime+'<small>m</small></div><div class="s">Distance you can run above it</div></div></div>'
+          + (runPaceSet && Math.abs(diff) >= 0.02 ? '<div class="pp-type cs-offer">From the last 90 days your threshold pace looks like <b>'+fmtPace(fit.thresholdPace)+' /km</b> (yours is set to '+fmtPace(runPaceSet)+'). <button class="link-btn" data-cs-pace="'+fit.thresholdPace+'">Use '+fmtPace(fit.thresholdPace)+'</button></div>'
+            : !runPaceSet ? '<div class="pp-type cs-offer">You haven\'t set a threshold pace. <button class="link-btn" data-cs-pace="'+fit.thresholdPace+'">Use '+fmtPace(fit.thresholdPace)+' /km</button></div>' : '');
+      }
+    }
     if (!runRows.length){
       html += '<div class="empty-note">Best times come from your Strava runs. Connect Strava in Settings and they\'ll fill in after your next run.</div>';
     } else {
@@ -1134,10 +1152,22 @@ const supabase = createSupabaseClient();
     if (weightKg == null){
       try { const { data } = await supabase.from('settings').select('value').eq('key','weight_kg').eq('user_id', user.id).maybeSingle(); weightKg = (data && data.value && Number(data.value.v)) || 0; } catch(_){ weightKg = 0; }
     }
+    if (runPaceSet === undefined){
+      try { const { data } = await supabase.from('settings').select('value').eq('key', RUN_PACE_KEY).eq('user_id', user.id).maybeSingle(); runPaceSet = (data && data.value && Number(data.value.v)) || null; } catch(_){ runPaceSet = null; }
+    }
     try { const h = await loadStrengthHistory(supabase, user.id); strengthLifts = Object.keys(h).map(id => liftSummary(id, h[id])).sort((a,b)=>a.name.localeCompare(b.name)); } catch(e){ console.error('strength history', e); strengthLifts = []; }
     el.innerHTML = recordsHtml(el.clientWidth - 34);
   }
-  document.getElementById('hubView').addEventListener('click', e=>{
+  document.getElementById('hubView').addEventListener('click', async e=>{
+    const cs = e.target.closest('[data-cs-pace]');
+    if (cs){
+      const v = Number(cs.dataset.csPace); cs.disabled = true;
+      const { error } = await supabase.from('settings').upsert({ user_id:user.id, key:RUN_PACE_KEY, value:{ v }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' });
+      if (error){ cs.disabled = false; notify('Couldn\'t save your threshold pace. Try again.'); return; }
+      runPaceSet = v; if (trainHist) trainHist.runPace = v;
+      cs.closest('.cs-offer').innerHTML = 'Threshold pace set to <b>'+fmtPace(v)+' /km</b>. Run zones and planned paces use it from now on.';
+      return;
+    }
     const row = e.target.closest('.rec[data-ride], .run-recs [data-ride]'); if (!row) return;
     history.pushState({ ride: row.dataset.ride }, '', '?ride='+encodeURIComponent(row.dataset.ride));
     showDetail(row.dataset.ride);
