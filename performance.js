@@ -3,6 +3,7 @@
 import { todayIso, addDays, isoDate, parseIso } from './plan-schedule.js?v=6';
 import { fmtPace } from './run.js?v=9';
 import { fmtSwimPace } from './swim.js?v=2';
+import { fitCp } from './power-profile.js?v=1';
 
 // Sport colours for charts: validated for colour-blind separation on the panel colour (#171D25).
 // (The app's sport dots elsewhere are brighter; these are stepped for charts.)
@@ -119,10 +120,18 @@ function lineHtml({ W, points, fmt, invert = false, ref = null, refLabel = '', c
 
 function powerHtml(acts, today, W, ftp){
   const keys = monthKeys(today, 12);
+  // each month's best power at every stored duration, then eFTP from the CP fit (or 95% of 20 min)
   const best = {};
-  acts.forEach(r => { const b = r.power_bests && Number(r.power_bests[1200]); if (!b) return; const k = dayOf(r).slice(0,7); if (!best[k] || b > best[k].w) best[k] = { w:b, r }; });
-  const points = keys.map(k => ({ key:k, v: best[k] ? Math.round(best[k].w * 0.95) : null, tip: best[k] ? 'best 20 min '+best[k].w+' W, so FTP about '+Math.round(best[k].w*0.95)+' W' : '' }));
-  const svg = lineHtml({ W, points, fmt: v => Math.round(v)+' W', ref: ftp, refLabel: ftp ? 'Your FTP '+Math.round(ftp)+' W' : '', label:'Estimated FTP by month' });
+  acts.forEach(r => { if (!r.power_bests) return; const k = dayOf(r).slice(0,7); const b = best[k] = best[k] || {};
+    Object.entries(r.power_bests).forEach(([d, w]) => { const v = Number(w); if (v > (b[d] || 0)) b[d] = v; }); });
+  const points = keys.map(k => {
+    const b = best[k]; if (!b) return { key:k, v:null, tip:'' };
+    const fit = fitCp(b);
+    if (fit) return { key:k, v: fit.eftp, tip: 'eFTP '+fit.eftp+' W from your best efforts (CP '+fit.cp+' W, W′ '+(fit.wPrime/1000).toFixed(1)+' kJ)' };
+    if (b[1200]) return { key:k, v: Math.round(b[1200] * 0.95), tip: 'best 20 min '+b[1200]+' W, so FTP about '+Math.round(b[1200]*0.95)+' W' };
+    return { key:k, v:null, tip:'' };
+  });
+  const svg = lineHtml({ W, points, fmt: v => Math.round(v)+' W', ref: ftp, refLabel: ftp ? 'Your FTP '+Math.round(ftp)+' W' : '', label:'Estimated FTP (eFTP) by month' });
   return svg || '<div class="empty-note">Ride with a power meter in at least two months and your FTP trend shows here.</div>';
 }
 function paceHtml(acts, today, W, sport){
@@ -185,7 +194,7 @@ export function renderPerformance(el, { acts, planned, ftp }){
     el.innerHTML = tilesHtml(acts, today)
       + '<div class="panel"><div class="panel-title"><span>Weekly training</span><div class="seg pf-seg" data-seg="metric"><button data-v="hours"'+(metric === 'hours' ? ' class="on"' : '')+'>Hours</button><button data-v="tss"'+(metric === 'tss' ? ' class="on"' : '')+'>TSS</button></div></div>'+weeklyHtml(acts, today, W, metric)+'</div>'
       + '<div class="pf-two">'
-      + '<div class="panel"><div class="panel-title"><span>Estimated FTP by month</span></div><div class="pf-sub">95% of your best 20 minutes each month</div>'+powerHtml(acts, today, half, ftp)+'</div>'
+      + '<div class="panel"><div class="panel-title"><span>Estimated FTP by month</span></div><div class="pf-sub">Fitted to your best 3 to 20 minute efforts each month, or 95% of the best 20 minutes</div>'+powerHtml(acts, today, half, ftp)+'</div>'
       + '<div class="panel"><div class="panel-title"><span>Intensity mix</span><div class="seg pf-seg" data-seg="mix"><button data-v="28"'+(mixDays === 28 ? ' class="on"' : '')+'>4 wks</button><button data-v="84"'+(mixDays === 84 ? ' class="on"' : '')+'>12 wks</button></div></div><div class="pf-sub">Time by each session\'s average intensity (IF)</div>'+mixHtml(acts, today, mixDays)+'</div>'
       + '</div><div class="pf-two">'
       + '<div class="panel"><div class="panel-title"><span>Run pace by month</span></div><div class="pf-sub">Average pace of runs with a distance</div>'+(paceHtml(acts, today, half, 'run') || '<div class="empty-note">Runs with a distance in at least two months show a trend here.</div>')+'</div>'
