@@ -258,6 +258,20 @@
   .lvl-box .lvl-row b{ font-family:var(--mono, ui-monospace, monospace); text-align:right; }
   .lvl-box .lvl-note{ font-size:12px; color:var(--text-dim); margin:10px 0 14px; }
   .lvl-box .lvl-note a{ color:var(--accent); }
+  /* ---- Ride / Run switch ---- */
+  .sport-switch{ display:inline-flex; gap:3px; padding:3px; margin-bottom:18px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; }
+  .sport-switch button{ border:none; background:transparent; color:var(--text-dim); padding:9px 26px; border-radius:7px; font-size:14.5px; font-weight:600; }
+  .sport-switch button:hover{ color:var(--text); }
+  .sport-switch button[aria-selected="true"]{ background:var(--accent); color:#08211E; }
+  @media (max-width:759px){ .sport-switch{ display:flex; } .sport-switch button{ flex:1; } }
+  #runList{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:12px; }
+  .run-desc{ color:var(--text-dim); font-size:13px; line-height:1.4; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .pace-note{ padding:12px 16px; border:1px solid var(--line); border-radius:10px; color:#B4BDC9; font-size:14px; margin-bottom:18px; }
+  .pace-note a{ color:var(--accent); }
+  #runSuggest .run-sg{ margin:0 0 22px; border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .preview-actions{ gap:10px; flex-wrap:wrap; }
+  .preview-step-row .pace{ display:block; color:var(--text-dim); font-family:var(--mono); font-size:12px; white-space:nowrap; margin-top:2px; }
+  .preview-header{ padding-right:52px; }
 </style>
 </head>
 <body>
@@ -292,9 +306,15 @@
   <div class="main">
     <div class="page-head">
       <h1>Workouts</h1>
-      <a href="create-workout.html"><button class="primary" style="width:auto; padding:9px 18px;">Create Workout</button></a>
+      <a href="create-workout.html" id="createWorkoutLink"><button class="primary" style="width:auto; padding:9px 18px;">Create Workout</button></a>
     </div>
 
+    <div class="sport-switch" role="tablist" aria-label="Show workouts for">
+      <button role="tab" id="sportRide" data-sport="ride" aria-selected="true">Ride</button>
+      <button role="tab" id="sportRun" data-sport="run" aria-selected="false">Run</button>
+    </div>
+
+    <div id="rideView">
     <section class="picker" aria-label="Find a workout">
       <div class="picker-q" id="durQ">How long have you got?</div>
       <div class="picker-opts picker-durs" id="pickerDurs" role="group" aria-labelledby="durQ"></div>
@@ -356,6 +376,52 @@
       </div>
       <div id="libraryList"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>
     </div>
+    </div>
+
+    <div id="runView" hidden>
+      <div id="runSuggest"></div>
+      <div class="pace-note" id="runPaceNote" hidden>Set your threshold pace on <a href="trainerrun.html">TrainerRun</a> to see your target paces in every run.</div>
+      <details class="lvl-box" id="runLevelsBox" hidden><summary><span>Your run levels</span><small id="runLevelsSummary"></small></summary><div id="runLevelsBody"></div></details>
+      <div class="block">
+        <div class="section-row">
+          <div class="section-h">All runs</div>
+          <div class="section-sub" id="runCount"></div>
+        </div>
+        <input type="text" id="runSearch" placeholder="Search runs…" style="margin-bottom:10px;">
+        <div class="lib-filters">
+          <select id="runDuration" aria-label="Duration">
+            <option value="">Any length</option>
+            <option value="0-30">Up to 30 min</option>
+            <option value="30-45">30–45 min</option>
+            <option value="45-60">45–60 min</option>
+            <option value="60-75">60–75 min</option>
+            <option value="75-90">75–90 min</option>
+            <option value="90-">Over 90 min</option>
+          </select>
+          <select id="runType" aria-label="Type">
+            <option value="">All types</option>
+            <option value="walkrun">Walk/run (new runners)</option>
+            <option value="easy">Easy</option>
+            <option value="long">Long</option>
+            <option value="steady">Steady</option>
+            <option value="threshold">Threshold</option>
+            <option value="interval">Intervals</option>
+            <option value="fast">Speed</option>
+            <option value="test">5K test</option>
+          </select>
+          <select id="runSort" aria-label="Sort">
+            <option value="duration_asc">Duration ↑</option>
+            <option value="duration_desc">Duration ↓</option>
+            <option value="if_asc">Intensity ↑</option>
+            <option value="if_desc">Intensity ↓</option>
+            <option value="level_asc">Level ↑</option>
+            <option value="level_desc">Level ↓</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
+        <div id="runList"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -383,11 +449,11 @@ import { computeLevels, workoutLevel, difficultyLabel, zoneInfo, fmtLevel, LEVEL
 import { suggestRide, suggestRun, rideZone, RUN_TRY_KEY, loadFeel } from './suggest.js?v=12';
 import { loadGoals, guidesFor } from './goals.js?v=5';
 import { focusPoints, focusWeights } from './focus.js?v=2';
-import { computeRunLevels, runZoneInfo } from './run-levels.js?v=1';
+import { computeRunLevels, runZoneInfo, runSessionLevel, RUN_LEVEL_ZONES } from './run-levels.js?v=1';
 import { nextSession, loadFollowState, loadDoneDays, todayIso } from './plan-schedule.js?v=6';
 import { applySwaps } from './adapt.js?v=5';
 import { loadHolidays, applyHolidays } from './holidays.js?v=3';
-import { addRuns, openRunLog } from './run.js?v=9';
+import { addRuns, openRunLog, RUN_SESSIONS, BEGINNER_RUNS, PACE_ZONES, runSession, setRunPace, zonePaces, fmtPace } from './run.js?v=9';
 import { openExportSheet } from './export.js?v=3';
 const supabase = createSupabaseClient();
 (async function(){
@@ -469,6 +535,8 @@ const supabase = createSupabaseClient();
     renderFits();
     renderLibrary();
     renderPlanNudge();
+    if (riderPace) setRunPace(riderPace);
+    renderRunView();
   }
   let riderLevels = null, riderByRide = {}, riderRides = [], runLv = null, runTryDismissed = false, runPick = 0, riderGoals = null, riderPace = null;
   const riderGuides = today => guidesFor({ goals: riderGoals, rides: riderRides, byRide: riderByRide, byRun: runLv ? runLv.byRun : {}, today, runPace: riderPace, rideZone });
@@ -694,12 +762,12 @@ const supabase = createSupabaseClient();
       + runCard(today);
   }
   // A run for today as well, for runners (or a first walk/run for anyone who hasn't run yet).
-  function runCard(today){
+  function runCard(today, own = false){
     if (!runLv || (!runLv.runs.length && runTryDismissed)) return '';
     const res = suggestRun({ rides: riderRides, runLevels: runLv.levels, byRun: runLv.byRun, today, feel: loadFeel(today), goal: riderGuides(today).run, focus: riderFocus(today, 'run') });
     if (!res || res.rest) return '';
     const c = res.picks[runPick % res.picks.length], z = runZoneInfo(c.zone);
-    return '<div class="fit-card run-sg"><div class="fit-body"><div class="sg-kicker">'+(runLv.runs.length ? 'Or a run for today' : 'Would you like to try running?')+'</div>'
+    return '<div class="fit-card run-sg"><div class="fit-body"><div class="sg-kicker">'+(runLv.runs.length ? (own ? 'Suggested for today' : 'Or a run for today') : 'Would you like to try running?')+'</div>'
       + '<div><div class="fit-name">'+escapeHtml(c.session.name)+'</div><div class="fit-meta"><span class="cat-dot" style="background:'+z.color+'"></span>Run · '+z.name
       + ' '+(c.step ? '<span class="lvl-chip" style="--zc:'+z.color+'">Step '+c.step+' of '+c.of+'</span>' : '<span class="lvl-chip" style="--zc:'+z.color+'">'+z.short+' '+fmtLevel(c.level)+'</span>'+(c.zone === 'easy' ? '' : '<span class="lvl-diff '+difficultyLabel(c.level, res.levels[c.zone] || 1).key+'">'+difficultyLabel(c.level, res.levels[c.zone] || 1).label+'</span>'))+'</div></div>'
       + '<div class="sg-why">'+escapeHtml(runPick % res.picks.length === 0 ? res.reason : c.session.text)+'</div>'
@@ -709,24 +777,27 @@ const supabase = createSupabaseClient();
       + (res.picks.length > 1 ? '<button class="link-btn" data-run-next>Something else</button>' : '')
       + (runLv.runs.length ? '' : '<button class="link-btn" data-run-no>No thanks</button>')+'</div></div></div>';
   }
-  document.getElementById('suggestCard').addEventListener('click', async e=>{
-    if (e.target.closest('[data-run-next]')){ runPick++; renderSuggest(); return; }
+  async function onSuggestClick(e){
+    if (e.target.closest('[data-run-next]')){ runPick++; renderSuggest(); renderRunView(); return; }
     if (e.target.closest('[data-run-no]')){
-      runTryDismissed = true; renderSuggest();
+      runTryDismissed = true; renderSuggest(); renderRunView();
       try { await supabase.from('settings').upsert({ user_id:user.id, key:RUN_TRY_KEY, value:{ v:true }, updated_at:new Date().toISOString() }, { onConflict:'user_id,key' }); } catch(_){}
       return;
     }
     const log = e.target.closest('[data-log-run]');
     if (log){
       const saved = await openRunLog(supabase, user.id, { session: { dayIndex:null, date: todayIso(), workoutId: log.dataset.logRun }, planId:null });
-      if (saved){ riderRides.push(saved); runLv = computeRunLevels(riderRides); runPick = 0; renderSuggest(); }
+      if (saved) runLogged(saved);
       return;
     }
     const ride = e.target.closest('[data-ride]');
     if (ride){ window.location.href = 'live.html?load=' + encodeURIComponent(ride.dataset.ride); return; }
     const card = e.target.closest('[data-preview]');
     if (card) showWorkoutPreview(card.dataset.preview);
-  });
+  }
+  document.getElementById('suggestCard').addEventListener('click', onSuggestClick);
+  document.getElementById('runSuggest').addEventListener('click', onSuggestClick);
+  function runLogged(saved){ riderRides.push(saved); runLv = computeRunLevels(riderRides); runPick = 0; renderSuggest(); renderRunView(); }
 
   function renderFits(){
     renderSuggest();
@@ -870,6 +941,182 @@ const supabase = createSupabaseClient();
   function fmtLen(sec){ const m = Math.round((sec||0)/60); return m >= 60 ? Math.floor(m/60)+'h'+(m%60 ? ' '+String(m%60).padStart(2,'0')+'m' : '') : m+' min'; }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+  // ---- Ride / Run switch: Run lists every run in the TrainerRun library ----
+  const sportParam = new URLSearchParams(location.search).get('sport');
+  let sport = sportParam === 'run' || sportParam === 'ride' ? sportParam : (prefs.sport === 'run' ? 'run' : 'ride');
+  function applySport(){
+    document.querySelectorAll('.sport-switch [data-sport]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sport === sport)));
+    document.getElementById('rideView').hidden = sport !== 'ride';
+    document.getElementById('runView').hidden = sport !== 'run';
+    document.getElementById('createWorkoutLink').hidden = sport !== 'ride';
+  }
+  document.querySelector('.sport-switch').addEventListener('click', e => {
+    const b = e.target.closest('[data-sport]');
+    if (!b || b.dataset.sport === sport) return;
+    sport = b.dataset.sport; prefs.sport = sport; savePrefs();
+    try { const u = new URL(location.href); u.searchParams.set('sport', sport); history.replaceState(null, '', u); } catch(_){}
+    applySport(); renderRunView();
+  });
+  applySport();
+
+  const RUN_TYPES = {
+    walkrun:   { label:'Walk/run',  color:'#7FB3FF' },
+    easy:      { label:'Easy',      color:'#4C8BF5' },
+    long:      { label:'Long',      color:'#2F6BD8' },
+    steady:    { label:'Steady',    color:'#3DBE7A' },
+    threshold: { label:'Threshold', color:'#E8B93D' },
+    interval:  { label:'Intervals', color:'#F08A3C' },
+    fast:      { label:'Speed',     color:'#E5484D' },
+    test:      { label:'5K test',   color:'#C04BD8' },
+  };
+  const PZ = Object.fromEntries(PACE_ZONES.map(z => [z.id, z]));
+  // Every library run once (the rl-… library plus the built-in easy/long/strides/tempo runs), with its type and level.
+  function allRuns(){
+    const seen = new Set(), out = [];
+    for (const id of Object.keys(RUN_SESSIONS)){
+      if (!/^(rl-|run-(easy|long|strides|tempo))/.test(id)) continue;
+      const s = runSession(id); if (!s) continue;
+      const key = s.name+'|'+s.mins; if (seen.has(key)) continue; seen.add(key);
+      const l = runSessionLevel(id);
+      const type = s.kind === 'beginner' ? 'walkrun' : s.kind === 'test' ? 'test' : s.kind === 'long' ? 'long' : (l ? l.zone : 'easy');
+      out.push({ id, s, l, type });
+    }
+    return out;
+  }
+  // Seconds and colour of each piece of a run, for the profile charts.
+  function runPieces(steps){
+    const T = riderPace || 300, out = [];
+    const len = st => st.km ? st.km * T * (st.zone === 'race' ? 1/(st.IF || 1) : PZ[st.zone] ? (PZ[st.zone].lo + PZ[st.zone].hi)/2 : 1.25) : (st.mins || 0)*60 + (st.secs || 0);
+    const piece = (sec, zone) => {
+      const IF = zone === 'race' ? 1.04 : zone === 'walk' ? 0.45 : zone === 'jog' ? 0.62 : (PZ[zone] || PZ.easy).IF;
+      const color = zone === 'race' ? RUN_TYPES.test.color : zone === 'walk' || zone === 'jog' ? '#5A6472' : (PZ[zone] || PZ.easy).color;
+      out.push({ sec, IF, color, zone });
+    };
+    for (const st of steps || []){
+      for (let i = 0; i < (st.reps || 1); i++){
+        piece(len(st), st.zone);
+        if (st.rec && i < (st.reps || 1) - 1) piece((st.rec.mins || 0)*60 + (st.rec.secs || 0), st.rec.kind === 'walk' ? 'walk' : 'jog');
+      }
+    }
+    return out;
+  }
+  function runProfileSVG(steps, cls, H = 100, minH = 15){
+    const ps = runPieces(steps), total = ps.reduce((a, p) => a + p.sec, 0) || 1;
+    let x = 0;
+    return '<svg viewBox="0 0 100 '+H+'" preserveAspectRatio="none" class="'+cls+'" aria-hidden="true">'+ps.map(p => {
+      const w = p.sec/total*100, h = Math.max(minH, Math.min(H, (p.IF - 0.3)/0.85*H));
+      const r = '<rect x="'+x+'" y="'+(H-h)+'" width="'+Math.max(0.4, w-0.3)+'" height="'+h+'" fill="'+p.color+'"/>';
+      x += w; return r;
+    }).join('')+'</svg>';
+  }
+  const hasRuns = () => !!(runLv && runLv.runs.length);
+  function runLevelChip(r){
+    const i = BEGINNER_RUNS.indexOf(r.id);
+    if (i >= 0) return '<span class="lvl-chip" style="--zc:'+RUN_TYPES.walkrun.color+'">Step '+(i+1)+' of '+BEGINNER_RUNS.length+'</span>';
+    if (r.type === 'test') return '<span class="lvl-chip" style="--zc:'+RUN_TYPES.test.color+'">Benchmark</span>';
+    if (!r.l) return '';
+    const z = runZoneInfo(r.l.zone);
+    const d = hasRuns() && r.l.zone !== 'easy' ? difficultyLabel(r.l.level, runLv.levels[r.l.zone] || 1) : null;
+    return '<span class="lvl-chip" style="--zc:'+z.color+'"'+(hasRuns() ? ' title="Your '+z.name+' run level is '+fmtLevel(runLv.levels[r.l.zone])+'"' : '')+'>'+z.short+' '+fmtLevel(r.l.level)+'</span>'
+      + (d ? '<span class="lvl-diff '+d.key+'">'+d.label+'</span>' : '');
+  }
+  const runPrefs = { dur:'runDuration', type:'runType', sort:'runSort' };
+  for (const [k, id] of Object.entries(runPrefs)){
+    const sel = document.getElementById(id), v = prefs['run_'+k];
+    if (v && [...sel.options].some(o => o.value === v)) sel.value = v;
+    sel.addEventListener('change', () => { prefs['run_'+k] = sel.value; savePrefs(); renderRunList(); });
+  }
+  document.getElementById('runSearch').addEventListener('input', renderRunList);
+
+  function renderRunView(){
+    if (sport !== 'run') return;
+    document.getElementById('runSuggest').innerHTML = runLv ? runCard(todayIso(), true) : '';
+    document.getElementById('runPaceNote').hidden = !!riderPace;
+    const box = document.getElementById('runLevelsBox');
+    if (hasRuns()){
+      const top = RUN_LEVEL_ZONES.reduce((a, z) => runLv.levels[z.key] > runLv.levels[a.key] ? z : a, RUN_LEVEL_ZONES[0]);
+      document.getElementById('runLevelsSummary').textContent = 'Highest: '+top.name+' '+fmtLevel(runLv.levels[top.key]);
+      document.getElementById('runLevelsBody').innerHTML = '<div class="lvl-rows">'+RUN_LEVEL_ZONES.map(z=>'<div class="lvl-row"><span class="zn"><i style="background:'+z.color+'"></i>'+z.name+'</span>'
+        + '<span class="track"><i style="width:'+(runLv.levels[z.key]/10*100).toFixed(1)+'%; background:'+z.color+'"></i></span><b>'+fmtLevel(runLv.levels[z.key])+'</b></div>').join('')+'</div>'
+        + '<p class="lvl-note">Run levels go up when you log a run at or above them. Pick Achievable or Productive runs to keep moving.</p>';
+      box.hidden = false;
+    } else box.hidden = true;
+    renderRunList();
+  }
+  function renderRunList(){
+    const el = document.getElementById('runList'), countEl = document.getElementById('runCount');
+    const all = allRuns();
+    const durVal = document.getElementById('runDuration').value, typeVal = document.getElementById('runType').value;
+    const sortVal = document.getElementById('runSort').value, q = document.getElementById('runSearch').value.trim().toLowerCase();
+    let items = all;
+    if (durVal){ const [lo, hi] = durVal.split('-').map(x => x === '' ? Infinity : parseInt(x, 10)); items = items.filter(r => r.s.mins > lo && r.s.mins <= hi + 1); }
+    if (typeVal) items = items.filter(r => r.type === typeVal);
+    if (q) items = items.filter(r => (r.s.name+' '+RUN_TYPES[r.type].label).toLowerCase().includes(q));
+    const lvl = r => r.l ? r.l.level : 0;
+    // Runners see the walk/run steps last, in step order, so they don't break up the real list.
+    const wrLast = hasRuns() && sortVal !== 'name';
+    items = items.slice().sort((a, b) => {
+      if (wrLast && (a.type === 'walkrun' || b.type === 'walkrun')){
+        if (a.type !== b.type) return a.type === 'walkrun' ? 1 : -1;
+        return BEGINNER_RUNS.indexOf(a.id) - BEGINNER_RUNS.indexOf(b.id);
+      }
+      if (sortVal === 'duration_desc') return b.s.mins - a.s.mins || a.s.name.localeCompare(b.s.name);
+      if (sortVal === 'if_asc') return a.s.IF - b.s.IF;
+      if (sortVal === 'if_desc') return b.s.IF - a.s.IF;
+      if (sortVal === 'level_asc') return lvl(a) - lvl(b);
+      if (sortVal === 'level_desc') return lvl(b) - lvl(a);
+      if (sortVal === 'name') return a.s.name.localeCompare(b.s.name) || a.s.mins - b.s.mins;
+      return a.s.mins - b.s.mins || a.s.name.localeCompare(b.s.name);
+    });
+    const filtered = !!(durVal || typeVal || q);
+    countEl.textContent = filtered ? items.length+' of '+all.length : all.length+' runs';
+    if (!items.length){
+      el.innerHTML = '<div class="lib-empty">No runs match these filters. <button class="link-btn" id="clearRunFilters">Clear filters</button></div>';
+      document.getElementById('clearRunFilters').onclick = () => {
+        ['runDuration', 'runType', 'runSearch'].forEach(id => document.getElementById(id).value = '');
+        prefs.run_dur = prefs.run_type = ''; savePrefs(); renderRunList();
+      };
+      return;
+    }
+    el.innerHTML = items.map(r => '<div class="lib-item" data-run="'+escapeHtml(r.id)+'">'
+      + '<div class="lib-item-row">'+runProfileSVG(r.s.steps, 'lib-chart')
+      + '<div class="lib-item-text"><div class="lib-name">'+escapeHtml(r.s.name)+'<span class="lib-tag" style="color:'+RUN_TYPES[r.type].color+'">'+RUN_TYPES[r.type].label+'</span></div>'
+      + '<div class="lib-meta">'+fmtLen(r.s.mins*60)+(r.s.tss ? '  ·  '+r.s.tss+' TSS' : '')+'</div>'
+      + '<div class="lib-levels">'+runLevelChip(r)+'</div></div></div>'
+      + '<div class="run-desc">'+escapeHtml(r.s.text)+'</div>'
+      + '</div>').join('');
+  }
+  document.getElementById('runList').addEventListener('click', e => { const row = e.target.closest('[data-run]'); if (row) showRunPreview(row.dataset.run); });
+
+  function showRunPreview(id){
+    const s = runSession(id); if (!s) return;
+    const r = allRuns().find(x => x.id === id) || { id, s, l: runSessionLevel(id), type:'easy' };
+    document.getElementById('previewName').textContent = s.name;
+    document.getElementById('previewTag').textContent = RUN_TYPES[r.type].label;
+    document.getElementById('previewStats').textContent = fmtLen(s.mins*60) + (s.tss ? '  ·  '+s.tss+' TSS' : '') + (riderPace ? '  ·  threshold '+fmtPace(riderPace)+'/km' : '');
+    document.getElementById('previewChart').setAttribute('viewBox', '0 0 100 40');
+    document.getElementById('previewChart').innerHTML = runProfileSVG(s.steps, '', 38, 6).replace(/^<svg[^>]*>|<\/svg>$/g, '');
+    const lenTxt = st => st.km ? (st.km >= 1 ? (Math.round(st.km*10)/10)+' km' : Math.round(st.km*1000)+' m') : st.mins ? st.mins+' min' : st.secs+' s';
+    const paceTxt = zone => { const p = zonePaces(zone, riderPace); return p ? fmtPace(p[0])+'–'+fmtPace(p[1])+'/km' : ''; };
+    document.getElementById('previewSteps').innerHTML = (s.blurb ? '<p class="sg-why" style="margin:0 0 12px">'+escapeHtml(s.blurb)+'</p>' : '') + s.steps.map(st => {
+      const zn = st.zone === 'race' ? 'Race pace' : st.zone === 'walk' ? 'Brisk walk' : (PZ[st.zone] || PZ.easy).name;
+      const pace = st.zone === 'race' || st.zone === 'walk' ? '' : paceTxt(st.zone);
+      const rec = st.reps && st.rec ? lenTxt(st.rec)+' '+(st.rec.kind === 'walk' ? 'walk' : 'jog')+' between' : (PZ[st.zone] ? PZ[st.zone].feel : '');
+      return '<div class="preview-step-row"><div class="dur" style="width:90px">'+(st.reps ? st.reps+' × '+lenTxt(st) : lenTxt(st))+'</div>'
+        + '<div class="tgt">'+zn+(pace ? '<span class="pace">'+pace+'</span>' : '')+'</div>'
+        + '<div class="note">'+escapeHtml(rec)+'</div></div>';
+    }).join('');
+    const go = document.getElementById('previewLoadLiveBtn');
+    go.textContent = 'Log run';
+    go.onclick = async () => {
+      document.getElementById('previewOverlay').style.display = 'none';
+      const saved = await openRunLog(supabase, user.id, { session: { dayIndex:null, date: todayIso(), workoutId: id }, planId:null });
+      if (saved) runLogged(saved);
+    };
+    document.getElementById('previewExportBtn').onclick = () => openExportSheet({ kind:'run', session: runSession(id), T: riderPace });
+    document.getElementById('previewOverlay').style.display = 'flex';
+  }
+
   // ---- library row actions (delegated) ----
   function targetLabel(step){
     if (step.targetType==='ftp_pct') return step.low+'–'+step.high+'% FTP';
@@ -914,6 +1161,7 @@ const supabase = createSupabaseClient();
         + '</div>';
     }).join('');
 
+    document.getElementById('previewLoadLiveBtn').textContent = 'Load to Live Ride';
     document.getElementById('previewLoadLiveBtn').onclick = ()=>{
       window.location.href = 'live.html?load=' + encodeURIComponent(w.id);
     };
